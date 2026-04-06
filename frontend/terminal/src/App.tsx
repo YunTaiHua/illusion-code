@@ -39,6 +39,11 @@ type SelectModalState = {
 	onSelect: (value: string) => void;
 } | null;
 
+const PERMISSION_PROMPT_OPTIONS: SelectOption[] = [
+	{value: 'allow', label: 'Allow', description: 'Approve this tool execution'},
+	{value: 'deny', label: 'Deny', description: 'Reject this tool execution'},
+];
+
 export function App({config}: {config: FrontendConfig}): React.JSX.Element {
 	const initialTheme = String((config as Record<string, unknown>).theme ?? 'default');
 	return (
@@ -59,7 +64,12 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	const [pickerIndex, setPickerIndex] = useState(0);
 	const [selectModal, setSelectModal] = useState<SelectModalState>(null);
 	const [selectIndex, setSelectIndex] = useState(0);
+	const [permissionIndex, setPermissionIndex] = useState(1);
+	const [pendingPermissionAck, setPendingPermissionAck] = useState(false);
 	const session = useBackendSession(config, () => exit());
+	const isPermissionModal = session.modal?.kind === 'permission';
+	const permissionRequestId =
+		isPermissionModal && typeof session.modal?.request_id === 'string' ? String(session.modal.request_id) : '';
 
 	// Current tool name for spinner
 	const currentToolName = useMemo(() => {
@@ -105,13 +115,22 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			title: req.title,
 			options: req.options.map((o) => ({value: o.value, label: o.label, description: o.description})),
 			onSelect: (value) => {
-				session.sendRequest({type: 'submit_line', line: `${req.submitPrefix}${value}`});
+				session.sendRequest({type: 'apply_select_command', command: req.command, value});
 				session.setBusy(true);
 				setSelectModal(null);
 			},
 		});
 		session.setSelectRequest(null);
 	}, [session.selectRequest]);
+
+	useEffect(() => {
+		if (!isPermissionModal) {
+			setPendingPermissionAck(false);
+			return;
+		}
+		setPermissionIndex(1);
+		setPendingPermissionAck(false);
+	}, [permissionRequestId, isPermissionModal]);
 
 	// Intercept special commands that need interactive UI
 	const handleCommand = (cmd: string): boolean => {
@@ -226,23 +245,25 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 		}
 
 		// --- Permission modal (MUST be before busy check — modal appears while busy) ---
-		if (session.modal?.kind === 'permission') {
-			if (chunk.toLowerCase() === 'y') {
-				session.sendRequest({
-					type: 'permission_response',
-					request_id: session.modal.request_id,
-					allowed: true,
-				});
-				session.setModal(null);
+		if (isPermissionModal) {
+			if (pendingPermissionAck) {
 				return;
 			}
-			if (chunk.toLowerCase() === 'n' || key.escape) {
+			if (key.upArrow || key.downArrow) {
+				setPermissionIndex((i) => (i === 0 ? 1 : 0));
+				return;
+			}
+			if (key.return || key.escape) {
+				if (!permissionRequestId) {
+					return;
+				}
+				const allowed = key.escape ? false : permissionIndex === 0;
 				session.sendRequest({
 					type: 'permission_response',
-					request_id: session.modal.request_id,
-					allowed: false,
+					request_id: permissionRequestId,
+					allowed,
 				});
-				session.setModal(null);
+				setPendingPermissionAck(true);
 				return;
 			}
 			return;
@@ -366,8 +387,17 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 				/>
 			</Box>
 
-			{/* Backend modal (permission confirm, question, mcp auth) */}
-			{session.modal ? (
+			{/* Permission confirm modal */}
+			{isPermissionModal ? (
+				<SelectModal
+					title={`Allow ${String(session.modal?.tool_name ?? 'tool')}?`}
+					options={PERMISSION_PROMPT_OPTIONS}
+					selectedIndex={permissionIndex}
+				/>
+			) : null}
+
+			{/* Backend modal (question, mcp auth) */}
+			{session.modal && !isPermissionModal ? (
 				<ModalHost
 					modal={session.modal}
 					modalInput={modalInput}
@@ -410,7 +440,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 				<Box>
 					<Text color={theme.colors.warning}>Connecting to backend...</Text>
 				</Box>
-			) : session.modal || selectModal ? null : (
+			) : session.modal || selectModal || pendingPermissionAck ? null : (
 				<PromptInput
 					busy={session.busy}
 					input={input}
@@ -422,7 +452,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			)}
 
 			{/* Keyboard hints (only after backend is ready) */}
-			{session.ready && !session.modal && !session.busy && !selectModal ? (
+			{session.ready && !session.modal && !session.busy && !selectModal && !pendingPermissionAck ? (
 				<Box>
 					<Text dimColor>
 						<Text color={theme.colors.primary}>enter</Text> send{'  '}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import shutil
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,7 @@ from illusion.tools.skill_tool import SkillTool, SkillToolInput
 from illusion.tools.todo_write_tool import TodoWriteTool, TodoWriteToolInput
 from illusion.tools.tool_search_tool import ToolSearchTool, ToolSearchToolInput
 from illusion.tools import create_default_tool_registry
+from illusion.platforms import get_platform
 
 
 @pytest.mark.asyncio
@@ -80,12 +82,32 @@ async def test_glob_and_grep(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_bash_tool_runs_command(tmp_path: Path):
+    if get_platform() == "windows":
+        bash_path = shutil.which("bash")
+        normalized = (bash_path or "").replace("/", "\\").lower()
+        if (not bash_path) or normalized.endswith("\\windows\\system32\\bash.exe"):
+            pytest.skip("No usable bash available on this Windows environment")
+
     result = await BashTool().execute(
         BashToolInput(command="printf 'hello'"),
         ToolExecutionContext(cwd=tmp_path),
     )
     assert result.is_error is False
     assert result.output == "hello"
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_returns_clear_error_when_bash_missing_on_windows(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("illusion.tools.bash_tool.get_platform", lambda: "windows")
+    monkeypatch.setattr("illusion.tools.bash_tool.shutil.which", lambda _name: None)
+
+    result = await BashTool().execute(
+        BashToolInput(command="rm -rf test"),
+        ToolExecutionContext(cwd=tmp_path),
+    )
+
+    assert result.is_error is True
+    assert "Bash is not available on this Windows machine" in result.output
 
 
 @pytest.mark.asyncio
@@ -230,8 +252,12 @@ async def test_cron_and_remote_trigger_tools(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
     context = ToolExecutionContext(cwd=tmp_path)
 
+    cron_command = "printf 'CRON_OK'"
+    if get_platform() == "windows":
+        cron_command = "Write-Output CRON_OK"
+
     create_result = await CronCreateTool().execute(
-        CronCreateToolInput(name="nightly", schedule="0 0 * * *", command="printf 'CRON_OK'"),
+        CronCreateToolInput(name="nightly", schedule="0 0 * * *", command=cron_command),
         context,
     )
     assert create_result.is_error is False

@@ -98,10 +98,12 @@ class ReactBackendHost:
                 if request.type == "permission_response":
                     if request.request_id in self._permission_requests:
                         self._permission_requests[request.request_id].set_result(bool(request.allowed))
+                    await self._emit(BackendEvent(type="modal_request", modal=None))
                     continue
                 if request.type == "question_response":
                     if request.request_id in self._question_requests:
                         self._question_requests[request.request_id].set_result(request.answer or "")
+                    await self._emit(BackendEvent(type="modal_request", modal=None))
                     continue
                 if request.type == "list_sessions":
                     await self._handle_list_sessions()
@@ -164,6 +166,20 @@ class ReactBackendHost:
             except Exception as exc:  # pragma: no cover - defensive protocol handling
                 await self._emit(BackendEvent(type="error", message=f"Invalid request: {exc}"))
                 continue
+
+            # Resolve modal interactions immediately to avoid deadlock while the
+            # main loop is waiting inside _process_line() for user input.
+            if request.type == "permission_response":
+                if request.request_id in self._permission_requests:
+                    self._permission_requests[request.request_id].set_result(bool(request.allowed))
+                await self._emit(BackendEvent(type="modal_request", modal=None))
+                continue
+            if request.type == "question_response":
+                if request.request_id in self._question_requests:
+                    self._question_requests[request.request_id].set_result(request.answer or "")
+                await self._emit(BackendEvent(type="modal_request", modal=None))
+                continue
+
             await self._request_queue.put(request)
 
     async def _process_line(self, line: str, *, transcript_line: str | None = None) -> bool:

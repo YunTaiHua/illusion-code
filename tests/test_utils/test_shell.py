@@ -34,3 +34,24 @@ def test_resolve_shell_command_uses_powershell_on_windows(monkeypatch):
         "-Command",
         "Write-Output hi",
     ]
+
+
+def test_resolve_shell_command_ignores_windows_bash_shim(monkeypatch):
+    def fake_which(name: str) -> str | None:
+        mapping = {
+            "bash": r"C:\Windows\System32\bash.exe",
+            "powershell": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+        }
+        return mapping.get(name)
+
+    monkeypatch.setattr("illusion.utils.shell.shutil.which", fake_which)
+
+    command = resolve_shell_command("echo hi", platform_name="windows")
+
+    assert command == [
+        r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+        "-NoLogo",
+        "-NoProfile",
+        "-Command",
+        "echo hi",
+    ]

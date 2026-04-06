@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import locale
+import shutil
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from illusion.platforms import get_platform
 from illusion.sandbox import SandboxUnavailableError
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 from illusion.utils.shell import create_shell_subprocess
@@ -105,6 +108,18 @@ Use the gh command via the Bash tool for other GitHub-related tasks including wo
     input_model = BashToolInput
 
     async def execute(self, arguments: BashToolInput, context: ToolExecutionContext) -> ToolResult:
+        if get_platform() == "windows":
+            bash_path = shutil.which("bash")
+            normalized = (bash_path or "").replace("/", "\\").lower()
+            if (not bash_path) or normalized.endswith("\\windows\\system32\\bash.exe"):
+                return ToolResult(
+                    output=(
+                        "Bash is not available on this Windows machine. "
+                        "Use the powershell tool for command execution."
+                    ),
+                    is_error=True,
+                )
+
         cwd = Path(arguments.cwd).expanduser() if arguments.cwd else context.cwd
         try:
             process = await create_shell_subprocess(
@@ -132,9 +147,9 @@ Use the gh command via the Bash tool for other GitHub-related tasks including wo
 
         parts = []
         if stdout:
-            parts.append(stdout.decode("utf-8", errors="replace").rstrip())
+            parts.append(_decode_shell_output(stdout).rstrip())
         if stderr:
-            parts.append(stderr.decode("utf-8", errors="replace").rstrip())
+            parts.append(_decode_shell_output(stderr).rstrip())
 
         text = "\n".join(part for part in parts if part).strip()
         if not text:
@@ -148,3 +163,26 @@ Use the gh command via the Bash tool for other GitHub-related tasks including wo
             is_error=process.returncode != 0,
             metadata={"returncode": process.returncode},
         )
+
+
+def _decode_shell_output(data: bytes) -> str:
+    """Decode shell output robustly across UTF-8/UTF-16/locale encodings."""
+    if not data:
+        return ""
+
+    encodings: list[str] = ["utf-8"]
+    preferred = locale.getpreferredencoding(False)
+    if preferred and preferred.lower() not in {"utf-8", "utf8"}:
+        encodings.append(preferred)
+
+    # Windows PowerShell often emits UTF-16LE for redirected output.
+    if b"\x00" in data:
+        encodings.append("utf-16-le")
+
+    for encoding in encodings:
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+
+    return data.decode("utf-8", errors="replace")

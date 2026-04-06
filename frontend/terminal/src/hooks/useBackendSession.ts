@@ -7,6 +7,7 @@ import type {
 	BridgeSessionSnapshot,
 	FrontendConfig,
 	McpServerSnapshot,
+	SelectRequestPayload,
 	SelectOptionPayload,
 	SwarmNotificationSnapshot,
 	SwarmTeammateSnapshot,
@@ -27,7 +28,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 	const [mcpServers, setMcpServers] = useState<McpServerSnapshot[]>([]);
 	const [bridgeSessions, setBridgeSessions] = useState<BridgeSessionSnapshot[]>([]);
 	const [modal, setModal] = useState<Record<string, unknown> | null>(null);
-	const [selectRequest, setSelectRequest] = useState<{title: string; command: string; options: SelectOptionPayload[]} | null>(null);
+	const [selectRequest, setSelectRequest] = useState<SelectRequestPayload | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [ready, setReady] = useState(false);
 	const [todoMarkdown, setTodoMarkdown] = useState('');
@@ -181,7 +182,6 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			const text = event.message ?? assistantBufferRef.current;
 			setTranscript((items) => [...items, {role: 'assistant', text}]);
 			clearAssistantDelta();
-			setBusy(false);
 			return;
 		}
 		if (event.type === 'line_complete') {
@@ -192,6 +192,9 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			return;
 		}
 		if ((event.type === 'tool_started' || event.type === 'tool_completed') && event.item) {
+			if (event.type === 'tool_started') {
+				setBusy(true);
+			}
 			const enrichedItem: TranscriptItem = {
 				...event.item,
 				tool_name: event.item.tool_name ?? event.tool_name ?? undefined,

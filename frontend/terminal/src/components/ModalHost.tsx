@@ -113,9 +113,7 @@ export function ModalHost({
 				) : null}
 				<Text>
 					<Text color="yellow">{'\u2514 '}</Text>
-					<Text color="green">[y] Allow</Text>
-					<Text>{'  '}</Text>
-					<Text color="red">[n] Deny</Text>
+					<Text dimColor>Use up/down and enter to confirm</Text>
 				</Text>
 			</Box>
 		);

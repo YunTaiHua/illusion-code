@@ -46,6 +46,12 @@ export type SelectOptionPayload = {
 	active?: boolean;
 };
 
+export type SelectRequestPayload = {
+	title: string;
+	command: string;
+	options: SelectOptionPayload[];
+};
+
 export type TodoItemSnapshot = {
 	text: string;
 	checked: boolean;

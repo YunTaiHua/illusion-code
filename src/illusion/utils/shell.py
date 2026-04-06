@@ -21,7 +21,7 @@ def resolve_shell_command(
     """Return argv for the best available shell on the current platform."""
     resolved_platform = platform_name or get_platform()
     if resolved_platform == "windows":
-        bash = shutil.which("bash")
+        bash = _resolve_windows_bash()
         if bash:
             return [bash, "-lc", command]
         powershell = shutil.which("pwsh") or shutil.which("powershell")
@@ -75,3 +75,42 @@ async def _cleanup_after_exit(process: asyncio.subprocess.Process, cleanup_path:
         await process.wait()
     finally:
         cleanup_path.unlink(missing_ok=True)
+
+
+def _resolve_windows_bash() -> str | None:
+    """Resolve a usable bash executable on Windows.
+
+    Ignore the legacy Windows system shim at C:\\Windows\\System32\\bash.exe,
+    which may fail or emit unreadable output on machines without WSL setup.
+    """
+    bash = shutil.which("bash")
+    if bash and not _is_windows_bash_shim(bash):
+        return bash
+
+    for candidate in _windows_git_bash_candidates():
+        if candidate.exists():
+            return str(candidate)
+
+    return None
+
+
+def _windows_git_bash_candidates() -> list[Path]:
+    roots: list[str] = []
+    for key in ("ProgramFiles", "ProgramFiles(x86)", "LocalAppData"):
+        value = os.environ.get(key)
+        if value:
+            roots.append(value)
+
+    candidates: list[Path] = []
+    for root in roots:
+        base = Path(root)
+        candidates.append(base / "Git" / "bin" / "bash.exe")
+        candidates.append(base / "Git" / "usr" / "bin" / "bash.exe")
+        candidates.append(base / "Programs" / "Git" / "bin" / "bash.exe")
+        candidates.append(base / "Programs" / "Git" / "usr" / "bin" / "bash.exe")
+    return candidates
+
+
+def _is_windows_bash_shim(path: str) -> bool:
+    normalized = path.replace("/", "\\").lower()
+    return normalized.endswith("\\windows\\system32\\bash.exe")
