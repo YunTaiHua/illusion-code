@@ -1,8 +1,8 @@
-"""Settings model and loading logic for IllusionCode.
+"""Settings model and loading logic for illusion.
 
 Settings are resolved with the following precedence (highest first):
 1. CLI arguments
-2. Environment variables (ANTHROPIC_API_KEY, ILLUSION_MODEL, etc.)
+2. Environment variables (ANTHROPIC_API_KEY, illusion_MODEL, etc.)
 3. Config file (~/.illusion/settings.json)
 4. Defaults
 """
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -72,15 +73,283 @@ class SandboxSettings(BaseModel):
     filesystem: SandboxFilesystemSettings = Field(default_factory=SandboxFilesystemSettings)
 
 
+class ProviderProfile(BaseModel):
+    """Named provider workflow configuration."""
+
+    label: str
+    provider: str
+    api_format: str
+    auth_source: str
+    default_model: str
+    base_url: str | None = None
+    last_model: str | None = None
+
+    @property
+    def resolved_model(self) -> str:
+        """Return the active model for this profile."""
+        return resolve_model_setting(
+            (self.last_model or "").strip() or self.default_model,
+            self.provider,
+            default_model=self.default_model,
+        )
+
+
+@dataclass(frozen=True)
+class ResolvedAuth:
+    """Normalized auth material used to construct API clients."""
+
+    provider: str
+    auth_kind: str
+    value: str
+    source: str
+    state: str = "configured"
+
+
+CLAUDE_MODEL_ALIAS_OPTIONS: tuple[tuple[str, str, str], ...] = (
+    ("default", "Default", "Recommended model for this profile"),
+    ("best", "Best", "Most capable available model"),
+    ("sonnet", "Sonnet", "Latest Sonnet for everyday coding"),
+    ("opus", "Opus", "Latest Opus for complex reasoning"),
+    ("haiku", "Haiku", "Fastest Claude model"),
+    ("sonnet[1m]", "Sonnet (1M context)", "Latest Sonnet with 1M context"),
+    ("opus[1m]", "Opus (1M context)", "Latest Opus with 1M context"),
+    ("opusplan", "Opus Plan Mode", "Use Opus in plan mode and Sonnet otherwise"),
+)
+
+_CLAUDE_ALIAS_TARGETS: dict[str, str] = {
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-6",
+    "haiku": "claude-haiku-4-5",
+    "sonnet[1m]": "claude-sonnet-4-6[1m]",
+    "opus[1m]": "claude-opus-4-6[1m]",
+}
+
+
+def normalize_anthropic_model_name(model: str) -> str:
+    """Normalize an Anthropic model name the same way Hermes does.
+
+    - Strips the ``anthropic/`` prefix when present.
+    - Converts dotted Claude version separators to Anthropic's hyphenated form.
+    """
+    normalized = model.strip()
+    lower = normalized.lower()
+    if lower.startswith("anthropic/"):
+        normalized = normalized[len("anthropic/"):]
+        lower = normalized.lower()
+    if lower.startswith("claude-"):
+        return normalized.replace(".", "-")
+    return normalized
+
+
+def default_provider_profiles() -> dict[str, ProviderProfile]:
+    """Return the built-in provider workflow catalog."""
+    return {
+        "claude-api": ProviderProfile(
+            label="Claude API",
+            provider="anthropic",
+            api_format="anthropic",
+            auth_source="anthropic_api_key",
+            default_model="claude-sonnet-4-6",
+        ),
+        "claude-subscription": ProviderProfile(
+            label="Claude Subscription",
+            provider="anthropic_claude",
+            api_format="anthropic",
+            auth_source="claude_subscription",
+            default_model="claude-sonnet-4-6",
+        ),
+        "openai-compatible": ProviderProfile(
+            label="OpenAI Compatible",
+            provider="openai",
+            api_format="openai",
+            auth_source="openai_api_key",
+            default_model="gpt-5.4",
+        ),
+        "codex": ProviderProfile(
+            label="Codex Subscription",
+            provider="openai_codex",
+            api_format="openai",
+            auth_source="codex_subscription",
+            default_model="gpt-5.4",
+        ),
+        "copilot": ProviderProfile(
+            label="GitHub Copilot",
+            provider="copilot",
+            api_format="copilot",
+            auth_source="copilot_oauth",
+            default_model="gpt-5.4",
+        ),
+    }
+
+
+def builtin_provider_profile_names() -> set[str]:
+    """Return the names of built-in provider profiles."""
+    return set(default_provider_profiles())
+
+
+def is_claude_family_provider(provider: str) -> bool:
+    """Return True when the provider is a Claude/Anthropic workflow."""
+    return provider in {"anthropic", "anthropic_claude"}
+
+
+def display_model_setting(profile: ProviderProfile) -> str:
+    """Return the user-facing model setting for a profile."""
+    configured = (profile.last_model or "").strip()
+    if not configured and is_claude_family_provider(profile.provider):
+        return "default"
+    return configured or profile.default_model
+
+
+def resolve_model_setting(
+    model_setting: str,
+    provider: str,
+    *,
+    default_model: str | None = None,
+    permission_mode: str | None = None,
+) -> str:
+    """Resolve a user-facing model setting into the concrete runtime model ID."""
+    configured = model_setting.strip()
+    normalized = configured.lower()
+
+    if not configured or normalized == "default":
+        fallback = (default_model or "").strip()
+        if fallback and fallback.lower() != "default":
+            return resolve_model_setting(
+                fallback,
+                provider,
+                default_model=None,
+                permission_mode=permission_mode,
+            )
+        if is_claude_family_provider(provider):
+            return _CLAUDE_ALIAS_TARGETS["sonnet"]
+        return "gpt-5.4"
+
+    if is_claude_family_provider(provider):
+        if normalized == "best":
+            return _CLAUDE_ALIAS_TARGETS["opus"]
+        if normalized == "opusplan":
+            if permission_mode == PermissionMode.PLAN.value:
+                return _CLAUDE_ALIAS_TARGETS["opus"]
+            return _CLAUDE_ALIAS_TARGETS["sonnet"]
+        if normalized in _CLAUDE_ALIAS_TARGETS:
+            return _CLAUDE_ALIAS_TARGETS[normalized]
+        return normalize_anthropic_model_name(configured)
+
+    if provider in {"openai", "openai_codex", "copilot"} and normalized in {"default", "best"}:
+        return "gpt-5.4"
+
+    return configured
+
+
+def auth_source_provider_name(auth_source: str) -> str:
+    """Map an auth source to the storage/runtime provider name."""
+    mapping = {
+        "anthropic_api_key": "anthropic",
+        "openai_api_key": "openai",
+        "codex_subscription": "openai_codex",
+        "claude_subscription": "anthropic_claude",
+        "copilot_oauth": "copilot",
+        "dashscope_api_key": "dashscope",
+        "bedrock_api_key": "bedrock",
+        "vertex_api_key": "vertex",
+    }
+    return mapping.get(auth_source, auth_source)
+
+
+def default_auth_source_for_provider(provider: str, api_format: str | None = None) -> str:
+    """Infer the default auth source for a provider/backend."""
+    if provider == "anthropic_claude":
+        return "claude_subscription"
+    if provider == "openai_codex":
+        return "codex_subscription"
+    if provider == "copilot":
+        return "copilot_oauth"
+    if provider == "dashscope":
+        return "dashscope_api_key"
+    if provider == "bedrock":
+        return "bedrock_api_key"
+    if provider == "vertex":
+        return "vertex_api_key"
+    if provider == "openai" or api_format == "openai":
+        return "openai_api_key"
+    return "anthropic_api_key"
+
+
+def _slugify_profile_name(value: str) -> str:
+    cleaned = "".join(ch.lower() if ch.isalnum() else "-" for ch in value).strip("-")
+    while "--" in cleaned:
+        cleaned = cleaned.replace("--", "-")
+    return cleaned or "custom"
+
+
+def _infer_profile_name_from_flat_settings(settings: "Settings") -> str:
+    provider = (settings.provider or "").strip()
+    if provider == "openai_codex":
+        return "codex"
+    if provider == "anthropic_claude":
+        return "claude-subscription"
+    if provider == "copilot" or settings.api_format == "copilot":
+        return "copilot"
+    if provider == "openai" and not settings.base_url:
+        return "openai-compatible"
+    if provider == "anthropic" and not settings.base_url:
+        return "claude-api"
+    if settings.base_url:
+        return _slugify_profile_name(Path(settings.base_url).name or settings.base_url)
+    if provider:
+        return _slugify_profile_name(provider)
+    return "claude-api"
+
+
+def _profile_from_flat_settings(settings: "Settings") -> tuple[str, ProviderProfile]:
+    defaults = default_provider_profiles()
+    name = _infer_profile_name_from_flat_settings(settings)
+    existing = defaults.get(name)
+    if existing is not None and (
+        existing.provider == settings.provider or not settings.provider
+    ) and (
+        existing.api_format == settings.api_format
+    ) and (
+        existing.base_url == settings.base_url
+    ):
+        profile = existing.model_copy(
+            update={
+                "last_model": settings.model or existing.resolved_model,
+            }
+        )
+        return name, profile
+
+    provider = settings.provider or ("copilot" if settings.api_format == "copilot" else ("openai" if settings.api_format == "openai" else "anthropic"))
+    profile = ProviderProfile(
+        label=f"Imported {provider}",
+        provider=provider,
+        api_format=settings.api_format,
+        auth_source=default_auth_source_for_provider(provider, settings.api_format),
+        default_model=settings.model or defaults.get("claude-api", ProviderProfile(
+            label="Claude API",
+            provider="anthropic",
+            api_format="anthropic",
+            auth_source="anthropic_api_key",
+            default_model="sonnet",
+        )).default_model,
+        last_model=settings.model or None,
+        base_url=settings.base_url,
+    )
+    return name, profile
+
+
 class Settings(BaseModel):
-    """Main settings model for IllusionCode."""
+    """Main settings model for illusion."""
 
     # API configuration
     api_key: str = ""
-    model: str = "claude-sonnet-4-20250514"
+    model: str = "claude-sonnet-4-6"
     max_tokens: int = 16384
     base_url: str | None = None
     api_format: str = "anthropic"  # "anthropic", "openai", or "copilot"
+    provider: str = ""
+    active_profile: str = "claude-api"
+    profiles: dict[str, ProviderProfile] = Field(default_factory=default_provider_profiles)
     max_turns: int = 200
 
     # Behavior
@@ -102,16 +371,115 @@ class Settings(BaseModel):
     passes: int = 1
     verbose: bool = False
 
+    def merged_profiles(self) -> dict[str, ProviderProfile]:
+        """Return the saved profiles merged over the built-in catalog."""
+        merged = default_provider_profiles()
+        merged.update(
+            {
+                name: (
+                    profile.model_copy(deep=True)
+                    if isinstance(profile, ProviderProfile)
+                    else ProviderProfile.model_validate(profile)
+                )
+                for name, profile in self.profiles.items()
+            }
+        )
+        return merged
+
+    def resolve_profile(self, name: str | None = None) -> tuple[str, ProviderProfile]:
+        """Return the active provider profile."""
+        profiles = self.merged_profiles()
+        profile_name = (name or self.active_profile or "").strip() or "claude-api"
+        if profile_name not in profiles:
+            fallback_name, fallback = _profile_from_flat_settings(self)
+            profiles[fallback_name] = fallback
+            profile_name = fallback_name
+        return profile_name, profiles[profile_name].model_copy(deep=True)
+
+    def materialize_active_profile(self) -> Settings:
+        """Project the active profile back onto legacy flat settings fields."""
+        profile_name, profile = self.resolve_profile()
+        configured_model = (profile.last_model or "").strip() or profile.default_model
+        return self.model_copy(
+            update={
+                "active_profile": profile_name,
+                "profiles": self.merged_profiles(),
+                "provider": profile.provider,
+                "api_format": profile.api_format,
+                "base_url": profile.base_url,
+                "model": resolve_model_setting(
+                    configured_model,
+                    profile.provider,
+                    default_model=profile.default_model,
+                    permission_mode=self.permission.mode.value,
+                ),
+            }
+        )
+
+    def sync_active_profile_from_flat_fields(self) -> Settings:
+        """Fold legacy flat provider fields back into the active profile.
+
+        This preserves compatibility for callers that still construct `Settings`
+        by setting top-level `provider` / `api_format` / `base_url` / `model`
+        directly before the profile layer is used everywhere.
+        """
+        profile_name, profile = self.resolve_profile()
+        next_provider = (self.provider or "").strip() or profile.provider
+        next_api_format = (self.api_format or "").strip() or profile.api_format
+        next_base_url = self.base_url if self.base_url is not None else profile.base_url
+        flat_model = (self.model or "").strip()
+        resolved_profile_model = resolve_model_setting(
+            (profile.last_model or "").strip() or profile.default_model,
+            profile.provider,
+            default_model=profile.default_model,
+            permission_mode=self.permission.mode.value,
+        )
+        if flat_model and flat_model != resolved_profile_model:
+            next_model = flat_model
+        else:
+            next_model = profile.last_model
+        current_default_auth = default_auth_source_for_provider(profile.provider, profile.api_format)
+        next_auth_source = profile.auth_source
+        if not next_auth_source or next_auth_source == current_default_auth:
+            next_auth_source = default_auth_source_for_provider(next_provider, next_api_format)
+
+        updated_profile = profile.model_copy(
+            update={
+                "provider": next_provider,
+                "api_format": next_api_format,
+                "base_url": next_base_url,
+                "auth_source": next_auth_source,
+                "last_model": next_model,
+            }
+        )
+        profiles = self.merged_profiles()
+        profiles[profile_name] = updated_profile
+        return self.model_copy(
+            update={
+                "active_profile": profile_name,
+                "profiles": profiles,
+            }
+        )
+
     def resolve_api_key(self) -> str:
         """Resolve API key with precedence: instance value > env var > empty.
 
         For ``copilot`` api_format the key is managed separately via
-        ``illusion auth copilot-login`` and this method is not called.
+        ``oh auth copilot-login`` and this method is not called.
 
         Returns the API key string. Raises ValueError if no key is found.
         """
+        profile_name, profile = self.resolve_profile()
+        del profile_name
+        if profile.provider == "openai_codex":
+            return self.resolve_auth().value
+        if profile.provider == "anthropic_claude":
+            raise ValueError(
+                "Current provider uses Anthropic auth tokens instead of API keys. "
+                "Use resolve_auth() for runtime credential resolution."
+            )
         # Copilot format manages its own auth; skip normal key resolution.
-        if self.api_format == "copilot":
+        if profile.api_format == "copilot":
             return "copilot-managed"
 
         if self.api_key:
@@ -132,28 +500,122 @@ class Settings(BaseModel):
             "~/.illusion/settings.json"
         )
 
+    def resolve_auth(self) -> ResolvedAuth:
+        """Resolve auth for the current provider, including subscription bridges."""
+        _, profile = self.resolve_profile()
+        provider = profile.provider.strip()
+        auth_source = profile.auth_source.strip() or default_auth_source_for_provider(provider, profile.api_format)
+        if auth_source in {"codex_subscription", "claude_subscription"}:
+            from illusion.auth.external import (
+                is_third_party_anthropic_endpoint,
+                load_external_credential,
+            )
+            from illusion.auth.storage import load_external_binding
+
+            if auth_source == "claude_subscription" and is_third_party_anthropic_endpoint(profile.base_url):
+                raise ValueError(
+                    "Claude subscription auth only supports direct Anthropic/Claude endpoints. "
+                    "Use an API-key-backed Anthropic-compatible profile for third-party base URLs."
+                )
+            binding = load_external_binding(auth_source_provider_name(auth_source))
+            if binding is None:
+                raise ValueError(
+                    f"No external auth binding found for {auth_source}. Run 'oh auth "
+                    f"{'codex-login' if auth_source == 'codex_subscription' else 'claude-login'}' first."
+                )
+            credential = load_external_credential(
+                binding,
+                refresh_if_needed=(auth_source == "claude_subscription"),
+            )
+            return ResolvedAuth(
+                provider=provider,
+                auth_kind=credential.auth_kind,
+                value=credential.value,
+                source=f"external:{credential.source_path}",
+                state="configured",
+            )
+
+        if auth_source == "copilot_oauth":
+            return ResolvedAuth(
+                provider="copilot",
+                auth_kind="oauth_device",
+                value="copilot-managed",
+                source="copilot",
+                state="configured",
+            )
+
+        storage_provider = auth_source_provider_name(auth_source)
+        explicit_key = self.api_key
+        if explicit_key:
+            return ResolvedAuth(
+                provider=provider or storage_provider,
+                auth_kind="api_key",
+                value=explicit_key,
+                source="settings_or_env",
+                state="configured",
+            )
+
+        env_var = {
+            "anthropic_api_key": "ANTHROPIC_API_KEY",
+            "openai_api_key": "OPENAI_API_KEY",
+            "dashscope_api_key": "DASHSCOPE_API_KEY",
+        }.get(auth_source)
+        if env_var:
+            env_value = os.environ.get(env_var, "")
+            if env_value:
+                return ResolvedAuth(
+                    provider=provider or storage_provider,
+                    auth_kind="api_key",
+                    value=env_value,
+                    source=f"env:{env_var}",
+                    state="configured",
+                )
+
+        from illusion.auth.storage import load_credential
+
+        stored = load_credential(storage_provider, "api_key")
+        if stored:
+            return ResolvedAuth(
+                provider=provider or storage_provider,
+                auth_kind="api_key",
+                value=stored,
+                source=f"file:{storage_provider}",
+                state="configured",
+            )
+
+        raise ValueError(
+            f"No credentials found for auth source '{auth_source}'. "
+            "Configure the matching provider or environment variable first."
+        )
+
     def merge_cli_overrides(self, **overrides: Any) -> Settings:
         """Return a new Settings with CLI overrides applied (non-None values only)."""
         updates = {k: v for k, v in overrides.items() if v is not None}
-        return self.model_copy(update=updates)
+        merged = self.model_copy(update=updates)
+        if not updates:
+            return merged
+        profile_keys = {"model", "base_url", "api_format", "provider", "api_key", "active_profile", "profiles"}
+        if profile_keys.isdisjoint(updates):
+            return merged
+        return merged.sync_active_profile_from_flat_fields().materialize_active_profile()
 
 
 def _apply_env_overrides(settings: Settings) -> Settings:
     """Apply supported environment variable overrides over loaded settings."""
     updates: dict[str, Any] = {}
-    model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("ILLUSION_MODEL")
+    model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("illusion_MODEL")
     if model:
         updates["model"] = model
 
-    base_url = os.environ.get("ANTHROPIC_BASE_URL") or os.environ.get("ILLUSION_BASE_URL")
+    base_url = os.environ.get("ANTHROPIC_BASE_URL") or os.environ.get("illusion_BASE_URL")
     if base_url:
         updates["base_url"] = base_url
 
-    max_tokens = os.environ.get("ILLUSION_MAX_TOKENS")
+    max_tokens = os.environ.get("illusion_MAX_TOKENS")
     if max_tokens:
         updates["max_tokens"] = int(max_tokens)
 
-    max_turns = os.environ.get("ILLUSION_MAX_TURNS")
+    max_turns = os.environ.get("illusion_MAX_TURNS")
     if max_turns:
         updates["max_turns"] = int(max_turns)
 
@@ -161,12 +623,16 @@ def _apply_env_overrides(settings: Settings) -> Settings:
     if api_key:
         updates["api_key"] = api_key
 
-    api_format = os.environ.get("ILLUSION_API_FORMAT")
+    api_format = os.environ.get("illusion_API_FORMAT")
     if api_format:
         updates["api_format"] = api_format
 
-    sandbox_enabled = os.environ.get("ILLUSION_SANDBOX_ENABLED")
-    sandbox_fail = os.environ.get("ILLUSION_SANDBOX_FAIL_IF_UNAVAILABLE")
+    provider = os.environ.get("illusion_PROVIDER")
+    if provider:
+        updates["provider"] = provider
+
+    sandbox_enabled = os.environ.get("illusion_SANDBOX_ENABLED")
+    sandbox_fail = os.environ.get("illusion_SANDBOX_FAIL_IF_UNAVAILABLE")
     sandbox_updates: dict[str, Any] = {}
     if sandbox_enabled is not None:
         sandbox_updates["enabled"] = _parse_bool_env(sandbox_enabled)
@@ -201,9 +667,20 @@ def load_settings(config_path: Path | None = None) -> Settings:
 
     if config_path.exists():
         raw = json.loads(config_path.read_text(encoding="utf-8"))
-        return _apply_env_overrides(Settings.model_validate(raw))
+        settings = Settings.model_validate(raw)
+        if "profiles" not in raw or "active_profile" not in raw:
+            profile_name, profile = _profile_from_flat_settings(settings)
+            merged_profiles = settings.merged_profiles()
+            merged_profiles[profile_name] = profile
+            settings = settings.model_copy(
+                update={
+                    "active_profile": profile_name,
+                    "profiles": merged_profiles,
+                }
+            )
+        return _apply_env_overrides(settings.materialize_active_profile())
 
-    return _apply_env_overrides(Settings())
+    return _apply_env_overrides(Settings().materialize_active_profile())
 
 
 def save_settings(settings: Settings, config_path: Path | None = None) -> None:
@@ -218,6 +695,7 @@ def save_settings(settings: Settings, config_path: Path | None = None) -> None:
 
         config_path = get_config_file_path()
 
+    settings = settings.sync_active_profile_from_flat_fields().materialize_active_profile()
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         settings.model_dump_json(indent=2) + "\n",

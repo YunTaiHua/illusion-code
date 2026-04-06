@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from illusion.api.client import ApiMessageCompleteEvent, ApiTextDeltaEvent
+from illusion.api.client import ApiMessageCompleteEvent, ApiRetryEvent, ApiTextDeltaEvent
 from illusion.api.usage import UsageSnapshot
 from illusion.config.settings import PermissionSettings
 from illusion.engine.messages import ConversationMessage, TextBlock, ToolUseBlock
@@ -15,6 +15,7 @@ from illusion.engine.query_engine import QueryEngine
 from illusion.engine.stream_events import (
     AssistantTextDelta,
     AssistantTurnComplete,
+    StatusEvent,
     ToolExecutionCompleted,
     ToolExecutionStarted,
 )
@@ -60,6 +61,17 @@ class StaticApiClient:
         del request
         yield ApiMessageCompleteEvent(
             message=ConversationMessage(role="assistant", content=[TextBlock(text=self._text)]),
+            usage=UsageSnapshot(input_tokens=1, output_tokens=1),
+            stop_reason=None,
+        )
+
+
+class RetryThenSuccessApiClient:
+    async def stream_message(self, request):
+        del request
+        yield ApiRetryEvent(message="rate limited", attempt=1, max_attempts=4, delay_seconds=1.5)
+        yield ApiMessageCompleteEvent(
+            message=ConversationMessage(role="assistant", content=[TextBlock(text="after retry")]),
             usage=UsageSnapshot(input_tokens=1, output_tokens=1),
             stop_reason=None,
         )
@@ -143,6 +155,69 @@ async def test_query_engine_executes_tool_calls(tmp_path: Path):
     assert isinstance(events[-1], AssistantTurnComplete)
     assert "alpha and beta" in events[-1].message.text
     assert len(engine.messages) == 4
+
+
+@pytest.mark.asyncio
+async def test_query_engine_allows_unbounded_turns_when_max_turns_is_none(tmp_path: Path):
+    sample = tmp_path / "hello.txt"
+    sample.write_text("alpha\nbeta\n", encoding="utf-8")
+
+    engine = QueryEngine(
+        api_client=FakeApiClient(
+            [
+                _FakeResponse(
+                    message=ConversationMessage(
+                        role="assistant",
+                        content=[
+                            TextBlock(text="I will inspect the file."),
+                            ToolUseBlock(
+                                id="toolu_123",
+                                name="read_file",
+                                input={"path": str(sample), "offset": 0, "limit": 2},
+                            ),
+                        ],
+                    ),
+                    usage=UsageSnapshot(input_tokens=4, output_tokens=3),
+                ),
+                _FakeResponse(
+                    message=ConversationMessage(
+                        role="assistant",
+                        content=[TextBlock(text="The file contains alpha and beta.")],
+                    ),
+                    usage=UsageSnapshot(input_tokens=8, output_tokens=6),
+                ),
+            ]
+        ),
+        tool_registry=create_default_tool_registry(),
+        permission_checker=PermissionChecker(PermissionSettings()),
+        cwd=tmp_path,
+        model="claude-test",
+        system_prompt="system",
+        max_turns=None,
+    )
+
+    events = [event async for event in engine.submit_message("read the file")]
+
+    assert isinstance(events[-1], AssistantTurnComplete)
+    assert "alpha and beta" in events[-1].message.text
+    assert engine.max_turns is None
+
+
+@pytest.mark.asyncio
+async def test_query_engine_surfaces_retry_status_events(tmp_path: Path):
+    engine = QueryEngine(
+        api_client=RetryThenSuccessApiClient(),
+        tool_registry=create_default_tool_registry(),
+        permission_checker=PermissionChecker(PermissionSettings()),
+        cwd=tmp_path,
+        model="claude-test",
+        system_prompt="system",
+    )
+
+    events = [event async for event in engine.submit_message("hello")]
+
+    assert any(isinstance(event, StatusEvent) and "retrying in 1.5s" in event.message for event in events)
+    assert isinstance(events[-1], AssistantTurnComplete)
 
 
 @pytest.mark.asyncio

@@ -43,6 +43,7 @@ export type SelectOptionPayload = {
 	value: string;
 	label: string;
 	description?: string;
+	active?: boolean;
 };
 
 export type TodoItemSnapshot = {

@@ -26,7 +26,7 @@ async def run_repl(
     backend_only: bool = False,
     restore_messages: list[dict] | None = None,
 ) -> None:
-    """Run the default IllusionCode interactive application (React TUI)."""
+    """Run the default illusion interactive application (React TUI)."""
     if backend_only:
         await run_backend_host(
             cwd=cwd,
@@ -38,6 +38,7 @@ async def run_repl(
             api_format=api_format,
             api_client=api_client,
             restore_messages=restore_messages,
+            enforce_max_turns=max_turns is not None,
         )
         return
 
@@ -74,6 +75,8 @@ async def run_print_mode(
     from illusion.engine.stream_events import (
         AssistantTextDelta,
         AssistantTurnComplete,
+        ErrorEvent,
+        StatusEvent,
         ToolExecutionCompleted,
         ToolExecutionStarted,
     )
@@ -92,6 +95,7 @@ async def run_print_mode(
         system_prompt=system_prompt,
         api_key=api_key,
         api_format=api_format,
+        enforce_max_turns=True,
         api_client=api_client,
         permission_prompt=_noop_permission,
         ask_user_prompt=_noop_ask,
@@ -138,6 +142,20 @@ async def run_print_mode(
             elif isinstance(event, ToolExecutionCompleted):
                 if output_format == "stream-json":
                     obj = {"type": "tool_completed", "tool_name": event.tool_name, "output": event.output, "is_error": event.is_error}
+                    print(json.dumps(obj), flush=True)
+                    events_list.append(obj)
+            elif isinstance(event, ErrorEvent):
+                if output_format == "text":
+                    print(event.message, file=sys.stderr)
+                elif output_format == "stream-json":
+                    obj = {"type": "error", "message": event.message, "recoverable": event.recoverable}
+                    print(json.dumps(obj), flush=True)
+                    events_list.append(obj)
+            elif isinstance(event, StatusEvent):
+                if output_format == "text":
+                    print(event.message, file=sys.stderr)
+                elif output_format == "stream-json":
+                    obj = {"type": "status", "message": event.message}
                     print(json.dumps(obj), flush=True)
                     events_list.append(obj)
 

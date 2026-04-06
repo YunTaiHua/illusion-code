@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from illusion.auth.external import describe_external_binding
+from illusion.auth.storage import load_external_binding
 from illusion.api.registry import detect_provider_from_registry
 from illusion.config.settings import Settings
 
@@ -11,6 +13,8 @@ _AUTH_KIND: dict[str, str] = {
     "anthropic": "api_key",
     "openai_compat": "api_key",
     "copilot": "oauth_device",
+    "openai_codex": "external_oauth",
+    "anthropic_claude": "external_oauth",
 }
 
 _VOICE_REASON: dict[str, str] = {
@@ -19,6 +23,8 @@ _VOICE_REASON: dict[str, str] = {
     ),
     "openai_compat": "voice mode is not wired for OpenAI-compatible providers in this build",
     "copilot": "voice mode is not supported for GitHub Copilot",
+    "openai_codex": "voice mode is not supported for Codex subscription auth",
+    "anthropic_claude": "voice mode is not supported for Claude subscription auth",
 }
 
 
@@ -34,6 +40,20 @@ class ProviderInfo:
 
 def detect_provider(settings: Settings) -> ProviderInfo:
     """Infer the active provider and rough capability set using the registry."""
+    if settings.provider == "openai_codex":
+        return ProviderInfo(
+            name="openai-codex",
+            auth_kind="external_oauth",
+            voice_supported=False,
+            voice_reason=_VOICE_REASON["openai_codex"],
+        )
+    if settings.provider == "anthropic_claude":
+        return ProviderInfo(
+            name="claude-subscription",
+            auth_kind="external_oauth",
+            voice_supported=False,
+            voice_reason=_VOICE_REASON["anthropic_claude"],
+        )
     if settings.api_format == "copilot":
         return ProviderInfo(
             name="github_copilot",
@@ -80,10 +100,26 @@ def auth_status(settings: Settings) -> str:
 
         auth_info = load_copilot_auth()
         if not auth_info:
-            return "missing (run 'illusion auth copilot-login')"
+            return "missing (run 'oh auth copilot-login')"
         if auth_info.enterprise_url:
             return f"configured (enterprise: {auth_info.enterprise_url})"
         return "configured"
-    if settings.api_key:
-        return "configured"
-    return "missing"
+    try:
+        resolved = settings.resolve_auth()
+    except ValueError as exc:
+        if settings.provider == "openai_codex":
+            return "missing (run 'oh auth codex-login')"
+        if settings.provider == "anthropic_claude":
+            binding = load_external_binding("anthropic_claude")
+            if binding is not None:
+                external_state = describe_external_binding(binding)
+                if external_state.state != "missing":
+                    return external_state.state
+            message = str(exc)
+            if "third-party" in message:
+                return "invalid base_url"
+            return "missing (run 'oh auth claude-login')"
+        return "missing"
+    if resolved.source.startswith("external:"):
+        return f"configured ({resolved.source.removeprefix('external:')})"
+    return "configured"

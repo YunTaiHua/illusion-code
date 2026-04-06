@@ -49,10 +49,18 @@ class ErrorEvent:
     recoverable: bool = True
 
 
+@dataclass(frozen=True)
+class StatusEvent:
+    """A transient system status message shown to the user."""
+
+    message: str
+
+
 StreamEvent = (
     AssistantTextDelta
     | AssistantTurnComplete
     | ToolExecutionStarted
     | ToolExecutionCompleted
     | ErrorEvent
+    | StatusEvent
 )

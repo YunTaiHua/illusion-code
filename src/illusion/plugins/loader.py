@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from illusion.config.paths import get_config_dir
@@ -10,6 +11,8 @@ from illusion.plugins.schemas import PluginManifest
 from illusion.plugins.types import LoadedPlugin
 from illusion.skills.loader import _parse_skill_markdown
 from illusion.skills.types import SkillDefinition
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_plugins_dir() -> Path:
@@ -67,7 +70,8 @@ def load_plugin(path: Path, enabled_plugins: dict[str, bool]) -> LoadedPlugin | 
         return None
     try:
         manifest = PluginManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to load plugin manifest from %s: %s", manifest_path, exc)
         return None
     enabled = enabled_plugins.get(manifest.name, manifest.enabled_by_default)
 
@@ -107,6 +111,14 @@ def load_plugin(path: Path, enabled_plugins: dict[str, bool]) -> LoadedPlugin | 
 
 
 def _load_plugin_skills(path: Path) -> list[SkillDefinition]:
+    """Load skill definitions from markdown files in a directory.
+
+    Args:
+        path: Directory containing ``.md`` skill files.
+
+    Returns:
+        List of parsed ``SkillDefinition`` objects, or empty list if path doesn't exist.
+    """
     if not path.exists():
         return []
     skills: list[SkillDefinition] = []
@@ -126,6 +138,14 @@ def _load_plugin_skills(path: Path) -> list[SkillDefinition]:
 
 
 def _load_plugin_hooks(path: Path) -> dict[str, list]:
+    """Load hooks from a flat hooks.json file.
+
+    Args:
+        path: Path to a hooks JSON file.
+
+    Returns:
+        Dictionary mapping event names to lists of hook definition objects.
+    """
     if not path.exists():
         return {}
     from illusion.hooks.schemas import (
@@ -185,6 +205,14 @@ def _load_plugin_hooks_structured(path: Path, plugin_root: Path) -> dict[str, li
 
 
 def _load_plugin_mcp(path: Path) -> dict[str, object]:
+    """Load MCP server configuration from a JSON file.
+
+    Args:
+        path: Path to an MCP config file (e.g. ``.mcp.json``).
+
+    Returns:
+        Dictionary mapping server names to their configuration objects.
+    """
     if not path.exists():
         return {}
     from illusion.mcp.types import McpJsonConfig

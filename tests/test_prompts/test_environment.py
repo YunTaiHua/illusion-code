@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 from illusion.prompts.environment import (
@@ -51,6 +52,31 @@ def test_detect_git_info_not_a_repo(tmp_path: Path):
     is_git, branch = detect_git_info(str(tmp_path))
     assert is_git is False
     assert branch is None
+
+
+def test_detect_git_info_uses_devnull_for_git_subprocess(monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    class _Completed:
+        def __init__(self, returncode: int, stdout: str):
+            self.returncode = returncode
+            self.stdout = stdout
+
+    def _fake_run(args, **kwargs):
+        calls.append({"args": args, **kwargs})
+        if args[-1] == "--is-inside-work-tree":
+            return _Completed(0, "true\n")
+        return _Completed(0, "main\n")
+
+    monkeypatch.setattr("illusion.prompts.environment.subprocess.run", _fake_run)
+
+    is_git, branch = detect_git_info("/tmp/project")
+
+    assert is_git is True
+    assert branch == "main"
+    assert len(calls) == 2
+    assert calls[0]["stdin"] is subprocess.DEVNULL
+    assert calls[1]["stdin"] is subprocess.DEVNULL
 
 
 def test_get_environment_info_returns_dataclass():

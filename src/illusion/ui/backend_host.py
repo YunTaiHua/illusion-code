@@ -12,14 +12,20 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from illusion.api.client import SupportsStreamingMessages
+from illusion.auth.manager import AuthManager
+from illusion.config.settings import CLAUDE_MODEL_ALIAS_OPTIONS, display_model_setting
 from illusion.bridge import get_bridge_manager
+from illusion.themes import list_themes
 from illusion.engine.stream_events import (
     AssistantTextDelta,
     AssistantTurnComplete,
+    ErrorEvent,
+    StatusEvent,
     StreamEvent,
     ToolExecutionCompleted,
     ToolExecutionStarted,
 )
+from illusion.output_styles import load_output_styles
 from illusion.tasks import get_task_manager
 from illusion.ui.protocol import BackendEvent, FrontendRequest, TranscriptItem
 from illusion.ui.runtime import build_runtime, close_runtime, handle_line, start_runtime
@@ -41,10 +47,11 @@ class BackendHostConfig:
     api_format: str | None = None
     api_client: SupportsStreamingMessages | None = None
     restore_messages: list[dict] | None = None
+    enforce_max_turns: bool = True
 
 
 class ReactBackendHost:
-    """Drive the IllusionCode runtime over a structured stdin/stdout protocol."""
+    """Drive the illusion runtime over a structured stdin/stdout protocol."""
 
     def __init__(self, config: BackendHostConfig) -> None:
         self._config = config
@@ -99,6 +106,25 @@ class ReactBackendHost:
                 if request.type == "list_sessions":
                     await self._handle_list_sessions()
                     continue
+                if request.type == "select_command":
+                    await self._handle_select_command(request.command or "")
+                    continue
+                if request.type == "apply_select_command":
+                    if self._busy:
+                        await self._emit(BackendEvent(type="error", message="Session is busy"))
+                        continue
+                    self._busy = True
+                    try:
+                        should_continue = await self._apply_select_command(
+                            request.command or "",
+                            request.value or "",
+                        )
+                    finally:
+                        self._busy = False
+                    if not should_continue:
+                        await self._emit(BackendEvent(type="shutdown"))
+                        break
+                    continue
                 if request.type != "submit_line":
                     await self._emit(BackendEvent(type="error", message=f"Unknown request type: {request.type}"))
                     continue
@@ -140,10 +166,10 @@ class ReactBackendHost:
                 continue
             await self._request_queue.put(request)
 
-    async def _process_line(self, line: str) -> bool:
+    async def _process_line(self, line: str, *, transcript_line: str | None = None) -> bool:
         assert self._bundle is not None
         await self._emit(
-            BackendEvent(type="transcript_item", item=TranscriptItem(role="user", text=line))
+            BackendEvent(type="transcript_item", item=TranscriptItem(role="user", text=transcript_line or line))
         )
 
         async def _print_system(message: str) -> None:
@@ -219,6 +245,18 @@ class ReactBackendHost:
                     assert self._bundle is not None
                     new_mode = self._bundle.app_state.get().permission_mode
                     await self._emit(BackendEvent(type="plan_mode_change", plan_mode=new_mode))
+                return
+            if isinstance(event, ErrorEvent):
+                await self._emit(BackendEvent(type="error", message=event.message))
+                await self._emit(
+                    BackendEvent(type="transcript_item", item=TranscriptItem(role="system", text=event.message))
+                )
+                return
+            if isinstance(event, StatusEvent):
+                await self._emit(
+                    BackendEvent(type="transcript_item", item=TranscriptItem(role="system", text=event.message))
+                )
+                return
 
         async def _clear_output() -> None:
             await self._emit(BackendEvent(type="clear_transcript"))
@@ -234,6 +272,43 @@ class ReactBackendHost:
         await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
         await self._emit(BackendEvent(type="line_complete"))
         return should_continue
+
+    async def _apply_select_command(self, command_name: str, value: str) -> bool:
+        command = command_name.strip().lstrip("/").lower()
+        selected = value.strip()
+        line = self._build_select_command_line(command, selected)
+        if line is None:
+            await self._emit(BackendEvent(type="error", message=f"Unknown select command: {command_name}"))
+            await self._emit(BackendEvent(type="line_complete"))
+            return True
+        return await self._process_line(line, transcript_line=f"/{command}")
+
+    def _build_select_command_line(self, command: str, value: str) -> str | None:
+        if command == "provider":
+            return f"/provider {value}"
+        if command == "resume":
+            return f"/resume {value}" if value else "/resume"
+        if command == "permissions":
+            return f"/permissions {value}"
+        if command == "theme":
+            return f"/theme {value}"
+        if command == "output-style":
+            return f"/output-style {value}"
+        if command == "effort":
+            return f"/effort {value}"
+        if command == "passes":
+            return f"/passes {value}"
+        if command == "turns":
+            return f"/turns {value}"
+        if command == "fast":
+            return f"/fast {value}"
+        if command == "vim":
+            return f"/vim {value}"
+        if command == "voice":
+            return f"/voice {value}"
+        if command == "model":
+            return f"/model {value}"
+        return None
 
     def _status_snapshot(self) -> BackendEvent:
         assert self._bundle is not None
@@ -278,10 +353,277 @@ class ReactBackendHost:
         await self._emit(
             BackendEvent(
                 type="select_request",
-                modal={"kind": "select", "title": "Resume Session", "submit_prefix": "/resume "},
+                modal={"kind": "select", "title": "Resume Session", "command": "resume"},
                 select_options=options,
             )
         )
+
+    async def _handle_select_command(self, command_name: str) -> None:
+        assert self._bundle is not None
+        command = command_name.strip().lstrip("/").lower()
+        if command == "resume":
+            await self._handle_list_sessions()
+            return
+
+        settings = self._bundle.current_settings()
+        state = self._bundle.app_state.get()
+        _, active_profile = settings.resolve_profile()
+        current_model = display_model_setting(active_profile)
+
+        if command == "provider":
+            statuses = AuthManager(settings).get_profile_statuses()
+            options = [
+                {
+                    "value": name,
+                    "label": info["label"],
+                    "description": f"{info['provider']} / {info['auth_source']}" + (" [missing auth]" if not info["configured"] else ""),
+                    "active": info["active"],
+                }
+                for name, info in statuses.items()
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Provider Profile", "command": "provider"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "permissions":
+            options = [
+                {
+                    "value": "default",
+                    "label": "Default",
+                    "description": "Ask before write/execute operations",
+                    "active": settings.permission.mode.value == "default",
+                },
+                {
+                    "value": "full_auto",
+                    "label": "Auto",
+                    "description": "Allow all tools automatically",
+                    "active": settings.permission.mode.value == "full_auto",
+                },
+                {
+                    "value": "plan",
+                    "label": "Plan Mode",
+                    "description": "Block all write operations",
+                    "active": settings.permission.mode.value == "plan",
+                },
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Permission Mode", "command": "permissions"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "theme":
+            options = [
+                {
+                    "value": name,
+                    "label": name,
+                    "active": name == settings.theme,
+                }
+                for name in list_themes()
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Theme", "command": "theme"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "output-style":
+            options = [
+                {
+                    "value": style.name,
+                    "label": style.name,
+                    "description": style.source,
+                    "active": style.name == settings.output_style,
+                }
+                for style in load_output_styles()
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Output Style", "command": "output-style"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "effort":
+            options = [
+                {"value": "low", "label": "Low", "description": "Fastest responses", "active": settings.effort == "low"},
+                {"value": "medium", "label": "Medium", "description": "Balanced reasoning", "active": settings.effort == "medium"},
+                {"value": "high", "label": "High", "description": "Deepest reasoning", "active": settings.effort == "high"},
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Reasoning Effort", "command": "effort"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "passes":
+            current = int(state.passes or settings.passes)
+            options = [
+                {"value": str(value), "label": f"{value} pass{'es' if value != 1 else ''}", "active": value == current}
+                for value in range(1, 9)
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Reasoning Passes", "command": "passes"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "turns":
+            current = self._bundle.engine.max_turns
+            values = {32, 64, 128, 200, 256, 512}
+            if isinstance(current, int):
+                values.add(current)
+            options = [{"value": "unlimited", "label": "Unlimited", "description": "Do not hard-stop this session", "active": current is None}]
+            options.extend(
+                {"value": str(value), "label": f"{value} turns", "active": value == current}
+                for value in sorted(values)
+            )
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Max Turns", "command": "turns"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "fast":
+            current = bool(state.fast_mode)
+            options = [
+                {"value": "on", "label": "On", "description": "Prefer shorter, faster responses", "active": current},
+                {"value": "off", "label": "Off", "description": "Use normal response mode", "active": not current},
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Fast Mode", "command": "fast"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "vim":
+            current = bool(state.vim_enabled)
+            options = [
+                {"value": "on", "label": "On", "description": "Enable Vim keybindings", "active": current},
+                {"value": "off", "label": "Off", "description": "Use standard keybindings", "active": not current},
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Vim Mode", "command": "vim"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "voice":
+            current = bool(state.voice_enabled)
+            options = [
+                {"value": "on", "label": "On", "description": state.voice_reason or "Enable voice mode", "active": current},
+                {"value": "off", "label": "Off", "description": "Disable voice mode", "active": not current},
+            ]
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Voice Mode", "command": "voice"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "model":
+            options = self._model_select_options(current_model, active_profile.provider)
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "Model", "command": "model"},
+                    select_options=options,
+                )
+            )
+            return
+
+        await self._emit(BackendEvent(type="error", message=f"No selector available for /{command}"))
+
+    def _model_select_options(self, current_model: str, provider: str) -> list[dict[str, object]]:
+        provider_name = provider.lower()
+        if provider_name in {"anthropic", "anthropic_claude"}:
+            return [
+                {
+                    "value": value,
+                    "label": label,
+                    "description": description,
+                    "active": value == current_model,
+                }
+                for value, label, description in CLAUDE_MODEL_ALIAS_OPTIONS
+            ]
+        families: list[tuple[str, str]] = []
+        if provider_name in {"openai-codex", "openai", "openai-compatible", "openrouter", "github_copilot"}:
+            families.extend(
+                [
+                    ("gpt-5.4", "OpenAI flagship"),
+                    ("gpt-5", "General GPT-5"),
+                    ("gpt-4.1", "Stable GPT-4.1"),
+                    ("o4-mini", "Fast reasoning"),
+                ]
+            )
+        elif provider_name in {"moonshot", "moonshot-compatible"}:
+            families.extend(
+                [
+                    ("kimi-k2.5", "Moonshot K2.5"),
+                    ("kimi-k2-turbo-preview", "Faster Moonshot"),
+                ]
+            )
+        elif provider_name == "dashscope":
+            families.extend(
+                [
+                    ("qwen3.5-flash", "Fast Qwen"),
+                    ("qwen3-max", "Strong Qwen"),
+                    ("deepseek-r1", "Reasoning model"),
+                ]
+            )
+        elif provider_name == "gemini":
+            families.extend(
+                [
+                    ("gemini-2.5-pro", "Gemini Pro"),
+                    ("gemini-2.5-flash", "Gemini Flash"),
+                ]
+            )
+
+        seen: set[str] = set()
+        options: list[dict[str, object]] = []
+        for value, description in [(current_model, "Current model"), *families]:
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            options.append(
+                {
+                    "value": value,
+                    "label": value,
+                    "description": description,
+                    "active": value == current_model,
+                }
+            )
+        return options
 
     async def _ask_permission(self, tool_name: str, reason: str) -> bool:
         request_id = uuid4().hex
@@ -348,6 +690,7 @@ async def run_backend_host(
     cwd: str | None = None,
     api_client: SupportsStreamingMessages | None = None,
     restore_messages: list[dict] | None = None,
+    enforce_max_turns: bool = True,
 ) -> int:
     """Run the structured React backend host."""
     if cwd:
@@ -362,6 +705,7 @@ async def run_backend_host(
             api_format=api_format,
             api_client=api_client,
             restore_messages=restore_messages,
+            enforce_max_turns=enforce_max_turns,
         )
     )
     return await host.run()

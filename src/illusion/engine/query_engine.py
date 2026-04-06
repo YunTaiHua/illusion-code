@@ -28,7 +28,7 @@ class QueryEngine:
         model: str,
         system_prompt: str,
         max_tokens: int = 4096,
-        max_turns: int = 8,
+        max_turns: int | None = 8,
         permission_prompt: PermissionPrompt | None = None,
         ask_user_prompt: AskUserPrompt | None = None,
         hook_executor: HookExecutor | None = None,
@@ -55,8 +55,8 @@ class QueryEngine:
         return list(self._messages)
 
     @property
-    def max_turns(self) -> int:
-        """Return the maximum number of agentic turns per user input."""
+    def max_turns(self) -> int | None:
+        """Return the maximum number of agentic turns per user input, if capped."""
         return self._max_turns
 
     @property
@@ -77,9 +77,13 @@ class QueryEngine:
         """Update the active model for future turns."""
         self._model = model
 
-    def set_max_turns(self, max_turns: int) -> None:
+    def set_api_client(self, api_client: SupportsStreamingMessages) -> None:
+        """Update the active API client for future turns."""
+        self._api_client = api_client
+
+    def set_max_turns(self, max_turns: int | None) -> None:
         """Update the maximum number of agentic turns per user input."""
-        self._max_turns = max(1, int(max_turns))
+        self._max_turns = None if max_turns is None else max(1, int(max_turns))
 
     def set_permission_checker(self, checker: PermissionChecker) -> None:
         """Update the active permission checker for future turns."""

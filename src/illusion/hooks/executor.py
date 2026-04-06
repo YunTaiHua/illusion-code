@@ -49,6 +49,18 @@ class HookExecutor:
         """Replace the active hook registry."""
         self._registry = registry
 
+    def update_context(
+        self,
+        *,
+        api_client: SupportsStreamingMessages | None = None,
+        default_model: str | None = None,
+    ) -> None:
+        """Update the active hook execution context."""
+        if api_client is not None:
+            self._context.api_client = api_client
+        if default_model is not None:
+            self._context.default_model = default_model
+
     async def execute(self, event: HookEvent, payload: dict[str, Any]) -> AggregatedHookResult:
         """Execute all matching hooks for an event."""
         results: list[HookResult] = []
@@ -80,8 +92,8 @@ class HookExecutor:
                 stderr=asyncio.subprocess.PIPE,
                 env={
                     **os.environ,
-                    "ILLUSION_HOOK_EVENT": event.value,
-                    "ILLUSION_HOOK_PAYLOAD": json.dumps(payload),
+                    "illusion_HOOK_EVENT": event.value,
+                    "illusion_HOOK_PAYLOAD": json.dumps(payload),
                 },
             )
         except SandboxUnavailableError as exc:
@@ -164,7 +176,7 @@ class HookExecutor:
     ) -> HookResult:
         prompt = _inject_arguments(hook.prompt, payload)
         prefix = (
-            "You are validating whether a hook condition passes in IllusionCode. "
+            "You are validating whether a hook condition passes in illusion. "
             "Return strict JSON: {\"ok\": true} or {\"ok\": false, \"reason\": \"...\"}."
         )
         if agent_mode:

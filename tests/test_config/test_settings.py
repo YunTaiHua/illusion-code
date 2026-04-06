@@ -7,14 +7,21 @@ from pathlib import Path
 
 import pytest
 
-from illusion.config.settings import Settings, load_settings, save_settings
+from illusion.config.settings import (
+    ProviderProfile,
+    Settings,
+    display_model_setting,
+    load_settings,
+    normalize_anthropic_model_name,
+    save_settings,
+)
 
 
 class TestSettings:
     def test_defaults(self):
         s = Settings()
         assert s.api_key == ""
-        assert s.model == "claude-sonnet-4-20250514"
+        assert s.model == "claude-sonnet-4-6"
         assert s.max_tokens == 16384
         assert s.max_turns == 200
         assert s.fast_mode is False
@@ -61,7 +68,7 @@ class TestLoadSaveSettings:
     def test_load_missing_file_returns_defaults(self, tmp_path: Path):
         path = tmp_path / "nonexistent.json"
         s = load_settings(path)
-        assert s == Settings()
+        assert s == Settings().materialize_active_profile()
 
     def test_load_existing_file(self, tmp_path: Path):
         path = tmp_path / "settings.json"
@@ -80,6 +87,144 @@ class TestLoadSaveSettings:
         assert loaded.api_key == original.api_key
         assert loaded.model == original.model
         assert loaded.verbose == original.verbose
+
+    def test_load_migrates_flat_provider_settings_to_profile(self, tmp_path: Path):
+        path = tmp_path / "settings.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "api_format": "anthropic",
+                    "provider": "anthropic",
+                    "model": "kimi-k2.5",
+                    "base_url": "https://api.moonshot.cn/anthropic",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = load_settings(path)
+        profile_name, profile = loaded.resolve_profile()
+
+        assert profile_name == "anthropic"
+        assert profile.base_url == "https://api.moonshot.cn/anthropic"
+        assert profile.resolved_model == "kimi-k2.5"
+        assert loaded.base_url == "https://api.moonshot.cn/anthropic"
+        assert loaded.model == "kimi-k2.5"
+
+    def test_materialize_active_profile_uses_profile_model(self):
+        settings = Settings(
+            active_profile="codex",
+            profiles={
+                "codex": ProviderProfile(
+                    label="Codex Subscription",
+                    provider="openai_codex",
+                    api_format="openai",
+                    auth_source="codex_subscription",
+                    default_model="gpt-5.4",
+                    last_model="gpt-5",
+                )
+            },
+        )
+
+        materialized = settings.materialize_active_profile()
+
+        assert materialized.provider == "openai_codex"
+        assert materialized.api_format == "openai"
+        assert materialized.model == "gpt-5"
+
+    def test_claude_profile_materializes_alias_to_concrete_model(self):
+        settings = Settings(
+            active_profile="claude-subscription",
+            profiles={
+                "claude-subscription": ProviderProfile(
+                    label="Claude Subscription",
+                    provider="anthropic_claude",
+                    api_format="anthropic",
+                    auth_source="claude_subscription",
+                    default_model="sonnet",
+                    last_model="opus",
+                )
+            },
+        )
+
+        materialized = settings.materialize_active_profile()
+
+        assert materialized.model == "claude-opus-4-6"
+
+    def test_claude_profile_normalizes_prefixed_model_name(self):
+        settings = Settings(
+            active_profile="claude-subscription",
+            profiles={
+                "claude-subscription": ProviderProfile(
+                    label="Claude Subscription",
+                    provider="anthropic_claude",
+                    api_format="anthropic",
+                    auth_source="claude_subscription",
+                    default_model="claude-sonnet-4-6",
+                    last_model="anthropic/claude-sonnet-4-20250514",
+                )
+            },
+        )
+
+        materialized = settings.materialize_active_profile()
+
+        assert materialized.model == "claude-sonnet-4-20250514"
+
+    def test_claude_profile_normalizes_dotted_model_name(self):
+        settings = Settings(
+            active_profile="claude-api",
+            profiles={
+                "claude-api": ProviderProfile(
+                    label="Claude API",
+                    provider="anthropic",
+                    api_format="anthropic",
+                    auth_source="anthropic_api_key",
+                    default_model="claude-sonnet-4-6",
+                    last_model="claude-opus-4.6",
+                )
+            },
+        )
+
+        materialized = settings.materialize_active_profile()
+
+        assert materialized.model == "claude-opus-4-6"
+
+    def test_display_model_setting_uses_default_alias(self):
+        profile = ProviderProfile(
+            label="Claude API",
+            provider="anthropic",
+            api_format="anthropic",
+            auth_source="anthropic_api_key",
+            default_model="claude-sonnet-4-6",
+            last_model=None,
+        )
+
+        assert display_model_setting(profile) == "default"
+
+    def test_opusplan_resolves_by_permission_mode(self):
+        settings = Settings(
+            permission={"mode": "plan"},
+            active_profile="claude-api",
+            profiles={
+                "claude-api": ProviderProfile(
+                    label="Claude API",
+                    provider="anthropic",
+                    api_format="anthropic",
+                    auth_source="anthropic_api_key",
+                    default_model="claude-sonnet-4-6",
+                    last_model="opusplan",
+                )
+            },
+        )
+
+        materialized = settings.materialize_active_profile()
+
+        assert materialized.model == "claude-opus-4-6"
+
+
+def test_normalize_anthropic_model_name_matches_hermes_behavior():
+    assert normalize_anthropic_model_name("anthropic/claude-sonnet-4-20250514") == "claude-sonnet-4-20250514"
+    assert normalize_anthropic_model_name("claude-opus-4.6") == "claude-opus-4-6"
 
     def test_save_creates_parent_dirs(self, tmp_path: Path):
         path = tmp_path / "deep" / "nested" / "settings.json"
@@ -107,10 +252,10 @@ class TestLoadSaveSettings:
         path.write_text(json.dumps({"model": "from-file", "base_url": "https://file.example"}))
         monkeypatch.setenv("ANTHROPIC_MODEL", "from-env-model")
         monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://env.example/anthropic")
-        monkeypatch.setenv("ILLUSION_MAX_TURNS", "42")
+        monkeypatch.setenv("illusion_MAX_TURNS", "42")
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-env-override")
-        monkeypatch.setenv("ILLUSION_SANDBOX_ENABLED", "true")
-        monkeypatch.setenv("ILLUSION_SANDBOX_FAIL_IF_UNAVAILABLE", "1")
+        monkeypatch.setenv("illusion_SANDBOX_ENABLED", "true")
+        monkeypatch.setenv("illusion_SANDBOX_FAIL_IF_UNAVAILABLE", "1")
 
         s = load_settings(path)
 

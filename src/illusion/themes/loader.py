@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from illusion.themes.builtin import BUILTIN_THEMES
 from illusion.themes.schema import ThemeConfig
+
+logger = logging.getLogger(__name__)
 
 
 def get_custom_themes_dir() -> Path:
@@ -24,8 +27,8 @@ def load_custom_themes() -> dict[str, ThemeConfig]:
             data = json.loads(path.read_text(encoding="utf-8"))
             theme = ThemeConfig.model_validate(data)
             themes[theme.name] = theme
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Skipping invalid theme file %s: %s", path, exc)
     return themes
 
 

@@ -15,8 +15,18 @@ from illusion.tasks.types import TaskRecord
 class FrontendRequest(BaseModel):
     """One request sent from the React frontend to the Python backend."""
 
-    type: Literal["submit_line", "permission_response", "question_response", "list_sessions", "shutdown"]
+    type: Literal[
+        "submit_line",
+        "permission_response",
+        "question_response",
+        "list_sessions",
+        "select_command",
+        "apply_select_command",
+        "shutdown",
+    ]
     line: str | None = None
+    command: str | None = None
+    value: str | None = None
     request_id: str | None = None
     allowed: bool | None = None
     answer: str | None = None

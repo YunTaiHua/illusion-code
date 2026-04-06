@@ -73,7 +73,7 @@ def detect_git_info(cwd: str) -> tuple[bool, str | None]:
             text=True,
             cwd=cwd,
             timeout=5,
-            stdin=subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+            stdin=subprocess.DEVNULL,
         )
         is_git = result.returncode == 0 and result.stdout.strip() == "true"
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -89,7 +89,7 @@ def detect_git_info(cwd: str) -> tuple[bool, str | None]:
             text=True,
             cwd=cwd,
             timeout=5,
-            stdin=subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+            stdin=subprocess.DEVNULL,
         )
         branch = result.stdout.strip() if result.returncode == 0 else None
     except (FileNotFoundError, subprocess.TimeoutExpired):

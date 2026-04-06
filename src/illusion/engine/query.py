@@ -10,6 +10,7 @@ from typing import AsyncIterator, Awaitable, Callable
 from illusion.api.client import (
     ApiMessageCompleteEvent,
     ApiMessageRequest,
+    ApiRetryEvent,
     ApiTextDeltaEvent,
     SupportsStreamingMessages,
 )
@@ -19,6 +20,7 @@ from illusion.engine.stream_events import (
     AssistantTextDelta,
     AssistantTurnComplete,
     ErrorEvent,
+    StatusEvent,
     StreamEvent,
     ToolExecutionCompleted,
     ToolExecutionStarted,
@@ -54,7 +56,7 @@ class QueryContext:
     max_tokens: int
     permission_prompt: PermissionPrompt | None = None
     ask_user_prompt: AskUserPrompt | None = None
-    max_turns: int = 200
+    max_turns: int | None = 200
     hook_executor: HookExecutor | None = None
     tool_metadata: dict[str, object] | None = None
 
@@ -78,7 +80,9 @@ async def run_query(
 
     compact_state = AutoCompactState()
 
-    for _ in range(context.max_turns):
+    turn_count = 0
+    while context.max_turns is None or turn_count < context.max_turns:
+        turn_count += 1
         # --- auto-compact check before calling the model ---------------
         messages, was_compacted = await auto_compact_if_needed(
             messages,
@@ -104,6 +108,14 @@ async def run_query(
             ):
                 if isinstance(event, ApiTextDeltaEvent):
                     yield AssistantTextDelta(text=event.text), None
+                    continue
+                if isinstance(event, ApiRetryEvent):
+                    yield StatusEvent(
+                        message=(
+                            f"Request failed; retrying in {event.delay_seconds:.1f}s "
+                            f"(attempt {event.attempt + 1} of {event.max_attempts}): {event.message}"
+                        )
+                    ), None
                     continue
 
                 if isinstance(event, ApiMessageCompleteEvent):
@@ -159,7 +171,9 @@ async def run_query(
 
         messages.append(ConversationMessage(role="user", content=tool_results))
 
-    raise MaxTurnsExceeded(context.max_turns)
+    if context.max_turns is not None:
+        raise MaxTurnsExceeded(context.max_turns)
+    raise RuntimeError("Query loop exited without a max_turns limit or final response")
 
 
 async def _execute_tool_call(

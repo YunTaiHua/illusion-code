@@ -1,4 +1,4 @@
-"""Default Textual terminal UI for IllusionCode."""
+"""Default Textual terminal UI for illusion."""
 
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ from illusion.config.settings import load_settings, save_settings
 from illusion.engine.stream_events import (
     AssistantTextDelta,
     AssistantTurnComplete,
+    ErrorEvent,
+    StatusEvent,
     StreamEvent,
     ToolExecutionCompleted,
     ToolExecutionStarted,
@@ -130,7 +132,7 @@ class QuestionScreen(ModalScreen[str]):
         self.dismiss("")
 
 
-class IllusionCodeTerminalApp(App[None]):
+class illusionTerminalApp(App[None]):
     """Terminal-first Textual UI."""
 
     CSS = """
@@ -229,7 +231,7 @@ class IllusionCodeTerminalApp(App[None]):
             with Vertical(id="transcript-column"):
                 yield RichLog(id="transcript", wrap=True, highlight=True, markup=True)
                 yield Static("Ready.", id="current-response")
-                yield Input(placeholder="Ask IllusionCode or enter a /command", id="composer")
+                yield Input(placeholder="Ask illusion or enter a /command", id="composer")
             with Vertical(id="side-column"):
                 yield Static("Starting...", id="status-bar")
                 yield Static("No tasks yet.", id="tasks-panel")
@@ -329,6 +331,15 @@ class IllusionCodeTerminalApp(App[None]):
         if isinstance(event, ToolExecutionCompleted):
             prefix = "tool-error>" if event.is_error else "tool-result>"
             self._append_line(f"{prefix} {event.tool_name}: {event.output}")
+            return
+
+        if isinstance(event, ErrorEvent):
+            self._append_line(f"error> {event.message}")
+            self._assistant_buffer = ""
+            self._set_current_response("Ready.")
+            return
+        if isinstance(event, StatusEvent):
+            self._append_line(f"system> {event.message}")
 
     def action_clear_conversation(self) -> None:
         if self._bundle is None:
