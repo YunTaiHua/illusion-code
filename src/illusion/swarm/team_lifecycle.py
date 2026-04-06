@@ -724,6 +724,7 @@ async def _destroy_worktree(worktree_path: str) -> None:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                stdin=subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
             )
             if result.returncode == 0:
                 return

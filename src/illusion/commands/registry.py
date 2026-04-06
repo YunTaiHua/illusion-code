@@ -133,6 +133,7 @@ def _run_git_command(cwd: str, *args: str) -> tuple[bool, str]:
             capture_output=True,
             text=True,
             check=False,
+            stdin=subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
         )
     except FileNotFoundError:
         return False, "git is not installed."

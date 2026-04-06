@@ -9,7 +9,6 @@ from illusion.tools.config_tool import ConfigTool
 from illusion.tools.cron_create_tool import CronCreateTool
 from illusion.tools.cron_delete_tool import CronDeleteTool
 from illusion.tools.cron_list_tool import CronListTool
-from illusion.tools.cron_toggle_tool import CronToggleTool
 from illusion.tools.enter_plan_mode_tool import EnterPlanModeTool
 from illusion.tools.enter_worktree_tool import EnterWorktreeTool
 from illusion.tools.exit_plan_mode_tool import ExitPlanModeTool
@@ -24,11 +23,14 @@ from illusion.tools.lsp_tool import LspTool
 from illusion.tools.mcp_auth_tool import McpAuthTool
 from illusion.tools.mcp_tool import McpToolAdapter
 from illusion.tools.notebook_edit_tool import NotebookEditTool
+from illusion.tools.powershell_tool import PowerShellTool
 from illusion.tools.read_mcp_resource_tool import ReadMcpResourceTool
+from illusion.tools.repl_tool import ReplTool
 from illusion.tools.remote_trigger_tool import RemoteTriggerTool
 from illusion.tools.send_message_tool import SendMessageTool
 from illusion.tools.skill_tool import SkillTool
 from illusion.tools.sleep_tool import SleepTool
+from illusion.tools.structured_output_tool import StructuredOutputTool
 from illusion.tools.task_create_tool import TaskCreateTool
 from illusion.tools.task_get_tool import TaskGetTool
 from illusion.tools.task_list_tool import TaskListTool
@@ -48,6 +50,8 @@ def create_default_tool_registry(mcp_manager=None) -> ToolRegistry:
     registry = ToolRegistry()
     for tool in (
         BashTool(),
+        PowerShellTool(),
+        ReplTool(),
         AskUserQuestionTool(),
         FileReadTool(),
         FileWriteTool(),
@@ -64,6 +68,7 @@ def create_default_tool_registry(mcp_manager=None) -> ToolRegistry:
         ConfigTool(),
         BriefTool(),
         SleepTool(),
+        StructuredOutputTool(),
         EnterWorktreeTool(),
         ExitWorktreeTool(),
         TodoWriteTool(),
@@ -72,7 +77,6 @@ def create_default_tool_registry(mcp_manager=None) -> ToolRegistry:
         CronCreateTool(),
         CronListTool(),
         CronDeleteTool(),
-        CronToggleTool(),
         RemoteTriggerTool(),
         TaskCreateTool(),
         TaskGetTool(),

@@ -23,7 +23,11 @@ class GlobTool(BaseTool):
     """List files matching a glob pattern."""
 
     name = "glob"
-    description = "List files matching a glob pattern."
+    description = """- Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths sorted by modification time
+- Use this tool when you need to find files by name patterns
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead"""
     input_model = GlobToolInput
 
     def is_read_only(self, arguments: GlobToolInput) -> bool:
@@ -81,6 +85,7 @@ async def _glob(root: Path, pattern: str, *, limit: int) -> list[str]:
         process = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(root),
+            stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

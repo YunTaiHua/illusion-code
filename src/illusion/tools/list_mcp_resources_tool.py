@@ -16,7 +16,13 @@ class ListMcpResourcesTool(BaseTool):
     """List MCP resources discovered from connected servers."""
 
     name = "list_mcp_resources"
-    description = "List MCP resources available from connected servers."
+    description = """List available resources from configured MCP servers.
+Each returned resource will include all standard MCP resource fields plus a 'server' field
+indicating which server the resource belongs to.
+
+Parameters:
+- server (optional): The name of a specific MCP server to get resources from. If not provided,
+  resources from all servers will be returned."""
     input_model = ListMcpResourcesToolInput
 
     def __init__(self, manager: McpClientManager) -> None:

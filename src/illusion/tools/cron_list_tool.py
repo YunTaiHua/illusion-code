@@ -17,7 +17,7 @@ class CronListTool(BaseTool):
     """List local cron jobs."""
 
     name = "cron_list"
-    description = "List configured local cron jobs with schedule, status, and next run time."
+    description = """List all cron jobs scheduled via CronCreate, both durable (.illusion/scheduled_tasks.json) and session-only."""
     input_model = CronListToolInput
 
     def is_read_only(self, arguments: CronListToolInput) -> bool:

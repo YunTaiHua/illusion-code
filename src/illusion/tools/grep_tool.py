@@ -26,7 +26,16 @@ class GrepTool(BaseTool):
     """Search text files for a regex pattern."""
 
     name = "grep"
-    description = "Search file contents with a regular expression."
+    description = """A powerful search tool built on ripgrep
+
+Usage:
+- ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.
+- Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
+- Filter files with glob parameter (e.g., "*.js", "**/*.tsx") or type parameter (e.g., "js", "py", "rust")
+- Output modes: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts
+- Use Task tool for open-ended searches requiring multiple rounds
+- Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)
+- Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`"""
     input_model = GrepToolInput
 
     def is_read_only(self, arguments: GrepToolInput) -> bool:
@@ -164,6 +173,7 @@ async def _rg_grep(
     process = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=str(root),
+        stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -216,6 +226,7 @@ async def _rg_grep_file(
     process = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=str(path.parent),
+        stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

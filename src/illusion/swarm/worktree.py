@@ -90,6 +90,7 @@ async def _run_git(*args: str, cwd: Path) -> tuple[int, str, str]:
         "git",
         *args,
         cwd=str(cwd),
+        stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": ""},

@@ -24,7 +24,16 @@ class RemoteTriggerTool(BaseTool):
     """Run a registered cron job immediately."""
 
     name = "remote_trigger"
-    description = "Trigger a configured local cron-style job immediately."
+    description = """Call the illusion.ai remote-trigger API. Use this instead of curl — the OAuth token is added automatically in-process and never exposed.
+
+Actions:
+- list: GET /v1/code/triggers
+- get: GET /v1/code/triggers/{trigger_id}
+- create: POST /v1/code/triggers (requires body)
+- update: POST /v1/code/triggers/{trigger_id} (requires body, partial update)
+- run: POST /v1/code/triggers/{trigger_id}/run
+
+The response is the raw JSON from the API."""
     input_model = RemoteTriggerToolInput
 
     async def execute(
@@ -41,6 +50,7 @@ class RemoteTriggerTool(BaseTool):
             process = await create_shell_subprocess(
                 str(job["command"]),
                 cwd=cwd,
+                stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

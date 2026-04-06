@@ -9,6 +9,13 @@ from typing import Optional
 
 import typer
 
+# Ensure stdout/stderr use UTF-8 on Windows to prevent UnicodeEncodeError
+# when the Python backend is spawned via tsx with inherited stdio pipes
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 __version__ = "0.1.1"
 
 

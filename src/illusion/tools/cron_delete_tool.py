@@ -18,7 +18,7 @@ class CronDeleteTool(BaseTool):
     """Delete a local cron job."""
 
     name = "cron_delete"
-    description = "Delete a local cron-style job by name."
+    description = """Cancel a cron job previously scheduled with CronCreate. Removes it from .illusion/scheduled_tasks.json (durable jobs) or the in-memory session store (session-only jobs)."""
     input_model = CronDeleteToolInput
 
     async def execute(

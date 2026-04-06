@@ -18,7 +18,10 @@ class TaskStopTool(BaseTool):
     """Stop a background task."""
 
     name = "task_stop"
-    description = "Stop a background task."
+    description = """- Stops a running background task by its ID
+- Takes a task_id parameter identifying the task to stop
+- Returns a success or failure status
+- Use this tool when you need to terminate a long-running task"""
     input_model = TaskStopToolInput
 
     async def execute(self, arguments: TaskStopToolInput, context: ToolExecutionContext) -> ToolResult:

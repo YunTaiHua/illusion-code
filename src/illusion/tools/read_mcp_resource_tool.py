@@ -19,7 +19,11 @@ class ReadMcpResourceTool(BaseTool):
     """Read one resource from an MCP server."""
 
     name = "read_mcp_resource"
-    description = "Read an MCP resource by server and URI."
+    description = """Reads a specific resource from an MCP server, identified by server name and resource URI.
+
+Parameters:
+- server (required): The name of the MCP server from which to read the resource
+- uri (required): The URI of the resource to read"""
     input_model = ReadMcpResourceToolInput
 
     def __init__(self, manager: McpClientManager) -> None:

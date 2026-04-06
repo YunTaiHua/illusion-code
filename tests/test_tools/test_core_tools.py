@@ -251,3 +251,20 @@ async def test_cron_and_remote_trigger_tools(tmp_path: Path, monkeypatch):
         context,
     )
     assert delete_result.is_error is False
+
+
+def test_default_registry_matches_claude_tool_shape():
+    registry = create_default_tool_registry()
+    names = {tool.name for tool in registry.list_tools()}
+
+    assert "powershell" in names
+    assert "repl" in names
+    assert "structured_output" in names
+
+    # Claude source has create/list/delete cron operations in this tool family.
+    assert "cron_create" in names
+    assert "cron_list" in names
+    assert "cron_delete" in names
+
+    # Keep cron_toggle available as a module, but out of the default list.
+    assert "cron_toggle" not in names
