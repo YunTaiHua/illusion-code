@@ -294,3 +294,21 @@ def test_default_registry_matches_claude_tool_shape():
 
     # Keep cron_toggle available as a module, but out of the default list.
     assert "cron_toggle" not in names
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_empty_success_has_contextual_message(tmp_path: Path):
+    """成功命令无输出时返回上下文消息，而非 '(no output)'。"""
+    if get_platform() == "windows":
+        bash_path = shutil.which("bash")
+        normalized = (bash_path or "").replace("/", "\\").lower()
+        if (not bash_path) or normalized.endswith("\\windows\\system32\\bash.exe"):
+            pytest.skip("No usable bash available on this Windows environment")
+
+    result = await BashTool().execute(
+        BashToolInput(command="true"),
+        ToolExecutionContext(cwd=tmp_path),
+    )
+    assert result.is_error is False
+    assert result.output != "(no output)"
+    assert "successfully" in result.output
