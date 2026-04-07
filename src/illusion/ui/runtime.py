@@ -167,6 +167,7 @@ async def build_runtime(
             bridge_sessions=len(bridge_manager.list_sessions()),
             output_style=settings.output_style,
             keybindings=load_keybindings(),
+            phase="idle",
         )
     )
     hook_reloader = HookReloader(get_config_file_path())
@@ -321,6 +322,7 @@ def sync_app_state(bundle: RuntimeBundle) -> None:
         bridge_sessions=len(get_bridge_manager().list_sessions()),
         output_style=settings.output_style,
         keybindings=load_keybindings(),
+        phase=bundle.app_state.get().phase,
     )
 
 
