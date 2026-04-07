@@ -84,13 +84,13 @@ def _resolve_windows_bash() -> str | None:
     which may fail or emit unreadable output on machines without WSL setup.
 
     Resolution order:
-    1. CLAUDE_CODE_GIT_BASH_PATH environment variable override
+    1. ILLUSION_CODE_GIT_BASH_PATH environment variable override
     2. bash found via PATH (excluding the system32 shim)
     3. bash resolved from the git executable location
     4. bash found in well-known Git for Windows install paths
     """
     # 1. Explicit override via environment variable
-    env_bash = os.environ.get("CLAUDE_CODE_GIT_BASH_PATH")
+    env_bash = os.environ.get("ILLUSION_CODE_GIT_BASH_PATH")
     if env_bash and Path(env_bash).exists():
         return env_bash
 
