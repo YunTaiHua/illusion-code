@@ -161,3 +161,34 @@ async def test_backend_host_emits_utf8_protocol_bytes(monkeypatch):
     payload = json.loads(decoded.removeprefix("OHJSON:"))
     assert payload["type"] == "assistant_delta"
     assert payload["message"] == "你好😊"
+
+
+@pytest.mark.asyncio
+async def test_backend_host_phase_transitions_on_model_turn(tmp_path, monkeypatch):
+    """纯文本对话（无工具）时 phase 流转: idle → thinking → idle。"""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+
+    host = ReactBackendHost(BackendHostConfig(api_client=StaticApiClient("phase test")))
+    host._bundle = await build_runtime(api_client=StaticApiClient("phase test"))
+    events = []
+
+    async def _emit(event):
+        events.append(event)
+
+    host._emit = _emit  # type: ignore[method-assign]
+    await start_runtime(host._bundle)
+    try:
+        await host._process_line("hello")
+    finally:
+        await close_runtime(host._bundle)
+
+    # 最终 phase 应为 idle
+    assert host._bundle.app_state.get().phase == "idle"
+    # line_complete 事件必须存在
+    line_complete_events = [e for e in events if e.type == "line_complete"]
+    assert len(line_complete_events) == 1
+    # state_snapshot 中应包含 phase
+    snapshots = [e for e in events if e.type == "state_snapshot" and e.state]
+    assert any(s.state.get("phase") == "idle" for s in snapshots)

@@ -22,6 +22,8 @@ from illusion.engine.stream_events import (
     ErrorEvent,
     StatusEvent,
     StreamEvent,
+    ToolChainCompleted,
+    ToolChainStarted,
     ToolExecutionCompleted,
     ToolExecutionStarted,
 )
@@ -184,6 +186,7 @@ class ReactBackendHost:
 
     async def _process_line(self, line: str, *, transcript_line: str | None = None) -> bool:
         assert self._bundle is not None
+        await self._update_phase("thinking")
         await self._emit(
             BackendEvent(type="transcript_item", item=TranscriptItem(role="user", text=transcript_line or line))
         )
@@ -206,6 +209,24 @@ class ReactBackendHost:
                     )
                 )
                 await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
+                return
+            if isinstance(event, ToolChainStarted):
+                await self._update_phase("tool_executing")
+                await self._emit(
+                    BackendEvent(
+                        type="tool_chain_started",
+                        tool_count=event.tool_count,
+                    )
+                )
+                return
+            if isinstance(event, ToolChainCompleted):
+                await self._update_phase("thinking")
+                await self._emit(
+                    BackendEvent(
+                        type="tool_chain_completed",
+                        phase="thinking",
+                    )
+                )
                 return
             if isinstance(event, ToolExecutionStarted):
                 self._last_tool_inputs[event.tool_name] = event.tool_input or {}
@@ -284,6 +305,8 @@ class ReactBackendHost:
             render_event=_render_event,
             clear_output=_clear_output,
         )
+
+        await self._update_phase("idle")
         await self._emit(self._status_snapshot())
         await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
         await self._emit(BackendEvent(type="line_complete"))
@@ -682,6 +705,11 @@ class ReactBackendHost:
             return await future
         finally:
             self._question_requests.pop(request_id, None)
+
+    async def _update_phase(self, phase: str) -> None:
+        """更新会话阶段。"""
+        assert self._bundle is not None
+        self._bundle.app_state.set(phase=phase)
 
     async def _emit(self, event: BackendEvent) -> None:
         async with self._write_lock:
