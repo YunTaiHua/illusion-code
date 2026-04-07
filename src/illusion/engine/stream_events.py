@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from illusion.api.usage import UsageSnapshot
 from illusion.engine.messages import ConversationMessage
+
+
+class SessionPhase(Enum):
+    """Phase of the agent session."""
+
+    IDLE = "idle"
+    THINKING = "thinking"
+    TOOL_EXECUTING = "tool_executing"
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,20 @@ class StatusEvent:
     message: str
 
 
+@dataclass(frozen=True)
+class ToolChainStarted:
+    """A batch of tool executions is about to begin."""
+
+    tool_count: int
+
+
+@dataclass(frozen=True)
+class ToolChainCompleted:
+    """All tools in a batch have finished executing."""
+
+    results_summary: list[dict[str, Any]]
+
+
 StreamEvent = (
     AssistantTextDelta
     | AssistantTurnComplete
@@ -63,4 +86,6 @@ StreamEvent = (
     | ToolExecutionCompleted
     | ErrorEvent
     | StatusEvent
+    | ToolChainStarted
+    | ToolChainCompleted
 )

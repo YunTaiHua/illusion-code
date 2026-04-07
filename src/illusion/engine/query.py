@@ -22,6 +22,8 @@ from illusion.engine.stream_events import (
     ErrorEvent,
     StatusEvent,
     StreamEvent,
+    ToolChainCompleted,
+    ToolChainStarted,
     ToolExecutionCompleted,
     ToolExecutionStarted,
 )
@@ -140,6 +142,8 @@ async def run_query(
 
         tool_calls = final_message.tool_uses
 
+        yield ToolChainStarted(tool_count=len(tool_calls)), None
+
         if len(tool_calls) == 1:
             # Single tool: sequential (stream events immediately)
             tc = tool_calls[0]
@@ -168,6 +172,13 @@ async def run_query(
                     output=result.content,
                     is_error=result.is_error,
                 ), None
+
+        yield ToolChainCompleted(
+            results_summary=[
+                {"name": tc.name, "is_error": result.is_error}
+                for tc, result in zip(tool_calls, tool_results)
+            ]
+        ), None
 
         messages.append(ConversationMessage(role="user", content=tool_results))
 

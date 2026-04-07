@@ -16,6 +16,8 @@ from illusion.engine.stream_events import (
     AssistantTextDelta,
     AssistantTurnComplete,
     StatusEvent,
+    ToolChainCompleted,
+    ToolChainStarted,
     ToolExecutionCompleted,
     ToolExecutionStarted,
 )
@@ -428,3 +430,77 @@ async def test_query_engine_applies_path_rules_to_write_file_targets_in_full_aut
     assert tool_results[0].is_error is True
     assert "matches deny rule" in tool_results[0].output
     assert target.exists() is False
+
+
+@pytest.mark.asyncio
+async def test_query_engine_emits_tool_chain_events(tmp_path: Path):
+    """工具调用时必须发出 ToolChainStarted 和 ToolChainCompleted 事件。"""
+    sample = tmp_path / "chain.txt"
+    sample.write_text("chain-data\n", encoding="utf-8")
+
+    engine = QueryEngine(
+        api_client=FakeApiClient(
+            [
+                _FakeResponse(
+                    message=ConversationMessage(
+                        role="assistant",
+                        content=[
+                            TextBlock(text="Reading file."),
+                            ToolUseBlock(id="toolu_chain", name="read_file", input={"path": str(sample)}),
+                        ],
+                    ),
+                    usage=UsageSnapshot(input_tokens=1, output_tokens=1),
+                ),
+                _FakeResponse(
+                    message=ConversationMessage(
+                        role="assistant",
+                        content=[TextBlock(text="Done reading.")],
+                    ),
+                    usage=UsageSnapshot(input_tokens=1, output_tokens=1),
+                ),
+            ]
+        ),
+        tool_registry=create_default_tool_registry(),
+        permission_checker=PermissionChecker(PermissionSettings()),
+        cwd=tmp_path,
+        model="claude-test",
+        system_prompt="system",
+    )
+
+    events = [event async for event in engine.submit_message("read")]
+
+    chain_started = [e for e in events if isinstance(e, ToolChainStarted)]
+    chain_completed = [e for e in events if isinstance(e, ToolChainCompleted)]
+
+    assert len(chain_started) == 1
+    assert chain_started[0].tool_count == 1
+
+    assert len(chain_completed) == 1
+    assert len(chain_completed[0].results_summary) == 1
+    assert chain_completed[0].results_summary[0]["name"] == "read_file"
+    assert chain_completed[0].results_summary[0]["is_error"] is False
+
+    type_sequence = [type(e).__name__ for e in events]
+    assert "ToolChainStarted" in type_sequence
+    assert "ToolChainCompleted" in type_sequence
+    started_idx = type_sequence.index("ToolChainStarted")
+    completed_idx = type_sequence.index("ToolChainCompleted")
+    turn_idx = len(type_sequence) - 1
+    assert started_idx < completed_idx < turn_idx
+
+
+@pytest.mark.asyncio
+async def test_query_engine_no_chain_events_without_tools(tmp_path: Path):
+    """无工具调用时不应发出 chain 事件。"""
+    engine = QueryEngine(
+        api_client=StaticApiClient("no tools needed"),
+        tool_registry=create_default_tool_registry(),
+        permission_checker=PermissionChecker(PermissionSettings()),
+        cwd=tmp_path,
+        model="claude-test",
+        system_prompt="system",
+    )
+
+    events = [event async for event in engine.submit_message("hello")]
+    assert not any(isinstance(e, ToolChainStarted) for e in events)
+    assert not any(isinstance(e, ToolChainCompleted) for e in events)
