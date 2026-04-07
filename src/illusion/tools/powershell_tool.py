@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
+from illusion.tools.shell_common import CommandExecutor
 
 
 class PowerShellToolInput(BaseModel):
@@ -117,39 +118,17 @@ Usage notes:
             "-Command",
             arguments.command,
             cwd=str(cwd.resolve()),
-            stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
 
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=arguments.timeout_seconds,
-            )
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            return ToolResult(
-                output=f"Command timed out after {arguments.timeout_seconds} seconds",
-                is_error=True,
-            )
-
-        parts = []
-        if stdout:
-            parts.append(stdout.decode("utf-8", errors="replace").rstrip())
-        if stderr:
-            parts.append(stderr.decode("utf-8", errors="replace").rstrip())
-
-        text = "\n".join(part for part in parts if part).strip()
-        if not text:
-            text = "(no output)"
-
-        if len(text) > 12000:
-            text = f"{text[:12000]}\n...[truncated]..."
-
+        result = await CommandExecutor.run_and_normalize(
+            process,
+            timeout=arguments.timeout_seconds,
+        )
         return ToolResult(
-            output=text,
-            is_error=process.returncode != 0,
-            metadata={"returncode": process.returncode},
+            output=result.output,
+            is_error=result.is_error,
+            metadata=dict(result.metadata),
         )
