@@ -56,6 +56,13 @@ def detect_shell() -> str:
     if shell:
         return Path(shell).name
 
+    # On Windows, use the dedicated bash resolution that finds Git Bash
+    if platform.system() == "Windows":
+        from illusion.utils.shell import _resolve_windows_bash
+        win_bash = _resolve_windows_bash()
+        if win_bash:
+            return "bash"
+
     # Fallback: check for common shells on PATH
     for candidate in ("bash", "zsh", "fish", "sh"):
         if shutil.which(candidate):

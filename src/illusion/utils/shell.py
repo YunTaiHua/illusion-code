@@ -82,11 +82,34 @@ def _resolve_windows_bash() -> str | None:
 
     Ignore the legacy Windows system shim at C:\\Windows\\System32\\bash.exe,
     which may fail or emit unreadable output on machines without WSL setup.
+
+    Resolution order:
+    1. CLAUDE_CODE_GIT_BASH_PATH environment variable override
+    2. bash found via PATH (excluding the system32 shim)
+    3. bash resolved from the git executable location
+    4. bash found in well-known Git for Windows install paths
     """
+    # 1. Explicit override via environment variable
+    env_bash = os.environ.get("CLAUDE_CODE_GIT_BASH_PATH")
+    if env_bash and Path(env_bash).exists():
+        return env_bash
+
+    # 2. bash on PATH (but skip the legacy system32 shim)
     bash = shutil.which("bash")
     if bash and not _is_windows_bash_shim(bash):
         return bash
 
+    # 3. Resolve bash from the git executable location
+    git_path = shutil.which("git")
+    if git_path:
+        # git.exe is typically at <Git-Root>\cmd\git.exe or <Git-Root>\bin\git.exe
+        # bash.exe lives at <Git-Root>\bin\bash.exe
+        git_root = Path(git_path).resolve().parent.parent
+        bash_via_git = git_root / "bin" / "bash.exe"
+        if bash_via_git.exists():
+            return str(bash_via_git)
+
+    # 4. Search well-known Git for Windows installation paths
     for candidate in _windows_git_bash_candidates():
         if candidate.exists():
             return str(candidate)

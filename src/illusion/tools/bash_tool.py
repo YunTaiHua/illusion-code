@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -12,7 +11,7 @@ from illusion.platforms import get_platform
 from illusion.sandbox import SandboxUnavailableError
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 from illusion.tools.shell_common import CommandExecutor
-from illusion.utils.shell import create_shell_subprocess
+from illusion.utils.shell import _resolve_windows_bash, create_shell_subprocess
 
 
 class BashToolInput(BaseModel):
@@ -109,13 +108,13 @@ Use the gh command via the Bash tool for other GitHub-related tasks including wo
 
     async def execute(self, arguments: BashToolInput, context: ToolExecutionContext) -> ToolResult:
         if get_platform() == "windows":
-            bash_path = shutil.which("bash")
-            normalized = (bash_path or "").replace("/", "\\").lower()
-            if (not bash_path) or normalized.endswith("\\windows\\system32\\bash.exe"):
+            bash_path = _resolve_windows_bash()
+            if not bash_path:
                 return ToolResult(
                     output=(
                         "Bash is not available on this Windows machine. "
-                        "Use the powershell tool for command execution."
+                        "Install Git for Windows or set CLAUDE_CODE_GIT_BASH_PATH, "
+                        "or use the powershell tool for command execution."
                     ),
                     is_error=True,
                 )
