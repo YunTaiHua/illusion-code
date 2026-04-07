@@ -27,4 +27,5 @@ class AppState:
     mcp_failed: int = 0
     bridge_sessions: int = 0
     output_style: str = "default"
+    phase: str = "idle"  # 会话阶段: idle / thinking / tool_executing
     keybindings: dict[str, str] = field(default_factory=dict)

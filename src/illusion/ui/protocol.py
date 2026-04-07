@@ -75,6 +75,8 @@ class BackendEvent(BaseModel):
         "line_complete",
         "tool_started",
         "tool_completed",
+        "tool_chain_started",
+        "tool_chain_completed",
         "clear_transcript",
         "modal_request",
         "select_request",
@@ -97,6 +99,8 @@ class BackendEvent(BaseModel):
     tool_input: dict[str, Any] | None = None
     output: str | None = None
     is_error: bool | None = None
+    phase: str | None = None          # 当前会话阶段
+    tool_count: int | None = None     # 工具链中的工具数量
     # New fields for enhanced events
     todo_markdown: str | None = None
     plan_mode: str | None = None
@@ -189,6 +193,7 @@ def _state_payload(state: AppState) -> dict[str, Any]:
         "bridge_sessions": state.bridge_sessions,
         "output_style": state.output_style,
         "keybindings": dict(state.keybindings),
+        "phase": state.phase,
     }
 
 
