@@ -39,12 +39,12 @@ export const defaultTheme: ThemeConfig = {
 	},
 	icons: {
 		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-		tool: '  ⏵ ',
-		assistant: '⏺ ',
-		user: '> ',
-		system: 'ℹ ',
-		success: '✓ ',
-		error: '✗ ',
+		tool: '  ❯ ',
+		assistant: '●  ',
+		user: '▸  ',
+		system: 'ℹ  ',
+		success: '✔  ',
+		error: '✖  ',
 	},
 };
 
@@ -64,12 +64,12 @@ export const darkTheme: ThemeConfig = {
 	},
 	icons: {
 		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-		tool: '  ⏵ ',
-		assistant: '⏺ ',
-		user: '> ',
-		system: 'ℹ ',
-		success: '✓ ',
-		error: '✗ ',
+		tool: '  ❯ ',
+		assistant: '◆  ',
+		user: '▸  ',
+		system: 'ℹ  ',
+		success: '✔  ',
+		error: '✖  ',
 	},
 };
 
@@ -90,11 +90,11 @@ export const minimalTheme: ThemeConfig = {
 	icons: {
 		spinner: ['-', '\\', '|', '/'],
 		tool: '  > ',
-		assistant: ': ',
-		user: '> ',
-		system: '# ',
-		success: '+ ',
-		error: '! ',
+		assistant: ':  ',
+		user: '>  ',
+		system: '#  ',
+		success: '+  ',
+		error: '!  ',
 	},
 };
 
@@ -114,12 +114,12 @@ export const cyberpunkTheme: ThemeConfig = {
 	},
 	icons: {
 		spinner: ['◐', '◓', '◑', '◒'],
-		tool: '  ▶ ',
-		assistant: '◆ ',
-		user: '▸ ',
-		system: '⚡ ',
-		success: '✦ ',
-		error: '✖ ',
+		tool: '  ❯ ',
+		assistant: '◈  ',
+		user: '▸  ',
+		system: '⚡  ',
+		success: '✦  ',
+		error: '✖  ',
 	},
 };
 
@@ -139,12 +139,12 @@ export const solarizedTheme: ThemeConfig = {
 	},
 	icons: {
 		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-		tool: '  ⏵ ',
-		assistant: '⏺ ',
-		user: '> ',
-		system: 'ℹ ',
-		success: '✓ ',
-		error: '✗ ',
+		tool: '  ❯ ',
+		assistant: '●  ',
+		user: '▸  ',
+		system: 'ℹ  ',
+		success: '✔  ',
+		error: '✖  ',
 	},
 };
 
