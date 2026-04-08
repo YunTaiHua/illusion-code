@@ -62,6 +62,7 @@ class ReactBackendHost:
         self._request_queue: asyncio.Queue[FrontendRequest] = asyncio.Queue()
         self._permission_requests: dict[str, asyncio.Future[bool]] = {}
         self._question_requests: dict[str, asyncio.Future[str]] = {}
+        self._always_allowed_tools: set[str] = set()
         self._busy = False
         self._running = True
         # Track last tool input per name for rich event emission
@@ -100,9 +101,11 @@ class ReactBackendHost:
                 if request.type == "permission_response":
                     if request.request_id in self._permission_requests:
                         self._permission_requests[request.request_id].set_result(bool(request.allowed))
+                    # Remember "always allow" for this tool
+                    if request.always_allow and request.tool_name:
+                        self._always_allowed_tools.add(request.tool_name)
                     await self._emit(BackendEvent(type="modal_request", modal=None))
                     continue
-                if request.type == "question_response":
                     if request.request_id in self._question_requests:
                         self._question_requests[request.request_id].set_result(request.answer or "")
                     await self._emit(BackendEvent(type="modal_request", modal=None))
@@ -174,11 +177,10 @@ class ReactBackendHost:
             if request.type == "permission_response":
                 if request.request_id in self._permission_requests:
                     self._permission_requests[request.request_id].set_result(bool(request.allowed))
+                if request.always_allow and request.tool_name:
+                    self._always_allowed_tools.add(request.tool_name)
                 await self._emit(BackendEvent(type="modal_request", modal=None))
                 continue
-            if request.type == "question_response":
-                if request.request_id in self._question_requests:
-                    self._question_requests[request.request_id].set_result(request.answer or "")
                 await self._emit(BackendEvent(type="modal_request", modal=None))
                 continue
 
@@ -665,6 +667,9 @@ class ReactBackendHost:
         return options
 
     async def _ask_permission(self, tool_name: str, reason: str) -> bool:
+        # If previously allowed via "Always Allow", skip prompt
+        if tool_name in self._always_allowed_tools:
+            return True
         request_id = uuid4().hex
         future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
         self._permission_requests[request_id] = future
