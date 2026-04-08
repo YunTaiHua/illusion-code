@@ -18,7 +18,7 @@ export function SelectModal({
 	selectedIndex: number;
 }): React.JSX.Element {
 	return (
-		<Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} marginTop={1}>
+		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
 			<Text bold color="cyan">{title}</Text>
 			<Text> </Text>
 			{options.map((opt, i) => {
