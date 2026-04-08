@@ -4,7 +4,7 @@ import {Box, Text} from 'ink';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TaskSnapshot} from '../types.js';
 
-const SEP = ' \u2502 ';
+const SEP = ' · ';
 
 const WRITE_TOOLS = new Set([
 	'Write', 'Edit', 'MultiEdit', 'NotebookEdit',
@@ -46,7 +46,7 @@ function PlanModeIndicator({
 
 	return (
 		<Text>
-			<Text color="yellow" bold>{' [PLAN MODE] '}</Text>
+			<Text color="yellow" bold>{' PLAN '}</Text>
 			{isBlockedTool ? (
 				<Text color="red">{'\uD83D\uDEAB '}{activeToolName} blocked</Text>
 			) : null}
@@ -74,19 +74,21 @@ export function StatusBar({
 
 	return (
 		<Box flexDirection="column">
-			<Text dimColor>{'─'.repeat(60)}</Text>
+			<Text color={theme.colors.muted}>{'─'.repeat(60)}</Text>
 			<Box flexDirection="row" alignItems="center">
 				<Text>
-					<Text color={theme.colors.primary} dimColor>model: {model}</Text>
-					<Text dimColor>{SEP}</Text>
-					{inputTokens > 0 || outputTokens > 0 ? (
+					<Text color={theme.colors.primary} dimColor>{model}</Text>
+					{(inputTokens > 0 || outputTokens > 0) ? (
 						<>
-							<Text dimColor>tokens: {formatNum(inputTokens)}{'\u2193'} {formatNum(outputTokens)}{'\u2191'}</Text>
 							<Text dimColor>{SEP}</Text>
+							<Text dimColor>{formatNum(inputTokens)}{'\u2193'} {formatNum(outputTokens)}{'\u2191'}</Text>
 						</>
 					) : null}
-					{!isPlanMode ? (
-						<Text dimColor>mode: {mode}</Text>
+					{!isPlanMode && mode !== 'default' ? (
+						<>
+							<Text dimColor>{SEP}</Text>
+							<Text dimColor>{mode}</Text>
+						</>
 					) : null}
 					{taskCount > 0 ? (
 						<>
