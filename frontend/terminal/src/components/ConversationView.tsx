@@ -16,7 +16,6 @@ export function ConversationView({
 	showWelcome: boolean;
 }): React.JSX.Element {
 	const {theme} = useTheme();
-	// Show the most recent items that fit the viewport
 	const visible = items.slice(-40);
 
 	return (
@@ -28,7 +27,7 @@ export function ConversationView({
 			))}
 
 			{assistantBuffer ? (
-				<Box flexDirection="row" marginTop={0}>
+				<Box flexDirection="row" marginTop={1}>
 					<Text color={theme.colors.success} bold>{theme.icons.assistant}</Text>
 					<Text>{assistantBuffer}</Text>
 				</Box>
@@ -43,7 +42,7 @@ function MessageRow({item, theme}: {item: TranscriptItem; theme: ReturnType<type
 			return (
 				<Box marginTop={1} marginBottom={0}>
 					<Text>
-						<Text color={theme.colors.secondary} bold>{theme.icons.user}</Text>
+						<Text color={theme.colors.primary} bold>{theme.icons.user}</Text>
 						<Text>{item.text}</Text>
 					</Text>
 				</Box>
@@ -65,17 +64,17 @@ function MessageRow({item, theme}: {item: TranscriptItem; theme: ReturnType<type
 
 		case 'system':
 			return (
-				<Box marginTop={0}>
+				<Box marginTop={1}>
 					<Text>
 						<Text color={theme.colors.warning}>{theme.icons.system}</Text>
-						<Text color={theme.colors.warning}>{item.text}</Text>
+						<Text color={theme.colors.muted}>{item.text}</Text>
 					</Text>
 				</Box>
 			);
 
 		case 'log':
 			return (
-				<Box>
+				<Box marginTop={0}>
 					<Text dimColor>{item.text}</Text>
 				</Box>
 			);
