@@ -53,22 +53,22 @@ function QuestionModal({
 	const question = String(modal.question ?? 'Question');
 
 	return (
-		<Box flexDirection="column" marginTop={1} borderStyle="double" borderColor="magenta" paddingX={1}>
+		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="magenta" paddingX={1}>
 			<WaitingAnimation />
 			<Box marginTop={1}>
-				<Text color="magenta" bold>{'\u2753 '}</Text>
+				<Text color="magenta" bold>{'?  '}</Text>
 				<Text bold>{question}</Text>
 			</Box>
 			{toolName ? (
 				<Text dimColor>
-					{'  '}Tool: <Text color="cyan">{toolName}</Text>
+					{'   '}Tool: <Text color="cyan">{toolName}</Text>
 				</Text>
 			) : null}
 			{reason ? (
-				<Text dimColor>{'  '}Reason: {reason}</Text>
+				<Text dimColor>{'   '}{reason}</Text>
 			) : null}
 			{extraLines.length > 0 && (
-				<Box flexDirection="column" marginTop={1} marginLeft={2}>
+				<Box flexDirection="column" marginTop={1} marginLeft={3}>
 					{extraLines.map((line, i) => (
 						<Text key={i} dimColor>
 							{line}
@@ -77,10 +77,10 @@ function QuestionModal({
 				</Box>
 			)}
 			<Box marginTop={1}>
-				<Text color="cyan">{'> '}</Text>
+				<Text color="cyan">▸  </Text>
 				<TextInput value={modalInput} onChange={setModalInput} onSubmit={handleSubmit} />
 			</Box>
-			<Text dimColor>{'  '}shift+enter: newline | enter: submit</Text>
+			<Text dimColor>{'   '}shift+enter: newline | enter: submit</Text>
 		</Box>
 	);
 }
@@ -100,20 +100,20 @@ export function ModalHost({
 		return (
 			<Box flexDirection="column" marginTop={1}>
 				<Text>
-					<Text color="yellow" bold>{'\u250C '}</Text>
+					<Text color="yellow" bold>{'?  '}</Text>
 					<Text bold>Allow </Text>
 					<Text color="cyan" bold>{String(modal.tool_name ?? 'tool')}</Text>
 					<Text bold>?</Text>
 				</Text>
 				{modal.reason ? (
 					<Text>
-						<Text color="yellow">{'\u2502 '}</Text>
+						<Text color="yellow">{'   '}</Text>
 						<Text dimColor>{String(modal.reason)}</Text>
 					</Text>
 				) : null}
 				<Text>
-					<Text color="yellow">{'\u2514 '}</Text>
-					<Text dimColor>Use up/down and enter to confirm</Text>
+					<Text color="yellow">{'   '}</Text>
+					<Text dimColor>{'\u2191\u2193'} navigate{'  '}{'\u23CE'} select</Text>
 				</Text>
 			</Box>
 		);
@@ -132,12 +132,12 @@ export function ModalHost({
 		return (
 			<Box flexDirection="column" marginTop={1}>
 				<Text>
-					<Text color="yellow" bold>{'\u{1F511} '}</Text>
+					<Text color="yellow" bold>{'?  '}</Text>
 					<Text bold>MCP Authentication</Text>
 				</Text>
 				<Text dimColor>{String(modal.prompt ?? 'Provide auth details')}</Text>
-				<Box>
-					<Text color="cyan">{'> '}</Text>
+				<Box marginTop={1}>
+					<Text color="cyan">▸  </Text>
 					<TextInput value={modalInput} onChange={setModalInput} onSubmit={onSubmit} />
 				</Box>
 			</Box>
