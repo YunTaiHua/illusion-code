@@ -5,43 +5,30 @@ import {useTheme} from '../theme/ThemeContext.js';
 
 const VERSION = '0.1.0';
 
-// prettier-ignore
-const LOGO = [
-	'',
-	'   ================================================',
-	'   ||                                            ||',
-	'   ||     I L L U S I O N   C O D E              ||',
-	'   ||                                            ||',
-	'   ================================================',
-	'',
-];
-
 export function WelcomeBanner(): React.JSX.Element {
 	const {theme} = useTheme();
 
 	return (
 		<Box flexDirection="column" marginBottom={1}>
-			<Box flexDirection="column" paddingX={0}>
-				{LOGO.map((line, i) => (
-					<Text key={i} color={theme.colors.primary} bold>{line}</Text>
-				))}
+			<Box flexDirection="column" paddingX={1}>
 				<Text> </Text>
-				<Text>
-					<Text dimColor> An AI-powered coding assistant</Text>
-					<Text dimColor>{'  '}v{VERSION}</Text>
+				<Text color={theme.colors.primary} bold>
+					{'  ILLUSION CODE'}
+				</Text>
+				<Text color={theme.colors.muted}>
+					{'  An AI-powered coding assistant v'}{VERSION}
 				</Text>
 				<Text> </Text>
-				<Text>
-					<Text dimColor> </Text>
+				<Box flexDirection="row">
+					<Text color={theme.colors.muted}>{'  '}</Text>
 					<Text color={theme.colors.primary}>/help</Text>
-					<Text dimColor> commands</Text>
-					<Text dimColor>{'  '}|{'  '}</Text>
+					<Text color={theme.colors.muted}>{' commands  '}</Text>
 					<Text color={theme.colors.primary}>/model</Text>
-					<Text dimColor> switch</Text>
-					<Text dimColor>{'  '}|{'  '}</Text>
+					<Text color={theme.colors.muted}>{' switch  '}</Text>
 					<Text color={theme.colors.primary}>Ctrl+C</Text>
-					<Text dimColor> exit</Text>
-				</Text>
+					<Text color={theme.colors.muted}>{' exit'}</Text>
+				</Box>
+				<Text> </Text>
 			</Box>
 		</Box>
 	);
