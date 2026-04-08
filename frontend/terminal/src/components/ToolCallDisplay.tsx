@@ -15,7 +15,7 @@ export function ToolCallDisplay({item}: {item: TranscriptItem}): React.JSX.Eleme
 				<Text>
 					<Text color={theme.colors.accent} bold>{theme.icons.tool}</Text>
 					<Text color={theme.colors.accent} bold>{toolName}</Text>
-					<Text dimColor> {summary}</Text>
+					<Text color={theme.colors.muted}> {summary}</Text>
 				</Text>
 			</Box>
 		);
@@ -24,10 +24,13 @@ export function ToolCallDisplay({item}: {item: TranscriptItem}): React.JSX.Eleme
 	if (item.role === 'tool_result') {
 		const lines = item.text.split('\n');
 		const maxLines = 12;
-		const display = lines.length > maxLines ? [...lines.slice(0, maxLines), `... (${lines.length - maxLines} more lines)`] : lines;
-		const color = item.is_error ? theme.colors.error : undefined;
+		const truncated = lines.length > maxLines;
+		const display = truncated
+			? [...lines.slice(0, maxLines), `  ... (${lines.length - maxLines} more lines)`]
+			: lines;
+		const color = item.is_error ? theme.colors.error : theme.colors.muted;
 		return (
-			<Box marginLeft={4} flexDirection="column">
+			<Box marginLeft={4} flexDirection="column" marginTop={0} marginBottom={0}>
 				{display.map((line, i) => (
 					<Text key={i} color={color} dimColor={!item.is_error}>
 						{line}
@@ -48,14 +51,14 @@ function summarizeInput(toolName: string, toolInput?: Record<string, unknown>, f
 	if (lower === 'bash' && toolInput.command) {
 		return String(toolInput.command).slice(0, 120);
 	}
-	if ((lower === 'read' || lower === 'fileread') && toolInput.file_path) {
-		return String(toolInput.file_path);
+	if ((lower === 'read' || lower === 'fileread' || lower === 'read_file') && (toolInput.path || toolInput.file_path)) {
+		return String(toolInput.path ?? toolInput.file_path);
 	}
-	if ((lower === 'write' || lower === 'filewrite') && toolInput.file_path) {
-		return String(toolInput.file_path);
+	if ((lower === 'write' || lower === 'filewrite' || lower === 'write_file') && (toolInput.path || toolInput.file_path)) {
+		return String(toolInput.path ?? toolInput.file_path);
 	}
-	if ((lower === 'edit' || lower === 'fileedit') && toolInput.file_path) {
-		return String(toolInput.file_path);
+	if ((lower === 'edit' || lower === 'fileedit' || lower === 'edit_file') && (toolInput.path || toolInput.file_path)) {
+		return String(toolInput.path ?? toolInput.file_path);
 	}
 	if (lower === 'grep' && toolInput.pattern) {
 		return `/${String(toolInput.pattern)}/`;
