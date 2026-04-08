@@ -13,11 +13,12 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 class TaskCreateToolInput(BaseModel):
     """Arguments for task creation."""
 
-    type: str = Field(default="local_bash", description="Task type: local_bash or local_agent")
-    description: str = Field(description="Short task description")
-    command: str | None = Field(default=None, description="Shell command for local_bash")
-    prompt: str | None = Field(default=None, description="Prompt for local_agent")
-    model: str | None = Field(default=None)
+    subject: str = Field(description="A brief, actionable title in imperative form (e.g., 'Fix authentication bug in login flow')")
+    description: str = Field(description="What needs to be done")
+    activeForm: str | None = Field(
+        default=None,
+        description="Present continuous form shown in spinner when in_progress (e.g., 'Fixing authentication bug')",
+    )
 
 
 class TaskCreateTool(BaseTool):
@@ -66,29 +67,11 @@ All tasks are created with status `pending`.
     input_model = TaskCreateToolInput
 
     async def execute(self, arguments: TaskCreateToolInput, context: ToolExecutionContext) -> ToolResult:
+        del context
         manager = get_task_manager()
-        if arguments.type == "local_bash":
-            if not arguments.command:
-                return ToolResult(output="command is required for local_bash tasks", is_error=True)
-            task = await manager.create_shell_task(
-                command=arguments.command,
-                description=arguments.description,
-                cwd=context.cwd,
-            )
-        elif arguments.type == "local_agent":
-            if not arguments.prompt:
-                return ToolResult(output="prompt is required for local_agent tasks", is_error=True)
-            try:
-                task = await manager.create_agent_task(
-                    prompt=arguments.prompt,
-                    description=arguments.description,
-                    cwd=context.cwd,
-                    model=arguments.model,
-                    api_key=os.environ.get("ANTHROPIC_API_KEY"),
-                )
-            except ValueError as exc:
-                return ToolResult(output=str(exc), is_error=True)
-        else:
-            return ToolResult(output=f"unsupported task type: {arguments.type}", is_error=True)
-
-        return ToolResult(output=f"Created task {task.id} ({task.type})")
+        task = manager.create_pending_task(
+            subject=arguments.subject,
+            description=arguments.description,
+            active_form=arguments.activeForm,
+        )
+        return ToolResult(output=f"Created task {task.id}\nsubject: {task.subject}")

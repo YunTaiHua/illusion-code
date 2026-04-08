@@ -12,9 +12,28 @@ class TaskUpdateToolInput(BaseModel):
     """Arguments for task updates."""
 
     task_id: str = Field(description="Task identifier")
+    subject: str | None = Field(default=None, description="New subject for the task")
     description: str | None = Field(default=None, description="Updated task description")
+    active_form: str | None = Field(
+        default=None,
+        description="Present continuous form shown in spinner when in_progress (e.g., 'Running tests')",
+    )
+    status: str | None = Field(default=None, description="New task status (pending, in_progress, completed, deleted)")
+    owner: str | None = Field(default=None, description="New owner for the task")
     progress: int | None = Field(default=None, ge=0, le=100, description="Progress percentage")
     status_note: str | None = Field(default=None, description="Short human-readable task note")
+    metadata: dict | None = Field(
+        default=None,
+        description="Metadata keys to merge into the task (set a key to null to delete it)",
+    )
+    add_blocks: list[str] | None = Field(
+        default=None,
+        description="Task IDs that cannot start until this one completes",
+    )
+    add_blocked_by: list[str] | None = Field(
+        default=None,
+        description="Task IDs that must complete before this one can start",
+    )
 
 
 class TaskUpdateTool(BaseTool):
@@ -106,18 +125,40 @@ Set up task dependencies:
         try:
             task = get_task_manager().update_task(
                 arguments.task_id,
+                subject=arguments.subject,
                 description=arguments.description,
+                active_form=arguments.active_form,
+                status=arguments.status,
+                owner=arguments.owner,
                 progress=arguments.progress,
                 status_note=arguments.status_note,
+                metadata=arguments.metadata,
+                add_blocks=arguments.add_blocks,
+                add_blocked_by=arguments.add_blocked_by,
             )
         except ValueError as exc:
             return ToolResult(output=str(exc), is_error=True)
 
+        if arguments.status == "deleted":
+            return ToolResult(output=f"Deleted task {task.id}")
+
         parts = [f"Updated task {task.id}"]
+        if arguments.subject:
+            parts.append(f"subject={task.subject}")
         if arguments.description:
             parts.append(f"description={task.description}")
+        if arguments.active_form:
+            parts.append(f"activeForm={task.active_form}")
+        if arguments.status:
+            parts.append(f"status={task.status}")
+        if arguments.owner:
+            parts.append(f"owner={task.owner}")
         if arguments.progress is not None:
             parts.append(f"progress={task.metadata.get('progress', '')}%")
         if arguments.status_note:
             parts.append(f"note={task.metadata.get('status_note', '')}")
+        if arguments.add_blocks:
+            parts.append(f"blocks={task.blocks}")
+        if arguments.add_blocked_by:
+            parts.append(f"blockedBy={task.blocked_by}")
         return ToolResult(output=" ".join(parts))

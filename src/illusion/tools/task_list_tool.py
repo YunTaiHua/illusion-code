@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from illusion.tasks.manager import get_task_manager
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
@@ -10,8 +10,6 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 class TaskListToolInput(BaseModel):
     """Arguments for task listing."""
-
-    status: str | None = Field(default=None, description="Optional status filter")
 
 
 class TaskListTool(BaseTool):
@@ -55,9 +53,22 @@ When working as a teammate:
 
     async def execute(self, arguments: TaskListToolInput, context: ToolExecutionContext) -> ToolResult:
         del context
-        tasks = get_task_manager().list_tasks(status=arguments.status)  # type: ignore[arg-type]
+        tasks = get_task_manager().list_tasks()
         if not tasks:
             return ToolResult(output="(no tasks)")
-        return ToolResult(
-            output="\n".join(f"{task.id} {task.type} {task.status} {task.description}" for task in tasks)
-        )
+
+        # Build set of completed task IDs for dependency filtering
+        completed_ids = {t.id for t in tasks if t.status == "completed"}
+
+        # Format each task
+        lines: list[str] = []
+        for task in tasks:
+            subject = task.subject or task.description
+            owner = task.owner or ""
+            # Filter blockedBy to only show unresolved dependencies
+            active_blockers = [bid for bid in task.blocked_by if bid not in completed_ids]
+            blocked_str = f" blockedBy={active_blockers}" if active_blockers else ""
+            owner_str = f" owner={owner}" if owner else ""
+            lines.append(f"id={task.id} status={task.status} subject={subject}{owner_str}{blocked_str}")
+
+        return ToolResult(output="\n".join(lines))

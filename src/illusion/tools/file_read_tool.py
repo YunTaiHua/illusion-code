@@ -65,6 +65,11 @@ Usage:
         ]
         if not numbered:
             return ToolResult(output=f"(no content in selected range for {path})")
+
+        # Register this file as having been read (for read-before-edit enforcement)
+        from illusion.tools.file_edit_tool import mark_file_read
+        mark_file_read(str(path))
+
         return ToolResult(output="\n".join(numbered))
 
 

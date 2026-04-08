@@ -3,19 +3,60 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
-AskUserPrompt = Callable[[str], Awaitable[str]]
+AskUserPrompt = Callable[..., Awaitable[dict[str, str]]]
+
+
+class QuestionOption(BaseModel):
+    """A single choice option for a question."""
+
+    label: str = Field(description="Display text for this option (1-5 words)")
+    description: str = Field(description="Explanation of what this option means or what will happen if chosen")
+    preview: str | None = Field(default=None, description="Optional preview content (markdown)")
+
+
+class QuestionItem(BaseModel):
+    """A single question to ask the user."""
+
+    question: str = Field(description="The complete question to ask the user. Should be clear, specific, and end with a question mark.")
+    header: str = Field(description="Very short label displayed as a chip/tag (max 12 chars). Examples: 'Auth method', 'Library', 'Approach'.")
+    options: list[QuestionOption] = Field(
+        description="The available choices for this question. Must have 2-4 options.",
+        min_length=2,
+        max_length=4,
+    )
+    multiSelect: bool = Field(
+        default=False,
+        description="Set to true to allow the user to select multiple options instead of just one.",
+    )
 
 
 class AskUserQuestionToolInput(BaseModel):
     """Arguments for asking the user a question."""
 
-    question: str = Field(description="The exact question to ask the user")
+    questions: list[QuestionItem] = Field(
+        description="Questions to ask the user (1-4 questions)",
+        min_length=1,
+        max_length=4,
+    )
+    answers: dict[str, str] | None = Field(
+        default=None,
+        description="User answers collected by the permission component",
+    )
+    annotations: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional per-question annotations from the user",
+    )
+    metadata: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional metadata for tracking and analytics purposes",
+    )
 
 
 class AskUserQuestionTool(BaseTool):
@@ -60,7 +101,27 @@ Preview content is rendered as markdown in a monospace box. Multi-line text with
                 output="ask_user_question is unavailable in this session",
                 is_error=True,
             )
-        answer = str(await prompt(arguments.question)).strip()
-        if not answer:
+
+        # Build question display text for the prompt
+        parts: list[str] = []
+        for i, q in enumerate(arguments.questions, 1):
+            header = f"[{q.header}]" if q.header else ""
+            parts.append(f"{header} {q.question}")
+            for j, opt in enumerate(q.options, 1):
+                preview_note = " (has preview)" if opt.preview else ""
+                parts.append(f"  {j}. {opt.label} - {opt.description}{preview_note}")
+            if q.multiSelect:
+                parts.append("  (multi-select)")
+
+        question_text = "\n".join(parts)
+        answers = await prompt(question_text)
+
+        if not answers:
             return ToolResult(output="(no response)")
-        return ToolResult(output=answer)
+
+        # Format answers
+        if isinstance(answers, dict):
+            lines = [f"{k}: {v}" for k, v in answers.items()]
+            return ToolResult(output="\n".join(lines))
+
+        return ToolResult(output=str(answers))

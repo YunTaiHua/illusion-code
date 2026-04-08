@@ -12,6 +12,7 @@ class SkillToolInput(BaseModel):
     """Arguments for skill lookup."""
 
     name: str = Field(description="Skill name")
+    args: str | None = Field(default=None, description="Optional arguments for the skill")
 
 
 class SkillTool(BaseTool):
@@ -50,4 +51,10 @@ Important:
         skill = registry.get(arguments.name) or registry.get(arguments.name.lower()) or registry.get(arguments.name.title())
         if skill is None:
             return ToolResult(output=f"Skill not found: {arguments.name}", is_error=True)
-        return ToolResult(output=skill.content)
+
+        content = skill.content
+        # Interpolate $ARGUMENTS placeholder if args provided
+        if arguments.args and "$ARGUMENTS" in content:
+            content = content.replace("$ARGUMENTS", arguments.args)
+
+        return ToolResult(output=content)

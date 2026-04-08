@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
-import re
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -14,10 +15,10 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 class EnterWorktreeToolInput(BaseModel):
     """Arguments for entering a worktree."""
 
-    branch: str = Field(description="Target branch name for the worktree")
-    path: str | None = Field(default=None, description="Optional worktree path")
-    create_branch: bool = Field(default=True)
-    base_ref: str = Field(default="HEAD", description="Base ref when creating a new branch")
+    name: str | None = Field(
+        default=None,
+        description="A name for the worktree. If not provided, a random name is generated.",
+    )
 
 
 class EnterWorktreeTool(BaseTool):
@@ -63,20 +64,18 @@ class EnterWorktreeTool(BaseTool):
             return ToolResult(output="enter_worktree requires a git repository", is_error=True)
 
         repo_root = Path(top_level)
-        worktree_path = _resolve_worktree_path(repo_root, arguments.branch, arguments.path)
+        name = arguments.name or f"wt-{uuid4().hex[:8]}"
+        branch_name = name
+        worktree_path = _resolve_worktree_path(repo_root, branch_name)
         worktree_path.parent.mkdir(parents=True, exist_ok=True)
-        cmd = ["git", "worktree", "add"]
-        if arguments.create_branch:
-            cmd.extend(["-b", arguments.branch, str(worktree_path), arguments.base_ref])
-        else:
-            cmd.extend([str(worktree_path), arguments.branch])
+        cmd = ["git", "worktree", "add", "-b", branch_name, str(worktree_path), "HEAD"]
         result = subprocess.run(
             cmd,
             cwd=repo_root,
             capture_output=True,
             text=True,
             check=False,
-            stdin=subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+            stdin=subprocess.DEVNULL,
         )
         output = (result.stdout or result.stderr).strip() or f"Created worktree {worktree_path}"
         if result.returncode != 0:
@@ -98,11 +97,6 @@ def _git_output(cwd: Path, *args: str) -> str | None:
     return (result.stdout or "").strip()
 
 
-def _resolve_worktree_path(repo_root: Path, branch: str, path: str | None) -> Path:
-    if path:
-        resolved = Path(path).expanduser()
-        if not resolved.is_absolute():
-            resolved = repo_root / resolved
-        return resolved.resolve()
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", branch).strip("-") or "worktree"
+def _resolve_worktree_path(repo_root: Path, name: str) -> Path:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-") or "worktree"
     return (repo_root / ".illusion" / "worktrees" / slug).resolve()

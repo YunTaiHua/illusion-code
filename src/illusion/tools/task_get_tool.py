@@ -50,4 +50,22 @@ Returns full task details:
         task = get_task_manager().get_task(arguments.task_id)
         if task is None:
             return ToolResult(output=f"No task found with ID: {arguments.task_id}", is_error=True)
-        return ToolResult(output=str(task))
+
+        # Build structured output matching reference format
+        parts = [
+            f"id: {task.id}",
+            f"subject: {task.subject or task.description}",
+        ]
+        if task.description and task.subject:
+            parts.append(f"description: {task.description}")
+        parts.append(f"status: {task.status}")
+        if task.owner:
+            parts.append(f"owner: {task.owner}")
+        if task.blocks:
+            parts.append(f"blocks: {task.blocks}")
+        if task.blocked_by:
+            parts.append(f"blockedBy: {task.blocked_by}")
+        if task.active_form:
+            parts.append(f"activeForm: {task.active_form}")
+
+        return ToolResult(output="\n".join(parts))

@@ -38,10 +38,33 @@ Usage:
         context: ToolExecutionContext,
     ) -> ToolResult:
         path = _resolve_path(context.cwd, arguments.path)
+
+        # Read-before-write enforcement for existing files
+        if path.exists():
+            from illusion.tools.file_edit_tool import has_file_been_read, mark_file_read
+            if not has_file_been_read(str(path)):
+                return ToolResult(
+                    output=(
+                        f"You must read the file at {path} using the Read tool "
+                        "before you can write to it. This tool will fail if you attempt "
+                        "a write without reading the file first."
+                    ),
+                    is_error=True,
+                )
+
         if arguments.create_directories:
             path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Determine if this is a create or update
+        action = "update" if path.exists() else "create"
+
         path.write_text(arguments.content, encoding="utf-8")
-        return ToolResult(output=f"Wrote {path}")
+
+        # Mark file as read after writing so subsequent edits work
+        from illusion.tools.file_edit_tool import mark_file_read
+        mark_file_read(str(path))
+
+        return ToolResult(output=f"{action.title()}d {path}")
 
 
 def _resolve_path(base: Path, candidate: str) -> Path:

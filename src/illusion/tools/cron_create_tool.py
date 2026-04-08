@@ -11,16 +11,18 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 class CronCreateToolInput(BaseModel):
     """Arguments for cron job creation."""
 
-    name: str = Field(description="Unique cron job name")
-    schedule: str = Field(
-        description=(
-            "Cron schedule expression (e.g. '*/5 * * * *' for every 5 minutes, "
-            "'0 9 * * 1-5' for weekdays at 9am)"
-        ),
+    cron: str = Field(
+        description="Standard 5-field cron expression in local time (e.g., '*/5 * * * *' for every 5 minutes)",
     )
-    command: str = Field(description="Shell command to run when triggered")
-    cwd: str | None = Field(default=None, description="Optional working directory override")
-    enabled: bool = Field(default=True, description="Whether the job is active")
+    prompt: str = Field(description="The prompt to enqueue at each fire time")
+    recurring: bool = Field(
+        default=True,
+        description="True = fire on every cron match until deleted or auto-expired after 180 days. False = fire once at the next match, then auto-delete.",
+    )
+    durable: bool = Field(
+        default=False,
+        description="True = persist to .illusion/scheduled_tasks.json and survive restarts. False = in-memory only, dies when session ends.",
+    )
 
 
 class CronCreateTool(BaseTool):
@@ -70,26 +72,27 @@ Returns a job ID you can pass to CronDelete."""
         arguments: CronCreateToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
-        if not validate_cron_expression(arguments.schedule):
+        if not validate_cron_expression(arguments.cron):
             return ToolResult(
                 output=(
-                    f"Invalid cron expression: {arguments.schedule!r}\n"
+                    f"Invalid cron expression: {arguments.cron!r}\n"
                     "Use standard 5-field format: minute hour day month weekday\n"
                     "Examples: '*/5 * * * *' (every 5 min), '0 9 * * 1-5' (weekdays 9am)"
                 ),
                 is_error=True,
             )
 
-        upsert_cron_job(
+        job_id = upsert_cron_job(
             {
-                "name": arguments.name,
-                "schedule": arguments.schedule,
-                "command": arguments.command,
-                "cwd": arguments.cwd or str(context.cwd),
-                "enabled": arguments.enabled,
+                "schedule": arguments.cron,
+                "prompt": arguments.prompt,
+                "recurring": arguments.recurring,
+                "durable": arguments.durable,
+                "cwd": str(context.cwd),
             }
         )
-        status = "enabled" if arguments.enabled else "disabled"
+        kind = "recurring" if arguments.recurring else "one-shot"
+        persist = "durable" if arguments.durable else "session-only"
         return ToolResult(
-            output=f"Created cron job '{arguments.name}' [{arguments.schedule}] ({status})"
+            output=f"Created {kind} cron job '{job_id}' [{arguments.cron}] ({persist})"
         )

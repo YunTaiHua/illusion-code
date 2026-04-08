@@ -26,6 +26,32 @@ class BackgroundTaskManager:
         self._input_locks: dict[str, asyncio.Lock] = {}
         self._generations: dict[str, int] = {}
 
+    def create_pending_task(
+        self,
+        *,
+        subject: str,
+        description: str,
+        active_form: str | None = None,
+    ) -> TaskRecord:
+        """Create a pending task for tracking (not a background process)."""
+        task_id = _task_id("in_process_teammate")
+        output_path = get_tasks_dir() / f"{task_id}.log"
+        record = TaskRecord(
+            id=task_id,
+            type="in_process_teammate",
+            status="pending",
+            description=description,
+            subject=subject,
+            active_form=active_form,
+            cwd=str(Path.cwd().resolve()),
+            output_file=output_path,
+            created_at=time.time(),
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("", encoding="utf-8")
+        self._tasks[task_id] = record
+        return record
+
     async def create_shell_task(
         self,
         *,
@@ -106,14 +132,41 @@ class BackgroundTaskManager:
         self,
         task_id: str,
         *,
+        subject: str | None = None,
         description: str | None = None,
+        active_form: str | None = None,
+        status: str | None = None,
+        owner: str | None = None,
         progress: int | None = None,
         status_note: str | None = None,
+        metadata: dict | None = None,
+        add_blocks: list[str] | None = None,
+        add_blocked_by: list[str] | None = None,
     ) -> TaskRecord:
         """Update mutable task metadata used for coordination and UI display."""
         task = self._require_task(task_id)
+
+        # Handle deletion
+        if status == "deleted":
+            self._tasks.pop(task_id, None)
+            return task
+
+        if subject is not None:
+            task.subject = subject
         if description is not None and description.strip():
             task.description = description.strip()
+        if active_form is not None:
+            task.active_form = active_form
+        if status is not None:
+            # Map task-list statuses to task-manager statuses
+            status_map = {
+                "pending": "pending",
+                "in_progress": "running",
+                "completed": "completed",
+            }
+            task.status = status_map.get(status, status)
+        if owner is not None:
+            task.owner = owner
         if progress is not None:
             task.metadata["progress"] = str(progress)
         if status_note is not None:
@@ -122,6 +175,20 @@ class BackgroundTaskManager:
                 task.metadata["status_note"] = note
             else:
                 task.metadata.pop("status_note", None)
+        if metadata is not None:
+            for key, value in metadata.items():
+                if value is None:
+                    task.metadata.pop(key, None)
+                else:
+                    task.metadata[key] = str(value)
+        if add_blocks is not None:
+            for block_id in add_blocks:
+                if block_id not in task.blocks:
+                    task.blocks.append(block_id)
+        if add_blocked_by is not None:
+            for blocker_id in add_blocked_by:
+                if blocker_id not in task.blocked_by:
+                    task.blocked_by.append(blocker_id)
         return task
 
     async def stop_task(self, task_id: str) -> TaskRecord:
