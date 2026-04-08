@@ -39,7 +39,7 @@ export function Spinner({label}: {label?: string}): React.JSX.Element {
 	return (
 		<Text>
 			<Text color={theme.colors.primary}>{frames[frame]}</Text>
-			<Text dimColor> {verb}</Text>
+			<Text color={theme.colors.muted}> {verb}</Text>
 		</Text>
 	);
 }
