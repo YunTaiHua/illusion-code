@@ -29,6 +29,8 @@ class FrontendRequest(BaseModel):
     value: str | None = None
     request_id: str | None = None
     allowed: bool | None = None
+    always_allow: bool | None = None
+    tool_name: str | None = None
     answer: str | None = None
 
 
