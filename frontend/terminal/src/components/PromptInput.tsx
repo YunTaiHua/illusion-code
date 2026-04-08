@@ -26,15 +26,15 @@ export function PromptInput({
 
 	if (busy) {
 		return (
-			<Box>
+			<Box marginTop={1}>
 				<Spinner label={toolName ? `Running ${toolName}...` : undefined} />
 			</Box>
 		);
 	}
 
 	return (
-		<Box>
-			<Text color={theme.colors.primary} bold>{'> '}</Text>
+		<Box marginTop={1}>
+			<Text color={theme.colors.primary} bold>{'▸  '}</Text>
 			<TextInput value={input} onChange={setInput} onSubmit={suppressSubmit ? noop : onSubmit} />
 		</Box>
 	);
