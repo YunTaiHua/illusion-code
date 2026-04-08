@@ -41,6 +41,7 @@ type SelectModalState = {
 
 const PERMISSION_PROMPT_OPTIONS: SelectOption[] = [
 	{value: 'allow', label: 'Allow', description: 'Approve this tool execution'},
+	{value: 'always', label: 'Always Allow', description: 'Always allow this tool without asking again'},
 	{value: 'deny', label: 'Deny', description: 'Reject this tool execution'},
 ];
 
@@ -64,7 +65,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	const [pickerIndex, setPickerIndex] = useState(0);
 	const [selectModal, setSelectModal] = useState<SelectModalState>(null);
 	const [selectIndex, setSelectIndex] = useState(0);
-	const [permissionIndex, setPermissionIndex] = useState(1);
+	const [permissionIndex, setPermissionIndex] = useState(2);
 	const [pendingPermissionAck, setPendingPermissionAck] = useState(false);
 	const session = useBackendSession(config, () => exit());
 	const isPermissionModal = session.modal?.kind === 'permission';
@@ -250,18 +251,24 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 				return;
 			}
 			if (key.upArrow || key.downArrow) {
-				setPermissionIndex((i) => (i === 0 ? 1 : 0));
+				setPermissionIndex((i) => {
+					if (key.upArrow) return i <= 0 ? 2 : i - 1;
+					return i >= 2 ? 0 : i + 1;
+				});
 				return;
 			}
 			if (key.return || key.escape) {
 				if (!permissionRequestId) {
 					return;
 				}
-				const allowed = key.escape ? false : permissionIndex === 0;
+				const selected = key.escape ? 'deny' : PERMISSION_PROMPT_OPTIONS[permissionIndex]?.value;
+				const allowed = selected === 'allow' || selected === 'always';
 				session.sendRequest({
 					type: 'permission_response',
 					request_id: permissionRequestId,
 					allowed,
+					always_allow: selected === 'always',
+					tool_name: String(session.modal?.tool_name ?? ''),
 				});
 				setPendingPermissionAck(true);
 				return;
@@ -455,10 +462,13 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			{session.ready && !session.modal && !session.busy && !selectModal && !pendingPermissionAck ? (
 				<Box>
 					<Text dimColor>
-						<Text color={theme.colors.primary}>enter</Text> send{'  '}
-						<Text color={theme.colors.primary}>/</Text> commands{'  '}
-						<Text color={theme.colors.primary}>{'\u2191\u2193'}</Text> history{'  '}
-						<Text color={theme.colors.primary}>ctrl+c</Text> exit
+						<Text>enter</Text> send
+						<Text>{'  ·  '}</Text>
+						<Text>/</Text> commands
+						<Text>{'  ·  '}</Text>
+						<Text>{'↑↓'}</Text> history
+						<Text>{'  ·  '}</Text>
+						<Text>ctrl+c</Text> exit
 					</Text>
 				</Box>
 			) : null}
