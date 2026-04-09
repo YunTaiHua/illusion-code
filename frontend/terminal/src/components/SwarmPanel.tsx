@@ -1,6 +1,8 @@
 import React, {useState} from 'react';
 import {Box, Text, useInput} from 'ink';
 
+import {useTheme} from '../theme/ThemeContext.js';
+
 export type SwarmTeammate = {
 	name: string;
 	status: 'running' | 'idle' | 'done' | 'error';
@@ -14,16 +16,29 @@ export type SwarmNotification = {
 	timestamp: number;
 };
 
-function statusIcon(status: SwarmTeammate['status']): string {
+function statusIcon(status: SwarmTeammate['status'], theme: ReturnType<typeof useTheme>['theme']): string {
 	switch (status) {
 		case 'running':
-			return '🟢';
+			return theme.icons.inProgress;
 		case 'idle':
-			return '🟡';
+			return theme.icons.pending;
 		case 'done':
-			return '✅';
+			return theme.icons.completed;
 		case 'error':
-			return '🔴';
+			return theme.icons.error;
+	}
+}
+
+function statusColor(status: SwarmTeammate['status']): string {
+	switch (status) {
+		case 'running':
+			return 'green';
+		case 'idle':
+			return 'yellow';
+		case 'done':
+			return 'cyan';
+		case 'error':
+			return 'red';
 	}
 }
 
@@ -45,6 +60,7 @@ export function SwarmPanel({
 	notifications: SwarmNotification[];
 	collapsed?: boolean;
 }): React.JSX.Element | null {
+	const {theme} = useTheme();
 	const [collapsed, setCollapsed] = useState(initialCollapsed);
 
 	useInput((chunk, key) => {
@@ -62,27 +78,27 @@ export function SwarmPanel({
 	if (collapsed) {
 		return (
 			<Box>
-				<Text color="cyan" bold>
-					{'⚡ '}
+				<Text color={theme.colors.accent} bold>
+					{theme.icons.inProgress}{' '}
 				</Text>
 				<Text dimColor>
 					Swarm: {teammates.length} agents ({activeCount} active)
 				</Text>
-				<Text dimColor> [ctrl+w expand]</Text>
+				<Text dimColor> [ctrl+w to expand]</Text>
 			</Box>
 		);
 	}
 
 	return (
-		<Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} marginTop={1}>
+		<Box flexDirection="column" borderStyle="round" borderColor={theme.colors.accent} paddingX={1} marginTop={1}>
 			<Box>
-				<Text color="cyan" bold>
-					{'⚡ '}
+				<Text color={theme.colors.accent} bold>
+					{theme.icons.inProgress}{' '}
 				</Text>
 				<Text bold>Swarm</Text>
 				<Text dimColor>
 					{' '}
-					({activeCount}/{teammates.length} active) [ctrl+w collapse]
+					({activeCount}/{teammates.length} active) [ctrl+w to collapse]
 				</Text>
 			</Box>
 
@@ -90,10 +106,10 @@ export function SwarmPanel({
 				<Box flexDirection="column" marginTop={1}>
 					{teammates.map((teammate) => (
 						<Box key={teammate.name} flexDirection="row" marginBottom={0}>
-							<Text>{statusIcon(teammate.status)} </Text>
+							<Text color={statusColor(teammate.status)}>{statusIcon(teammate.status, theme)} </Text>
 							<Box flexDirection="column">
 								<Box>
-									<Text bold color={teammate.status === 'running' ? 'green' : teammate.status === 'error' ? 'red' : undefined}>
+									<Text bold color={statusColor(teammate.status)}>
 										{teammate.name}
 									</Text>
 									{teammate.duration !== undefined && (

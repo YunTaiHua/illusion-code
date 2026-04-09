@@ -11,6 +11,11 @@ export type ThemeConfig = {
 		warning: string;
 		error: string;
 		info: string;
+		illusion: string;
+		illusionShimmer: string;
+		text: string;
+		subtle: string;
+		highlight: string;
 	};
 	icons: {
 		spinner: string[];
@@ -20,6 +25,15 @@ export type ThemeConfig = {
 		system: string;
 		success: string;
 		error: string;
+		pending: string;
+		inProgress: string;
+		completed: string;
+		bullet: string;
+		arrow: string;
+		check: string;
+		cross: string;
+		chevron: string;
+		dot: string;
 	};
 };
 
@@ -28,7 +42,7 @@ export const defaultTheme: ThemeConfig = {
 	colors: {
 		primary: 'cyan',
 		secondary: 'white',
-		accent: 'cyan',
+		accent: 'magenta',
 		foreground: 'white',
 		background: 'black',
 		muted: 'gray',
@@ -36,15 +50,29 @@ export const defaultTheme: ThemeConfig = {
 		warning: 'yellow',
 		error: 'red',
 		info: 'blue',
+		illusion: '#d4a574',
+		illusionShimmer: '#e8c49a',
+		text: 'white',
+		subtle: 'gray',
+		highlight: 'cyan',
 	},
 	icons: {
 		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-		tool: '  ❯ ',
-		assistant: '●  ',
-		user: '▸  ',
-		system: 'ℹ  ',
-		success: '✔  ',
-		error: '✖  ',
+		tool: '●',
+		assistant: '●',
+		user: '▸',
+		system: 'ℹ',
+		success: '✔',
+		error: '✖',
+		pending: '○',
+		inProgress: '◐',
+		completed: '●',
+		bullet: '•',
+		arrow: '→',
+		check: '✓',
+		cross: '✗',
+		chevron: '›',
+		dot: '●',
 	},
 };
 
@@ -61,15 +89,29 @@ export const darkTheme: ThemeConfig = {
 		warning: '#e0af68',
 		error: '#f7768e',
 		info: '#7dcfff',
+		illusion: '#d4a574',
+		illusionShimmer: '#e8c49a',
+		text: '#c0caf5',
+		subtle: '#565f89',
+		highlight: '#7aa2f7',
 	},
 	icons: {
 		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-		tool: '  ❯ ',
-		assistant: '◆  ',
-		user: '▸  ',
-		system: 'ℹ  ',
-		success: '✔  ',
-		error: '✖  ',
+		tool: '◆',
+		assistant: '◆',
+		user: '▸',
+		system: 'ℹ',
+		success: '✔',
+		error: '✖',
+		pending: '○',
+		inProgress: '◐',
+		completed: '●',
+		bullet: '•',
+		arrow: '→',
+		check: '✓',
+		cross: '✗',
+		chevron: '›',
+		dot: '●',
 	},
 };
 
@@ -86,15 +128,29 @@ export const minimalTheme: ThemeConfig = {
 		warning: 'white',
 		error: 'white',
 		info: 'white',
+		illusion: 'white',
+		illusionShimmer: 'white',
+		text: 'white',
+		subtle: 'gray',
+		highlight: 'white',
 	},
 	icons: {
 		spinner: ['-', '\\', '|', '/'],
-		tool: '  > ',
-		assistant: ':  ',
-		user: '>  ',
-		system: '#  ',
-		success: '+  ',
-		error: '!  ',
+		tool: '>',
+		assistant: ':',
+		user: '>',
+		system: '#',
+		success: '+',
+		error: '!',
+		pending: 'o',
+		inProgress: '~',
+		completed: 'x',
+		bullet: '*',
+		arrow: '->',
+		check: '+',
+		cross: '-',
+		chevron: '>',
+		dot: '*',
 	},
 };
 
@@ -111,15 +167,29 @@ export const cyberpunkTheme: ThemeConfig = {
 		warning: '#ffe600',
 		error: '#ff003c',
 		info: '#00fff9',
+		illusion: '#ff007c',
+		illusionShimmer: '#ff4da6',
+		text: '#00fff9',
+		subtle: '#444444',
+		highlight: '#ffe600',
 	},
 	icons: {
 		spinner: ['◐', '◓', '◑', '◒'],
-		tool: '  ❯ ',
-		assistant: '◈  ',
-		user: '▸  ',
-		system: '⚡  ',
-		success: '✦  ',
-		error: '✖  ',
+		tool: '◈',
+		assistant: '◈',
+		user: '▸',
+		system: '⚡',
+		success: '✦',
+		error: '✖',
+		pending: '○',
+		inProgress: '◐',
+		completed: '●',
+		bullet: '◆',
+		arrow: '→',
+		check: '✓',
+		cross: '✗',
+		chevron: '›',
+		dot: '●',
 	},
 };
 
@@ -136,15 +206,29 @@ export const solarizedTheme: ThemeConfig = {
 		warning: '#b58900',
 		error: '#dc322f',
 		info: '#268bd2',
+		illusion: '#b58900',
+		illusionShimmer: '#cb8e14',
+		text: '#839496',
+		subtle: '#586e75',
+		highlight: '#268bd2',
 	},
 	icons: {
 		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-		tool: '  ❯ ',
-		assistant: '●  ',
-		user: '▸  ',
-		system: 'ℹ  ',
-		success: '✔  ',
-		error: '✖  ',
+		tool: '●',
+		assistant: '●',
+		user: '▸',
+		system: 'ℹ',
+		success: '✔',
+		error: '✖',
+		pending: '○',
+		inProgress: '◐',
+		completed: '●',
+		bullet: '•',
+		arrow: '→',
+		check: '✓',
+		cross: '✗',
+		chevron: '›',
+		dot: '●',
 	},
 };
 

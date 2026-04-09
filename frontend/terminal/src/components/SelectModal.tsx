@@ -1,6 +1,8 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 
+import {useTheme} from '../theme/ThemeContext.js';
+
 export type SelectOption = {
 	value: string;
 	label: string;
@@ -17,28 +19,46 @@ export function SelectModal({
 	options: SelectOption[];
 	selectedIndex: number;
 }): React.JSX.Element {
+	const {theme} = useTheme();
+
 	return (
-		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
-			<Text bold color="cyan">{title}</Text>
-			<Text> </Text>
+		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor={theme.colors.accent} paddingX={1}>
+			<Box marginBottom={1}>
+				<Text color={theme.colors.accent} bold>{theme.icons.chevron} {title}</Text>
+			</Box>
 			{options.map((opt, i) => {
 				const isSelected = i === selectedIndex;
 				const isCurrent = opt.active;
 				return (
-					<Box key={opt.value} flexDirection="row">
-						<Text color={isSelected ? 'cyan' : undefined} bold={isSelected}>
-							{isSelected ? '\u276F ' : '  '}
-							<Text color={isSelected ? 'cyan' : undefined}>
-								{opt.label}
-							</Text>
+					<Box key={opt.value} flexDirection="row" marginLeft={1}>
+						<Text color={isSelected ? theme.colors.accent : theme.colors.muted}>
+							{isSelected ? `${theme.icons.chevron} ` : '  '}
 						</Text>
-						{isCurrent ? <Text color="green"> (current)</Text> : null}
-						{opt.description ? <Text dimColor>  {opt.description}</Text> : null}
+						<Text color={isSelected ? theme.colors.accent : undefined} bold={isSelected}>
+							{opt.label}
+						</Text>
+						{isCurrent ? (
+							<Box marginLeft={1}>
+								<Text color={theme.colors.success} dimColor>(current)</Text>
+							</Box>
+						) : null}
+						{opt.description ? (
+							<Box marginLeft={1}>
+								<Text dimColor>{opt.description}</Text>
+							</Box>
+						) : null}
 					</Box>
 				);
 			})}
-			<Text> </Text>
-			<Text dimColor>{'\u2191\u2193'} navigate{'  '}{'\u23CE'} select{'  '}esc cancel</Text>
+			<Box marginTop={1}>
+				<Text dimColor>
+					<Text color={theme.colors.muted}>↑↓</Text> navigate
+					<Text>  </Text>
+					<Text color={theme.colors.muted}>↵</Text> select
+					<Text>  </Text>
+					<Text color={theme.colors.muted}>esc</Text> cancel
+				</Text>
+			</Box>
 		</Box>
 	);
 }

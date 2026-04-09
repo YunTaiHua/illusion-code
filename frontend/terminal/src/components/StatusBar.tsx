@@ -18,6 +18,7 @@ function PlanModeIndicator({
 	mode: string;
 	activeToolName?: string;
 }): React.JSX.Element | null {
+	const {theme} = useTheme();
 	const [flash, setFlash] = useState(false);
 	const [prevMode, setPrevMode] = useState(mode);
 
@@ -34,9 +35,11 @@ function PlanModeIndicator({
 	if (mode !== 'plan' && mode !== 'Plan Mode') {
 		if (flash) {
 			return (
-				<Text color="green" bold>
-					{' PLAN MODE OFF '}
-				</Text>
+				<Box marginLeft={1}>
+					<Text color="green" bold>
+						{' PLAN MODE OFF '}
+					</Text>
+				</Box>
 			);
 		}
 		return null;
@@ -45,12 +48,68 @@ function PlanModeIndicator({
 	const isBlockedTool = activeToolName != null && WRITE_TOOLS.has(activeToolName);
 
 	return (
-		<Text>
-			<Text color="yellow" bold>{' PLAN '}</Text>
+		<Box marginLeft={1}>
+			<Text backgroundColor="yellow" color="black" bold>
+				{' PLAN '}
+			</Text>
 			{isBlockedTool ? (
-				<Text color="red">{'\uD83D\uDEAB '}{activeToolName} blocked</Text>
+				<Box marginLeft={1}>
+					<Text color="red">{theme.icons.cross} </Text>
+					<Text color="red" bold>{activeToolName}</Text>
+					<Text color="red"> blocked</Text>
+				</Box>
 			) : null}
+		</Box>
+	);
+}
+
+function AutoModeIndicator(): React.JSX.Element {
+	return (
+		<Box marginLeft={1}>
+			<Text backgroundColor="green" color="black" bold>
+				{' AUTO '}
+			</Text>
+		</Box>
+	);
+}
+
+function TokenDisplay({
+	inputTokens,
+	outputTokens,
+	color,
+}: {
+	inputTokens: number;
+	outputTokens: number;
+	color: string;
+}): React.JSX.Element {
+	return (
+		<Text color={color}>
+			<Text dimColor>{formatNum(inputTokens)}</Text>
+			<Text dimColor>↓</Text>
+			<Text> </Text>
+			<Text dimColor>{formatNum(outputTokens)}</Text>
+			<Text dimColor>↑</Text>
 		</Text>
+	);
+}
+
+function TaskIndicator({count}: {count: number}): React.JSX.Element {
+	const {theme} = useTheme();
+	return (
+		<Box>
+			<Text color="cyan">{theme.icons.inProgress}</Text>
+			<Text dimColor> {count} task{count !== 1 ? 's' : ''}</Text>
+		</Box>
+	);
+}
+
+function McpIndicator({count}: {count: number}): React.JSX.Element {
+	const {theme} = useTheme();
+	return (
+		<Box>
+			<Text color="magenta">{theme.icons.dot}</Text>
+			<Text dimColor> {count} MCP</Text>
+		</Box>
 	);
 }
 
@@ -71,47 +130,51 @@ export function StatusBar({
 	const inputTokens = Number(status.input_tokens ?? 0);
 	const outputTokens = Number(status.output_tokens ?? 0);
 	const isPlanMode = mode === 'plan' || mode === 'Plan Mode';
+	const isAutoMode = mode === 'full_auto' || mode === 'auto';
 
 	return (
-		<Box flexDirection="column">
-			<Text color={theme.colors.muted}>{'─'.repeat(60)}</Text>
+		<Box flexDirection="column" marginTop={1}>
+			<Box flexDirection="row">
+				<Text dimColor>{'─'.repeat(60)}</Text>
+			</Box>
 			<Box flexDirection="row" alignItems="center">
-				<Text>
-					<Text color={theme.colors.primary} dimColor>{model}</Text>
-					{(inputTokens > 0 || outputTokens > 0) ? (
-						<>
-							<Text dimColor>{SEP}</Text>
-							<Text dimColor>{formatNum(inputTokens)}{'\u2193'} {formatNum(outputTokens)}{'\u2191'}</Text>
-						</>
-					) : null}
-					{!isPlanMode && mode !== 'default' ? (
-						<>
-							<Text dimColor>{SEP}</Text>
-							<Text dimColor>{mode}</Text>
-						</>
-					) : null}
-					{taskCount > 0 ? (
-						<>
-							<Text dimColor>{SEP}</Text>
-							<Text dimColor>tasks: {taskCount}</Text>
-						</>
-					) : null}
-					{mcpCount > 0 ? (
-						<>
-							<Text dimColor>{SEP}</Text>
-							<Text dimColor>mcp: {mcpCount}</Text>
-						</>
-					) : null}
-				</Text>
-				{isPlanMode ? (
-					<PlanModeIndicator mode={mode} activeToolName={activeToolName} />
+				<Text color={theme.colors.primary} dimColor>{model}</Text>
+				{(inputTokens > 0 || outputTokens > 0) ? (
+					<>
+						<Text dimColor>{SEP}</Text>
+						<TokenDisplay inputTokens={inputTokens} outputTokens={outputTokens} color={theme.colors.muted} />
+					</>
 				) : null}
+				{!isPlanMode && mode !== 'default' ? (
+					<>
+						<Text dimColor>{SEP}</Text>
+						<Text dimColor>{mode}</Text>
+					</>
+				) : null}
+				{taskCount > 0 ? (
+					<>
+						<Text dimColor>{SEP}</Text>
+						<TaskIndicator count={taskCount} />
+					</>
+				) : null}
+				{mcpCount > 0 ? (
+					<>
+						<Text dimColor>{SEP}</Text>
+						<McpIndicator count={mcpCount} />
+					</>
+				) : null}
+				<Box flexGrow={1} />
+				{isAutoMode ? <AutoModeIndicator /> : null}
+				{isPlanMode ? <PlanModeIndicator mode={mode} activeToolName={activeToolName} /> : null}
 			</Box>
 		</Box>
 	);
 }
 
 function formatNum(n: number): string {
+	if (n >= 1000000) {
+		return `${(n / 1000000).toFixed(1)}M`;
+	}
 	if (n >= 1000) {
 		return `${(n / 1000).toFixed(1)}k`;
 	}

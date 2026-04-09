@@ -7,6 +7,8 @@ import type {TranscriptItem} from '../types.js';
 import {ToolCallDisplay} from './ToolCallDisplay.js';
 import {WelcomeBanner} from './WelcomeBanner.js';
 
+const MAX_VISIBLE_ITEMS = 50;
+
 export function ConversationView({
 	items,
 	assistantBuffer,
@@ -19,7 +21,7 @@ export function ConversationView({
 	language: UiLanguage;
 }): React.JSX.Element {
 	const {theme} = useTheme();
-	const visible = items.slice(-40);
+	const visible = items.slice(-MAX_VISIBLE_ITEMS);
 
 	return (
 		<Box flexDirection="column" flexGrow={1}>
@@ -31,7 +33,7 @@ export function ConversationView({
 
 			{assistantBuffer ? (
 				<Box flexDirection="row" marginTop={1}>
-					<Text color={theme.colors.success} bold>{theme.icons.assistant}</Text>
+					<Text color={theme.colors.success} bold>{theme.icons.assistant} </Text>
 					<Text>{assistantBuffer}</Text>
 				</Box>
 			) : null}
@@ -53,7 +55,7 @@ function MessageRow({
 			return (
 				<Box marginTop={1} marginBottom={0}>
 					<Text>
-						<Text color={theme.colors.primary} bold>{theme.icons.user}</Text>
+						<Text color={theme.colors.primary} bold>{theme.icons.user} </Text>
 						<Text>{item.text}</Text>
 					</Text>
 				</Box>
@@ -63,7 +65,7 @@ function MessageRow({
 			return (
 				<Box marginTop={1} marginBottom={0} flexDirection="column">
 					<Text>
-						<Text color={theme.colors.success} bold>{theme.icons.assistant}</Text>
+						<Text color={theme.colors.success} bold>{theme.icons.assistant} </Text>
 						<Text>{item.text}</Text>
 					</Text>
 				</Box>
@@ -77,7 +79,7 @@ function MessageRow({
 			return (
 				<Box marginTop={1}>
 					<Text>
-						<Text color={theme.colors.warning}>{theme.icons.system}</Text>
+						<Text color={theme.colors.warning}>{theme.icons.system} </Text>
 						<Text color={theme.colors.muted}>{item.text}</Text>
 					</Text>
 				</Box>

@@ -30,12 +30,18 @@ export function PromptInput({
 
 	return (
 		<Box marginTop={1} flexDirection="column">
-			{busy ? <Spinner label={toolName ? `${t(language, 'statusToolPrefix')} ${toolName}...` : t(language, 'statusThinking')} /> : null}
+			{busy ? (
+				<Box marginBottom={1}>
+					<Spinner label={toolName ? `${t(language, 'statusToolPrefix')} ${toolName}...` : t(language, 'statusThinking')} />
+				</Box>
+			) : null}
 			<Box>
-				<Text color={theme.colors.primary} bold>{'▸  '}</Text>
+				<Text color={theme.colors.primary} bold>{theme.icons.user} </Text>
 				<TextInput value={input} onChange={setInput} onSubmit={suppressSubmit ? noop : onSubmit} />
 			</Box>
-			<Text color={theme.colors.muted}>{'────────────────────────────────────────────────────────────'}</Text>
+			<Box>
+				<Text color={theme.colors.muted}>{'─'.repeat(60)}</Text>
+			</Box>
 			<Text dimColor>{t(language, 'inputHint')}</Text>
 		</Box>
 	);

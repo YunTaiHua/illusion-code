@@ -1,6 +1,8 @@
 import React, {useState} from 'react';
 import {Box, Text, useInput} from 'ink';
 
+import {useTheme} from '../theme/ThemeContext.js';
+
 export type TodoItem = {
 	text: string;
 	checked: boolean;
@@ -27,6 +29,7 @@ export function TodoPanel({
 }): React.JSX.Element | null {
 	const [compact, setCompact] = useState(initialCompact);
 	const items = parseTodoItems(markdown);
+	const {theme} = useTheme();
 
 	useInput((chunk, key) => {
 		if (key.ctrl && chunk === 't') {
@@ -44,22 +47,22 @@ export function TodoPanel({
 	if (compact) {
 		return (
 			<Box>
-				<Text color="yellow" bold>
-					{'☑ '}
+				<Text color={theme.colors.warning} bold>
+					{theme.icons.check}{' '}
 				</Text>
 				<Text dimColor>
 					Todos: {done}/{total} done
 				</Text>
-				<Text dimColor> [ctrl+t expand]</Text>
+				<Text dimColor> [ctrl+t to expand]</Text>
 			</Box>
 		);
 	}
 
 	return (
-		<Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} marginTop={1}>
+		<Box flexDirection="column" borderStyle="round" borderColor={theme.colors.warning} paddingX={1} marginTop={1}>
 			<Box>
-				<Text color="yellow" bold>
-					{'☑ '}
+				<Text color={theme.colors.warning} bold>
+					{theme.icons.check}{' '}
 				</Text>
 				<Text bold>
 					Todo List{' '}
@@ -67,15 +70,15 @@ export function TodoPanel({
 				<Text dimColor>
 					({done}/{total})
 				</Text>
-				<Text dimColor> [ctrl+t compact]</Text>
+				<Text dimColor> [ctrl+t to compact]</Text>
 			</Box>
 			{items.map((item, i) => (
 				<Box key={i}>
-					<Text color={item.checked ? 'green' : 'white'}>
-						{item.checked ? '  ☑ ' : '  ☐ '}
+					<Text color={item.checked ? theme.colors.success : theme.colors.text}>
+						{item.checked ? `  ${theme.icons.completed} ` : `  ${theme.icons.pending} `}
 					</Text>
 					<Text
-						color={item.checked ? 'green' : undefined}
+						color={item.checked ? theme.colors.success : undefined}
 						dimColor={item.checked}
 					>
 						{item.text}

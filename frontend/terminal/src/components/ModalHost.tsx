@@ -4,22 +4,24 @@ import TextInput from 'ink-text-input';
 
 import type {UiLanguage} from '../i18n.js';
 import {t} from '../i18n.js';
+import {useTheme} from '../theme/ThemeContext.js';
 
 const WAIT_FRAMES = [
-	'Agent is waiting for your input   ',
-	'Agent is waiting for your input.  ',
-	'Agent is waiting for your input.. ',
-	'Agent is waiting for your input...',
+	'Waiting for input   ',
+	'Waiting for input.  ',
+	'Waiting for input.. ',
+	'Waiting for input...',
 ];
 
 function WaitingAnimation(): React.JSX.Element {
+	const {theme} = useTheme();
 	const [frame, setFrame] = useState(0);
 	useEffect(() => {
 		const timer = setInterval(() => setFrame((f) => (f + 1) % WAIT_FRAMES.length), 500);
 		return () => clearInterval(timer);
 	}, []);
 	return (
-		<Text color="magenta" dimColor>
+		<Text color={theme.colors.accent} dimColor>
 			{WAIT_FRAMES[frame]}
 		</Text>
 	);
@@ -38,6 +40,7 @@ function QuestionModal({
 	onSubmit: (value: string) => void;
 	language: UiLanguage;
 }): React.JSX.Element {
+	const {theme} = useTheme();
 	const [extraLines, setExtraLines] = useState<string[]>([]);
 
 	useInput((_chunk, key) => {
@@ -58,19 +61,24 @@ function QuestionModal({
 	const question = String(modal.question ?? 'Question');
 
 	return (
-		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="magenta" paddingX={1}>
-			<WaitingAnimation />
-			<Box marginTop={1}>
-				<Text color="magenta" bold>{'?  '}</Text>
+		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor={theme.colors.accent} paddingX={1}>
+			<Box marginBottom={1}>
+				<WaitingAnimation />
+			</Box>
+			<Box>
+				<Text color={theme.colors.accent} bold>{theme.icons.chevron}  </Text>
 				<Text bold>{question}</Text>
 			</Box>
 			{toolName ? (
-				<Text dimColor>
-					{'   '}Tool: <Text color="cyan">{toolName}</Text>
-				</Text>
+				<Box marginLeft={3}>
+					<Text dimColor>Tool: </Text>
+					<Text color={theme.colors.primary}>{toolName}</Text>
+				</Box>
 			) : null}
 			{reason ? (
-				<Text dimColor>{'   '}{reason}</Text>
+				<Box marginLeft={3}>
+					<Text dimColor>{reason}</Text>
+				</Box>
 			) : null}
 			{extraLines.length > 0 && (
 				<Box flexDirection="column" marginTop={1} marginLeft={3}>
@@ -82,11 +90,87 @@ function QuestionModal({
 				</Box>
 			)}
 			<Box marginTop={1}>
-				<Text color="cyan">▸  </Text>
+				<Text color={theme.colors.primary}>{theme.icons.user} </Text>
 				<TextInput value={modalInput} onChange={setModalInput} onSubmit={handleSubmit} />
 			</Box>
-			<Text dimColor>{'   '}{'────────────────────────────────────────────────────────────'}</Text>
-			<Text dimColor>{'   '}{t(language, 'inputHint')}</Text>
+			<Box marginTop={1}>
+				<Text dimColor>{'─'.repeat(50)}</Text>
+			</Box>
+			<Box marginLeft={3}>
+				<Text dimColor>{t(language, 'inputHint')}</Text>
+			</Box>
+		</Box>
+	);
+}
+
+function PermissionModal({
+	modal,
+}: {
+	modal: Record<string, unknown>;
+}): React.JSX.Element {
+	const {theme} = useTheme();
+	const toolName = String(modal.tool_name ?? 'tool');
+	const reason = modal.reason ? String(modal.reason) : null;
+
+	return (
+		<Box flexDirection="column" marginTop={1}>
+			<Box>
+				<Text color={theme.colors.warning} bold>{theme.icons.chevron}  </Text>
+				<Text bold>Allow </Text>
+				<Text color={theme.colors.primary} bold>{toolName}</Text>
+				<Text bold>?</Text>
+			</Box>
+			{reason ? (
+				<Box marginLeft={3}>
+					<Text dimColor>{reason}</Text>
+				</Box>
+			) : null}
+			<Box marginLeft={3}>
+				<Text dimColor>
+					<Text color={theme.colors.muted}>↑↓</Text> navigate
+					<Text>  </Text>
+					<Text color={theme.colors.muted}>↵</Text> select
+				</Text>
+			</Box>
+		</Box>
+	);
+}
+
+function McpAuthModal({
+	modal,
+	modalInput,
+	setModalInput,
+	onSubmit,
+	language,
+}: {
+	modal: Record<string, unknown>;
+	modalInput: string;
+	setModalInput: (value: string) => void;
+	onSubmit: (value: string) => void;
+	language: UiLanguage;
+}): React.JSX.Element {
+	const {theme} = useTheme();
+	const prompt = String(modal.prompt ?? 'Provide auth details');
+
+	return (
+		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor={theme.colors.accent} paddingX={1}>
+			<Box>
+				<Text color={theme.colors.warning} bold>{theme.icons.chevron}  </Text>
+				<Text bold>MCP Authentication</Text>
+			</Box>
+			<Box marginLeft={3}>
+				<Text dimColor>{prompt}</Text>
+			</Box>
+			<Box marginTop={1}>
+				<Text color={theme.colors.primary}>{theme.icons.user} </Text>
+				<TextInput value={modalInput} onChange={setModalInput} onSubmit={onSubmit} />
+			</Box>
+			<Box marginTop={1}>
+				<Text dimColor>{'─'.repeat(50)}</Text>
+			</Box>
+			<Box marginLeft={3}>
+				<Text dimColor>{t(language, 'inputHint')}</Text>
+			</Box>
 		</Box>
 	);
 }
@@ -104,29 +188,15 @@ export function ModalHost({
 	onSubmit: (value: string) => void;
 	language: UiLanguage;
 }): React.JSX.Element | null {
-	if (modal?.kind === 'permission') {
-		return (
-			<Box flexDirection="column" marginTop={1}>
-				<Text>
-					<Text color="yellow" bold>{'?  '}</Text>
-					<Text bold>Allow </Text>
-					<Text color="cyan" bold>{String(modal.tool_name ?? 'tool')}</Text>
-					<Text bold>?</Text>
-				</Text>
-				{modal.reason ? (
-					<Text>
-						<Text color="yellow">{'   '}</Text>
-						<Text dimColor>{String(modal.reason)}</Text>
-					</Text>
-				) : null}
-				<Text>
-					<Text color="yellow">{'   '}</Text>
-					<Text dimColor>{'\u2191\u2193'} navigate{'  '}{'\u23CE'} select</Text>
-				</Text>
-			</Box>
-		);
+	if (!modal) {
+		return null;
 	}
-	if (modal?.kind === 'question') {
+
+	if (modal.kind === 'permission') {
+		return <PermissionModal modal={modal} />;
+	}
+
+	if (modal.kind === 'question') {
 		return (
 			<QuestionModal
 				modal={modal}
@@ -137,22 +207,18 @@ export function ModalHost({
 			/>
 		);
 	}
-	if (modal?.kind === 'mcp_auth') {
+
+	if (modal.kind === 'mcp_auth') {
 		return (
-			<Box flexDirection="column" marginTop={1}>
-				<Text>
-					<Text color="yellow" bold>{'?  '}</Text>
-					<Text bold>MCP Authentication</Text>
-				</Text>
-				<Text dimColor>{String(modal.prompt ?? 'Provide auth details')}</Text>
-				<Box marginTop={1}>
-					<Text color="cyan">▸  </Text>
-					<TextInput value={modalInput} onChange={setModalInput} onSubmit={onSubmit} />
-				</Box>
-				<Text dimColor>{'   '}{'────────────────────────────────────────────────────────────'}</Text>
-				<Text dimColor>{'   '}{t(language, 'inputHint')}</Text>
-			</Box>
+			<McpAuthModal
+				modal={modal}
+				modalInput={modalInput}
+				setModalInput={setModalInput}
+				onSubmit={onSubmit}
+				language={language}
+			/>
 		);
 	}
+
 	return null;
 }
