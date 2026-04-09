@@ -223,6 +223,10 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			return;
 		}
 		if (event.type === 'error') {
+			if ((event.message ?? '').includes('No active task to stop')) {
+				setTranscript((items) => [...items, {role: 'system', text: event.message ?? ''}]);
+				return;
+			}
 			setTranscript((items) => [...items, {role: 'system', text: `error: ${event.message ?? 'unknown error'}`}]);
 			clearAssistantDelta();
 			setBusy(false);

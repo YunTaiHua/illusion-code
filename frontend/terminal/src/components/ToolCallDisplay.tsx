@@ -1,19 +1,21 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 
+import type {UiLanguage} from '../i18n.js';
+import {t} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 
-export function ToolCallDisplay({item}: {item: TranscriptItem}): React.JSX.Element {
+export function ToolCallDisplay({item, language}: {item: TranscriptItem; language: UiLanguage}): React.JSX.Element {
 	const {theme} = useTheme();
 
 	if (item.role === 'tool') {
 		const toolName = item.tool_name ?? 'tool';
 		const summary = summarizeInput(toolName, item.tool_input, item.text);
 		return (
-			<Box marginLeft={2} flexDirection="column">
+			<Box marginLeft={2}>
 				<Text>
-					<Text color={theme.colors.accent} bold>{theme.icons.tool}</Text>
+					<Text color={theme.colors.muted}>{theme.icons.tool} {t(language, 'statusExecuting')} </Text>
 					<Text color={theme.colors.accent} bold>{toolName}</Text>
 					<Text color={theme.colors.muted}> {summary}</Text>
 				</Text>

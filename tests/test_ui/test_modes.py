@@ -11,10 +11,10 @@ def test_input_session_updates_prompt_modes():
     assert session._prompt == "> "
 
     session.set_modes(vim_enabled=True, voice_enabled=False)
-    assert session._prompt == "[vim]> "
+    assert session._prompt == "> "
 
     session.set_modes(vim_enabled=True, voice_enabled=True)
-    assert session._prompt == "[vim][voice]> "
+    assert session._prompt == "> "
 
 
 def test_output_renderer_style_can_change():

@@ -33,7 +33,6 @@ The following settings are available for you to change:
 
 ### Global Settings (stored in ~/.illusion.json)
 - theme: "dark", "light", "ansi" - Terminal color theme
-- editorMode: "vim" - Enable vim keybindings
 - verbose: true/false - Show detailed output
 - permissions.defaultMode: "accept-edits", "plan", "accept-all" - Default permission mode
 - model: Model override (sonnet, opus, haiku, best, or full model ID)
@@ -53,7 +52,6 @@ The following settings are available for you to change:
 ## Examples
 - Get theme: { "setting": "theme" }
 - Set dark theme: { "setting": "theme", "value": "dark" }
-- Enable vim mode: { "setting": "editorMode", "value": "vim" }
 - Enable verbose: { "setting": "verbose", "value": true }
 - Change model: { "setting": "model", "value": "opus" }
 - Change permission mode: { "setting": "permissions.defaultMode", "value": "plan" }"""

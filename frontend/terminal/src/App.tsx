@@ -10,6 +10,7 @@ import {StatusBar} from './components/StatusBar.js';
 import {SwarmPanel} from './components/SwarmPanel.js';
 import {TodoPanel} from './components/TodoPanel.js';
 import {useBackendSession} from './hooks/useBackendSession.js';
+import {normalizeLanguage, t} from './i18n.js';
 import {ThemeProvider, useTheme} from './theme/ThemeContext.js';
 import type {FrontendConfig} from './types.js';
 
@@ -69,8 +70,18 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	const [pendingPermissionAck, setPendingPermissionAck] = useState(false);
 	const session = useBackendSession(config, () => exit());
 	const isPermissionModal = session.modal?.kind === 'permission';
+	const language = normalizeLanguage(session.status.ui_language);
 	const permissionRequestId =
 		isPermissionModal && typeof session.modal?.request_id === 'string' ? String(session.modal.request_id) : '';
+	const localizedPermissionOptions = PERMISSION_PROMPT_OPTIONS.map((opt) => {
+		if (opt.value === 'allow') {
+			return {...opt, label: t(language, 'allow')};
+		}
+		if (opt.value === 'always') {
+			return {...opt, label: t(language, 'alwaysAllow')};
+		}
+		return {...opt, label: t(language, 'deny')};
+	});
 
 	// Current tool name for spinner
 	const currentToolName = useMemo(() => {
@@ -88,18 +99,29 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 
 	// Command hints
 	const commandHints = useMemo(() => {
-		const value = input.trim();
-		if (!value.startsWith('/')) {
+		if (!input.startsWith('/')) {
 			return [] as string[];
 		}
-		return session.commands.filter((cmd) => cmd.startsWith(value)).slice(0, 10);
+		const value = input.trimEnd();
+		if (value === '') {
+			return [] as string[];
+		}
+		const matches = session.commands.filter((cmd) => cmd.startsWith(value));
+		if (value === '/') {
+			const preferred = ['/stop', '/language'];
+			const boosted = preferred.filter((cmd) => matches.includes(cmd));
+			const rest = matches.filter((cmd) => !preferred.includes(cmd));
+			return [...boosted, ...rest].slice(0, 20);
+		}
+		return matches.slice(0, 20);
 	}, [session.commands, input]);
 
-	const showPicker = commandHints.length > 0 && !session.busy && !session.modal && !selectModal;
+	const canShowPicker = input.startsWith('/') && commandHints.length > 0;
+	const showPicker = canShowPicker && !session.busy && !session.modal && !selectModal;
 
 	useEffect(() => {
 		setPickerIndex(0);
-	}, [commandHints.length, input]);
+	}, [canShowPicker, commandHints.length, input]);
 
 	// Handle backend-initiated select requests (e.g. /resume session list)
 	useEffect(() => {
@@ -165,6 +187,26 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			return true;
 		}
 
+		if (trimmed === '/language' || trimmed === '/language show') {
+			const current = normalizeLanguage(session.status.ui_language);
+			const options: SelectOption[] = [
+				{value: 'set zh-CN', label: t(current, 'langZh'), description: '中文界面', active: current === 'zh-CN'},
+				{value: 'set en', label: t(current, 'langEn'), description: 'English UI', active: current === 'en'},
+			];
+			const initialIndex = options.findIndex((o) => o.active);
+			setSelectIndex(initialIndex >= 0 ? initialIndex : 0);
+			setSelectModal({
+				title: t(current, 'language'),
+				options,
+				onSelect: (value) => {
+					session.sendRequest({type: 'submit_line', line: `/language ${value}`});
+					session.setBusy(true);
+					setSelectModal(null);
+				},
+			});
+			return true;
+		}
+
 		// /plan → toggle plan mode
 		if (trimmed === '/plan') {
 			const currentMode = String(session.status.permission_mode ?? 'default');
@@ -187,10 +229,19 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	};
 
 	useInput((chunk, key) => {
+		if ((key.backspace || key.delete) && input === '/') {
+			setInput('');
+			return;
+		}
+
 		// Ctrl+C → exit
 		if (key.ctrl && chunk === 'c') {
 			session.sendRequest({type: 'shutdown'});
 			exit();
+			return;
+		}
+		if (key.ctrl && chunk.toLowerCase() === 'x') {
+			session.sendRequest({type: 'stop'});
 			return;
 		}
 
@@ -261,7 +312,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 				if (!permissionRequestId) {
 					return;
 				}
-				const selected = key.escape ? 'deny' : PERMISSION_PROMPT_OPTIONS[permissionIndex]?.value;
+				const selected = key.escape ? 'deny' : localizedPermissionOptions[permissionIndex]?.value;
 				const allowed = selected === 'allow' || selected === 'always';
 				session.sendRequest({
 					type: 'permission_response',
@@ -350,6 +401,13 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			setModalInput('');
 			return;
 		}
+		if (value.trim() === '/stop') {
+			session.sendRequest({type: 'stop'});
+			setHistory((items) => [...items, value]);
+			setHistoryIndex(-1);
+			setInput('');
+			return;
+		}
 		if (!value.trim() || session.busy || !session.ready) {
 			return;
 		}
@@ -391,6 +449,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					items={session.transcript}
 					assistantBuffer={session.assistantBuffer}
 					showWelcome={session.ready}
+					language={language}
 				/>
 			</Box>
 
@@ -398,7 +457,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			{isPermissionModal ? (
 				<SelectModal
 					title={`Allow ${String(session.modal?.tool_name ?? 'tool')}?`}
-					options={PERMISSION_PROMPT_OPTIONS}
+					options={localizedPermissionOptions}
 					selectedIndex={permissionIndex}
 				/>
 			) : null}
@@ -410,6 +469,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					modalInput={modalInput}
 					setModalInput={setModalInput}
 					onSubmit={onSubmit}
+					language={language}
 				/>
 			) : null}
 
@@ -445,7 +505,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			{/* Input — show loading indicator until backend is ready */}
 			{!session.ready ? (
 				<Box>
-					<Text color={theme.colors.warning}>Connecting to backend...</Text>
+					<Text color={theme.colors.warning}>{t(language, 'connecting')}</Text>
 				</Box>
 			) : session.modal || selectModal || pendingPermissionAck ? null : (
 				<PromptInput
@@ -455,6 +515,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					onSubmit={onSubmit}
 					toolName={session.busy ? currentToolName : undefined}
 					suppressSubmit={showPicker}
+					language={language}
 				/>
 			)}
 
@@ -462,13 +523,15 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			{session.ready && !session.modal && !session.busy && !selectModal && !pendingPermissionAck ? (
 				<Box>
 					<Text dimColor>
-						<Text>enter</Text> send
+						<Text>enter</Text> {t(language, 'send')}
 						<Text>{'  ·  '}</Text>
-						<Text>/</Text> commands
+						<Text>/</Text> {t(language, 'commands')}
 						<Text>{'  ·  '}</Text>
-						<Text>{'↑↓'}</Text> history
+						<Text>{'↑↓'}</Text> {t(language, 'history')}
 						<Text>{'  ·  '}</Text>
-						<Text>ctrl+c</Text> exit
+						<Text>ctrl+x</Text> /stop
+						<Text>{'  ·  '}</Text>
+						<Text>ctrl+c</Text> {t(language, 'exit')}
 					</Text>
 				</Box>
 			) : null}

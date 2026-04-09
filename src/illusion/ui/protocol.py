@@ -17,6 +17,7 @@ class FrontendRequest(BaseModel):
 
     type: Literal[
         "submit_line",
+        "stop",
         "permission_response",
         "question_response",
         "list_sessions",
@@ -183,10 +184,7 @@ def _state_payload(state: AppState) -> dict[str, Any]:
         "base_url": state.base_url,
         "permission_mode": _format_permission_mode(state.permission_mode),
         "theme": state.theme,
-        "vim_enabled": state.vim_enabled,
-        "voice_enabled": state.voice_enabled,
-        "voice_available": state.voice_available,
-        "voice_reason": state.voice_reason,
+        "ui_language": state.ui_language,
         "fast_mode": state.fast_mode,
         "effort": state.effort,
         "passes": state.passes,

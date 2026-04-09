@@ -1,6 +1,7 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 
+import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 import {ToolCallDisplay} from './ToolCallDisplay.js';
@@ -10,20 +11,22 @@ export function ConversationView({
 	items,
 	assistantBuffer,
 	showWelcome,
+	language,
 }: {
 	items: TranscriptItem[];
 	assistantBuffer: string;
 	showWelcome: boolean;
+	language: UiLanguage;
 }): React.JSX.Element {
 	const {theme} = useTheme();
 	const visible = items.slice(-40);
 
 	return (
 		<Box flexDirection="column" flexGrow={1}>
-			{showWelcome && items.length === 0 ? <WelcomeBanner /> : null}
+			{showWelcome && items.length === 0 ? <WelcomeBanner language={language} /> : null}
 
 			{visible.map((item, index) => (
-				<MessageRow key={index} item={item} theme={theme} />
+				<MessageRow key={index} item={item} theme={theme} language={language} />
 			))}
 
 			{assistantBuffer ? (
@@ -36,7 +39,15 @@ export function ConversationView({
 	);
 }
 
-function MessageRow({item, theme}: {item: TranscriptItem; theme: ReturnType<typeof useTheme>['theme']}): React.JSX.Element {
+function MessageRow({
+	item,
+	theme,
+	language,
+}: {
+	item: TranscriptItem;
+	theme: ReturnType<typeof useTheme>['theme'];
+	language: UiLanguage;
+}): React.JSX.Element {
 	switch (item.role) {
 		case 'user':
 			return (
@@ -60,7 +71,7 @@ function MessageRow({item, theme}: {item: TranscriptItem; theme: ReturnType<type
 
 		case 'tool':
 		case 'tool_result':
-			return <ToolCallDisplay item={item} />;
+			return <ToolCallDisplay item={item} language={language} />;
 
 		case 'system':
 			return (

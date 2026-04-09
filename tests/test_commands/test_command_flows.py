@@ -84,8 +84,7 @@ async def test_command_flow_for_memory_modes_and_tasks(tmp_path: Path, monkeypat
         "/plan on",
         "/fast on",
         "/output-style set minimal",
-        "/vim on",
-        "/voice on",
+        "/language set en",
         "/tasks run printf 'command-flow-task'",
     ]:
         command, args = registry.lookup(raw)
@@ -120,8 +119,7 @@ async def test_command_flow_for_memory_modes_and_tasks(tmp_path: Path, monkeypat
     doctor_command, doctor_args = registry.lookup("/doctor")
     doctor_result = await doctor_command.handler(doctor_args, context)
     assert "- output_style: minimal" in doctor_result.message
-    assert "- vim_mode: on" in doctor_result.message
-    assert "- voice_mode: on" in doctor_result.message
+    assert "- ui_language: en" in doctor_result.message
     assert load_settings().fast_mode is True
     assert context.app_state.get().fast_mode is True
 

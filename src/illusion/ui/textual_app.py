@@ -15,7 +15,6 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, RichLog, Static
 
 from illusion.api.client import SupportsStreamingMessages
-from illusion.config.settings import load_settings, save_settings
 from illusion.engine.stream_events import (
     AssistantTextDelta,
     AssistantTurnComplete,
@@ -196,8 +195,6 @@ class illusionTerminalApp(App[None]):
     BINDINGS = [
         Binding("ctrl+l", "clear_conversation", "Clear"),
         Binding("ctrl+r", "refresh_sidebars", "Refresh"),
-        Binding("ctrl+k", "toggle_vim", "Vim"),
-        Binding("ctrl+v", "toggle_voice", "Voice"),
         Binding("ctrl+d", "quit_session", "Exit"),
     ]
 
@@ -353,26 +350,6 @@ class illusionTerminalApp(App[None]):
     def action_refresh_sidebars(self) -> None:
         self._refresh_sidebars()
 
-    def action_toggle_vim(self) -> None:
-        if self._bundle is None:
-            return
-        current = self._bundle.app_state.get().vim_enabled
-        settings = load_settings()
-        settings.vim_mode = not current
-        save_settings(settings)
-        self._bundle.app_state.set(vim_enabled=not current)
-        self._refresh_sidebars()
-
-    def action_toggle_voice(self) -> None:
-        if self._bundle is None:
-            return
-        current = self._bundle.app_state.get().voice_enabled
-        settings = load_settings()
-        settings.voice_mode = not current
-        save_settings(settings)
-        self._bundle.app_state.set(voice_enabled=not current)
-        self._refresh_sidebars()
-
     def action_quit_session(self) -> None:
         self.exit()
 
@@ -397,9 +374,8 @@ class illusionTerminalApp(App[None]):
             f"model: {state.model}",
             f"permissions: {state.permission_mode}",
             f"fast: {'on' if state.fast_mode else 'off'}",
+            f"language: {state.ui_language}",
             f"style: {state.output_style}",
-            f"vim: {'on' if state.vim_enabled else 'off'}",
-            f"voice: {'on' if state.voice_enabled else 'off'}",
             f"tokens: {usage.total_tokens}",
             f"messages: {len(self._bundle.engine.messages)}",
         ]

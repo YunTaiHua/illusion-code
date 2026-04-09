@@ -294,14 +294,10 @@ async def test_ui_mode_commands_persist_and_update_state(tmp_path: Path, monkeyp
     keybindings_result = await keybindings_command.handler(keybindings_args, context)
     assert "ctrl+l" in keybindings_result.message
 
-    vim_command, vim_args = registry.lookup("/vim toggle")
-    vim_result = await vim_command.handler(vim_args, context)
-    assert "enabled" in vim_result.message
-    assert context.app_state.get().vim_enabled is True
-
-    voice_command, voice_args = registry.lookup("/voice keyterms Shipping pytest fixtures")
-    voice_result = await voice_command.handler(voice_args, context)
-    assert "pytest" in voice_result.message
+    language_command, language_args = registry.lookup("/language set en")
+    language_result = await language_command.handler(language_args, context)
+    assert "en" in language_result.message
+    assert context.app_state.get().ui_language == "en"
 
     plan_command, plan_args = registry.lookup("/plan on")
     plan_result = await plan_command.handler(plan_args, context)
@@ -538,7 +534,7 @@ async def test_copy_rewind_and_meta_commands(tmp_path: Path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_mcp_and_voice_commands_report_richer_state(tmp_path: Path, monkeypatch):
+async def test_mcp_and_language_commands_report_richer_state(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("illusion_CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setenv("illusion_DATA_DIR", str(tmp_path / "data"))
     settings = Settings(
@@ -562,11 +558,9 @@ async def test_mcp_and_voice_commands_report_richer_state(tmp_path: Path, monkey
     assert "Saved MCP auth for stdio-demo" in mcp_stdio_result.message
     assert load_settings().mcp_servers["stdio-demo"].env["MCP_AUTH_TOKEN"] == "DEMO_TOKEN"
 
-    voice_command, voice_args = registry.lookup("/voice show")
-    voice_result = await voice_command.handler(voice_args, context)
-    assert "Voice mode:" in voice_result.message
-    assert "Available:" in voice_result.message
-    assert "Reason:" in voice_result.message
+    language_command, language_args = registry.lookup("/language show")
+    language_result = await language_command.handler(language_args, context)
+    assert "UI language:" in language_result.message
 
 
 @pytest.mark.asyncio

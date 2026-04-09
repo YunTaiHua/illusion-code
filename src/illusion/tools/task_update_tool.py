@@ -137,7 +137,16 @@ Set up task dependencies:
                 add_blocked_by=arguments.add_blocked_by,
             )
         except ValueError as exc:
-            return ToolResult(output=str(exc), is_error=True)
+            message = str(exc)
+            if message.startswith("No task found with ID:"):
+                return ToolResult(
+                    output=(
+                        f"Ignored stale task_update for missing task {arguments.task_id}. "
+                        "Run task_list to refresh IDs before updating."
+                    ),
+                    is_error=False,
+                )
+            return ToolResult(output=message, is_error=True)
 
         if arguments.status == "deleted":
             return ToolResult(output=f"Deleted task {task.id}")

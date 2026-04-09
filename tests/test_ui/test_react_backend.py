@@ -11,6 +11,7 @@ from illusion.api.client import ApiMessageCompleteEvent
 from illusion.api.usage import UsageSnapshot
 from illusion.engine.messages import ConversationMessage, TextBlock
 from illusion.ui.backend_host import BackendHostConfig, ReactBackendHost
+from illusion.ui.permission_store import add_always_allowed_tool, load_always_allowed_tools
 from illusion.ui.protocol import BackendEvent
 from illusion.ui.runtime import build_runtime, close_runtime, start_runtime
 
@@ -192,3 +193,21 @@ async def test_backend_host_phase_transitions_on_model_turn(tmp_path, monkeypatc
     # state_snapshot 中应包含 phase
     snapshots = [e for e in events if e.type == "state_snapshot" and e.state]
     assert any(s.state.get("phase") == "idle" for s in snapshots)
+
+
+@pytest.mark.asyncio
+async def test_backend_host_loads_workspace_always_allow_tools(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+    add_always_allowed_tool(tmp_path, "bash")
+
+    host = ReactBackendHost(BackendHostConfig(api_client=StaticApiClient("unused")))
+    host._bundle = await build_runtime(api_client=StaticApiClient("unused"))
+    await start_runtime(host._bundle)
+    try:
+        host._always_allowed_tools = load_always_allowed_tools(host._bundle.cwd)
+        allowed = await host._ask_permission("bash", "test")
+    finally:
+        await close_runtime(host._bundle)
+    assert allowed is True

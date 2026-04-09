@@ -88,6 +88,22 @@ async def test_task_update_tool_updates_metadata(tmp_path: Path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_task_update_tool_missing_id_is_soft_ignored(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+    context = ToolExecutionContext(cwd=tmp_path)
+
+    result = await TaskUpdateTool().execute(
+        TaskUpdateToolInput(
+            task_id="td18fe38b",
+            progress=10,
+        ),
+        context,
+    )
+    assert result.is_error is False
+    assert "Ignored stale task_update" in result.output
+
+
+@pytest.mark.asyncio
 async def test_agent_tool_supports_remote_and_teammate_modes(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
     context = ToolExecutionContext(cwd=tmp_path)

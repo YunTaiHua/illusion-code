@@ -2,6 +2,9 @@ import React, {useEffect, useState} from 'react';
 import {Box, Text, useInput} from 'ink';
 import TextInput from 'ink-text-input';
 
+import type {UiLanguage} from '../i18n.js';
+import {t} from '../i18n.js';
+
 const WAIT_FRAMES = [
 	'Agent is waiting for your input   ',
 	'Agent is waiting for your input.  ',
@@ -27,11 +30,13 @@ function QuestionModal({
 	modalInput,
 	setModalInput,
 	onSubmit,
+	language,
 }: {
 	modal: Record<string, unknown>;
 	modalInput: string;
 	setModalInput: (value: string) => void;
 	onSubmit: (value: string) => void;
+	language: UiLanguage;
 }): React.JSX.Element {
 	const [extraLines, setExtraLines] = useState<string[]>([]);
 
@@ -80,7 +85,8 @@ function QuestionModal({
 				<Text color="cyan">▸  </Text>
 				<TextInput value={modalInput} onChange={setModalInput} onSubmit={handleSubmit} />
 			</Box>
-			<Text dimColor>{'   '}shift+enter: newline | enter: submit</Text>
+			<Text dimColor>{'   '}{'────────────────────────────────────────────────────────────'}</Text>
+			<Text dimColor>{'   '}{t(language, 'inputHint')}</Text>
 		</Box>
 	);
 }
@@ -90,11 +96,13 @@ export function ModalHost({
 	modalInput,
 	setModalInput,
 	onSubmit,
+	language,
 }: {
 	modal: Record<string, unknown> | null;
 	modalInput: string;
 	setModalInput: (value: string) => void;
 	onSubmit: (value: string) => void;
+	language: UiLanguage;
 }): React.JSX.Element | null {
 	if (modal?.kind === 'permission') {
 		return (
@@ -125,6 +133,7 @@ export function ModalHost({
 				modalInput={modalInput}
 				setModalInput={setModalInput}
 				onSubmit={onSubmit}
+				language={language}
 			/>
 		);
 	}
@@ -140,6 +149,8 @@ export function ModalHost({
 					<Text color="cyan">▸  </Text>
 					<TextInput value={modalInput} onChange={setModalInput} onSubmit={onSubmit} />
 				</Box>
+				<Text dimColor>{'   '}{'────────────────────────────────────────────────────────────'}</Text>
+				<Text dimColor>{'   '}{t(language, 'inputHint')}</Text>
 			</Box>
 		);
 	}

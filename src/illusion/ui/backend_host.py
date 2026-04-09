@@ -30,6 +30,7 @@ from illusion.engine.stream_events import (
 from illusion.output_styles import load_output_styles
 from illusion.tasks import get_task_manager
 from illusion.ui.protocol import BackendEvent, FrontendRequest, TranscriptItem
+from illusion.ui.permission_store import add_always_allowed_tool, load_always_allowed_tools
 from illusion.ui.runtime import build_runtime, close_runtime, handle_line, start_runtime
 
 log = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ class ReactBackendHost:
         self._always_allowed_tools: set[str] = set()
         self._busy = False
         self._running = True
+        self._active_line_task: asyncio.Task[bool] | None = None
         # Track last tool input per name for rich event emission
         self._last_tool_inputs: dict[str, dict] = {}
 
@@ -82,6 +84,7 @@ class ReactBackendHost:
             ask_user_prompt=self._ask_question,
         )
         await start_runtime(self._bundle)
+        self._always_allowed_tools = load_always_allowed_tools(self._bundle.cwd)
         await self._emit(
             BackendEvent.ready(
                 self._bundle.app_state.get(),
@@ -98,14 +101,30 @@ class ReactBackendHost:
                 if request.type == "shutdown":
                     await self._emit(BackendEvent(type="shutdown"))
                     break
+                if request.type == "stop":
+                    await self._stop_active_line()
+                    continue
+                if request.type == "submit_line":
+                    if (request.line or "").strip() == "/stop":
+                        await self._stop_active_line()
+                        continue
+                if request.type == "select_command" and (request.command or "").strip().lstrip("/").lower() == "stop":
+                    await self._stop_active_line()
+                    continue
                 if request.type == "permission_response":
                     if request.request_id in self._permission_requests:
                         self._permission_requests[request.request_id].set_result(bool(request.allowed))
                     # Remember "always allow" for this tool
                     if request.always_allow and request.tool_name:
                         self._always_allowed_tools.add(request.tool_name)
+                        if self._bundle is not None:
+                            self._always_allowed_tools = add_always_allowed_tool(
+                                self._bundle.cwd,
+                                request.tool_name,
+                            )
                     await self._emit(BackendEvent(type="modal_request", modal=None))
                     continue
+                if request.type == "question_response":
                     if request.request_id in self._question_requests:
                         self._question_requests[request.request_id].set_result(request.answer or "")
                     await self._emit(BackendEvent(type="modal_request", modal=None))
@@ -122,11 +141,17 @@ class ReactBackendHost:
                         continue
                     self._busy = True
                     try:
-                        should_continue = await self._apply_select_command(
-                            request.command or "",
-                            request.value or "",
+                        self._active_line_task = asyncio.create_task(
+                            self._apply_select_command(
+                                request.command or "",
+                                request.value or "",
+                            )
                         )
+                        should_continue = await self._active_line_task
+                    except asyncio.CancelledError:
+                        should_continue = True
                     finally:
+                        self._active_line_task = None
                         self._busy = False
                     if not should_continue:
                         await self._emit(BackendEvent(type="shutdown"))
@@ -143,8 +168,12 @@ class ReactBackendHost:
                     continue
                 self._busy = True
                 try:
-                    should_continue = await self._process_line(line)
+                    self._active_line_task = asyncio.create_task(self._process_line(line))
+                    should_continue = await self._active_line_task
+                except asyncio.CancelledError:
+                    should_continue = True
                 finally:
+                    self._active_line_task = None
                     self._busy = False
                 if not should_continue:
                     await self._emit(BackendEvent(type="shutdown"))
@@ -179,8 +208,19 @@ class ReactBackendHost:
                     self._permission_requests[request.request_id].set_result(bool(request.allowed))
                 if request.always_allow and request.tool_name:
                     self._always_allowed_tools.add(request.tool_name)
+                    if self._bundle is not None:
+                        self._always_allowed_tools = add_always_allowed_tool(
+                            self._bundle.cwd,
+                            request.tool_name,
+                        )
                 await self._emit(BackendEvent(type="modal_request", modal=None))
                 continue
+            if request.type == "stop":
+                await self._stop_active_line()
+                continue
+            if request.type == "question_response":
+                if request.request_id in self._question_requests:
+                    self._question_requests[request.request_id].set_result(request.answer or "")
                 await self._emit(BackendEvent(type="modal_request", modal=None))
                 continue
 
@@ -333,6 +373,8 @@ class ReactBackendHost:
             return f"/permissions {value}"
         if command == "theme":
             return f"/theme {value}"
+        if command == "language":
+            return f"/language {value}"
         if command == "output-style":
             return f"/output-style {value}"
         if command == "effort":
@@ -343,10 +385,8 @@ class ReactBackendHost:
             return f"/turns {value}"
         if command == "fast":
             return f"/fast {value}"
-        if command == "vim":
-            return f"/vim {value}"
-        if command == "voice":
-            return f"/voice {value}"
+        if command == "language":
+            return f"/language {value}"
         if command == "model":
             return f"/model {value}"
         return None
@@ -562,31 +602,31 @@ class ReactBackendHost:
             )
             return
 
-        if command == "vim":
-            current = bool(state.vim_enabled)
+        if command == "language":
+            current = str(state.ui_language or "zh-CN")
             options = [
-                {"value": "on", "label": "On", "description": "Enable Vim keybindings", "active": current},
-                {"value": "off", "label": "Off", "description": "Use standard keybindings", "active": not current},
+                {"value": "set zh-CN", "label": "简体中文", "description": "中文界面", "active": current == "zh-CN"},
+                {"value": "set en", "label": "English", "description": "English UI", "active": current == "en"},
             ]
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Vim Mode", "command": "vim"},
+                    modal={"kind": "select", "title": "Language", "command": "language"},
                     select_options=options,
                 )
             )
             return
 
-        if command == "voice":
-            current = bool(state.voice_enabled)
+        if command == "language":
+            current = str(state.ui_language or "zh-CN")
             options = [
-                {"value": "on", "label": "On", "description": state.voice_reason or "Enable voice mode", "active": current},
-                {"value": "off", "label": "Off", "description": "Disable voice mode", "active": not current},
+                {"value": "set zh-CN", "label": "简体中文", "description": "中文界面", "active": current == "zh-CN"},
+                {"value": "set en", "label": "English", "description": "English UI", "active": current == "en"},
             ]
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Voice Mode", "command": "voice"},
+                    modal={"kind": "select", "title": "Language", "command": "language"},
                     select_options=options,
                 )
             )
@@ -710,6 +750,22 @@ class ReactBackendHost:
             return await future
         finally:
             self._question_requests.pop(request_id, None)
+
+    async def _stop_active_line(self) -> None:
+        task = self._active_line_task
+        if task is None or task.done():
+            await self._emit(BackendEvent(type="error", message="No active task to stop"))
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        self._busy = False
+        await self._update_phase("idle")
+        await self._emit(BackendEvent(type="modal_request", modal=None))
+        await self._emit(BackendEvent(type="transcript_item", item=TranscriptItem(role="system", text="Current task stopped.")))
+        await self._emit(self._status_snapshot())
+        await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
+        await self._emit(BackendEvent(type="line_complete"))
 
     async def _update_phase(self, phase: str) -> None:
         """更新会话阶段。"""

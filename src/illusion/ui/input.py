@@ -12,15 +12,10 @@ class InputSession:
         self._session = PromptSession()
         self._prompt = "> "
 
-    def set_modes(self, *, vim_enabled: bool, voice_enabled: bool) -> None:
-        """Update prompt decorations for active modes."""
-        parts: list[str] = []
-        if vim_enabled:
-            parts.append("[vim]")
-        if voice_enabled:
-            parts.append("[voice]")
-        prefix = "".join(parts)
-        self._prompt = f"{prefix}> " if prefix else "> "
+    def set_modes(self, *, vim_enabled: bool = False, voice_enabled: bool = False) -> None:
+        """Compatibility no-op; modes are removed from UI prompt decorations."""
+        del vim_enabled, voice_enabled
+        self._prompt = "> "
 
     async def prompt(self) -> str:
         """Prompt the user for one line of input."""

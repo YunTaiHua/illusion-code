@@ -363,9 +363,8 @@ class Settings(BaseModel):
 
     # UI
     theme: str = "default"
+    ui_language: str = "zh-CN"
     output_style: str = "default"
-    vim_mode: bool = False
-    voice_mode: bool = False
     fast_mode: bool = False
     effort: str = "medium"
     passes: int = 1

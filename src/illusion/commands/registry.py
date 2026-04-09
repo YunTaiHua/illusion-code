@@ -1031,6 +1031,29 @@ def create_default_command_registry() -> CommandRegistry:
             return CommandResult(message=f"Model set to {tokens[1]}. Restart session to use it.")
         return CommandResult(message="Usage: /model [show|set MODEL]")
 
+    async def _language_handler(args: str, context: CommandContext) -> CommandResult:
+        settings = load_settings()
+        current = (
+            str(context.app_state.get().ui_language)
+            if context.app_state is not None
+            else settings.ui_language
+        )
+        tokens = args.split()
+        if not tokens or tokens[0] == "show":
+            return CommandResult(message=f"UI language: {current}")
+        if tokens[0] == "list":
+            return CommandResult(message="Available UI languages: zh-CN, en")
+        if tokens[0] == "set" and len(tokens) == 2:
+            value = tokens[1]
+            if value not in {"zh-CN", "en"}:
+                return CommandResult(message="Usage: /language [show|list|set zh-CN|set en]")
+            settings.ui_language = value
+            save_settings(settings)
+            if context.app_state is not None:
+                context.app_state.set(ui_language=value)
+            return CommandResult(message=f"UI language set to {value}")
+        return CommandResult(message="Usage: /language [show|list|set zh-CN|set en]")
+
     async def _theme_handler(args: str, context: CommandContext) -> CommandResult:
         from illusion.themes import list_themes, load_theme
 
@@ -1148,60 +1171,9 @@ def create_default_command_registry() -> CommandRegistry:
         lines.extend(f"{key} -> {command}" for key, command in sorted(bindings.items()))
         return CommandResult(message="\n".join(lines))
 
-    async def _vim_handler(args: str, context: CommandContext) -> CommandResult:
-        settings = load_settings()
-        current = (
-            context.app_state.get().vim_enabled
-            if context.app_state is not None
-            else settings.vim_mode
-        )
-        action = args.strip() or "show"
-        if action == "show":
-            return CommandResult(message=f"Vim mode: {'on' if current else 'off'}")
-        enabled = {"on": True, "off": False, "toggle": not current}.get(action)
-        if enabled is None:
-            return CommandResult(message="Usage: /vim [show|on|off|toggle]")
-        settings.vim_mode = enabled
-        save_settings(settings)
-        if context.app_state is not None:
-            context.app_state.set(vim_enabled=enabled)
-        return CommandResult(message=f"Vim mode {'enabled' if enabled else 'disabled'}.")
-
-    async def _voice_handler(args: str, context: CommandContext) -> CommandResult:
-        from illusion.voice import extract_keyterms, inspect_voice_capabilities
-
-        settings = load_settings()
-        diagnostics = inspect_voice_capabilities(detect_provider(settings))
-        current = (
-            context.app_state.get().voice_enabled
-            if context.app_state is not None
-            else settings.voice_mode
-        )
-        tokens = args.split(maxsplit=1)
-        if not tokens or tokens[0] == "show":
-            return CommandResult(
-                message=(
-                    f"Voice mode: {'on' if current else 'off'}\n"
-                    f"Available: {'yes' if diagnostics.available else 'no'}\n"
-                    f"Recorder: {diagnostics.recorder or '(none)'}\n"
-                    f"Reason: {diagnostics.reason}"
-                )
-            )
-        if tokens[0] == "keyterms" and len(tokens) == 2:
-            keyterms = extract_keyterms(tokens[1])
-            return CommandResult(message="\n".join(keyterms) if keyterms else "(no keyterms)")
-        enabled = {"on": True, "off": False, "toggle": not current}.get(tokens[0])
-        if enabled is None:
-            return CommandResult(message="Usage: /voice [show|on|off|toggle|keyterms TEXT]")
-        settings.voice_mode = enabled
-        save_settings(settings)
-        if context.app_state is not None:
-            context.app_state.set(
-                voice_enabled=enabled,
-                voice_available=diagnostics.available,
-                voice_reason=diagnostics.reason,
-            )
-        return CommandResult(message=f"Voice mode {'enabled' if enabled else 'disabled'}.")
+    async def _stop_handler(_: str, context: CommandContext) -> CommandResult:
+        del context
+        return CommandResult(message="Use /stop in React UI or press Ctrl+X to stop current execution.")
 
     async def _doctor_handler(_: str, context: CommandContext) -> CommandResult:
         settings = load_settings()
@@ -1214,8 +1186,7 @@ def create_default_command_registry() -> CommandRegistry:
             f"- permission_mode: {state.permission_mode if state is not None else settings.permission.mode}",
             f"- theme: {state.theme if state is not None else settings.theme}",
             f"- output_style: {state.output_style if state is not None else settings.output_style}",
-            f"- vim_mode: {'on' if (state.vim_enabled if state is not None else settings.vim_mode) else 'off'}",
-            f"- voice_mode: {'on' if (state.voice_enabled if state is not None else settings.voice_mode) else 'off'}",
+            f"- ui_language: {state.ui_language if state is not None else settings.ui_language}",
             f"- effort: {state.effort if state is not None else settings.effort}",
             f"- passes: {state.passes if state is not None else settings.passes}",
             f"- memory_dir: {memory_dir}",
@@ -1421,10 +1392,10 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("continue", "Continue the previous tool loop if it was interrupted", _continue_handler))
     registry.register(SlashCommand("model", "Show or update the default model", _model_handler))
     registry.register(SlashCommand("theme", "List, set, show or preview TUI themes", _theme_handler))
+    registry.register(SlashCommand("language", "Show or update UI language", _language_handler))
     registry.register(SlashCommand("output-style", "Show or update output style", _output_style_handler))
     registry.register(SlashCommand("keybindings", "Show resolved keybindings", _keybindings_handler))
-    registry.register(SlashCommand("vim", "Show or update Vim mode", _vim_handler))
-    registry.register(SlashCommand("voice", "Show or update voice mode", _voice_handler))
+    registry.register(SlashCommand("stop", "Stop current running UI task", _stop_handler))
     registry.register(SlashCommand("doctor", "Show environment diagnostics", _doctor_handler))
     registry.register(SlashCommand("diff", "Show git diff output", _diff_handler))
     registry.register(SlashCommand("branch", "Show git branch information", _branch_handler))

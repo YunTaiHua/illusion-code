@@ -12,14 +12,11 @@ class AppState:
     model: str
     permission_mode: str
     theme: str
+    ui_language: str = "zh-CN"
     cwd: str = "."
     provider: str = "unknown"
     auth_status: str = "missing"
     base_url: str = ""
-    vim_enabled: bool = False
-    voice_enabled: bool = False
-    voice_available: bool = False
-    voice_reason: str = ""
     fast_mode: bool = False
     effort: str = "medium"
     passes: int = 1
