@@ -1,4 +1,16 @@
-"""Tool for deleting teams."""
+"""
+团队删除工具
+============
+
+本模块提供删除内存中团队的功能。
+
+主要组件：
+    - TeamDeleteTool: 删除团队的工areness
+
+使用示例：
+    >>> from illusion.tools import TeamDeleteTool
+    >>> tool = TeamDeleteTool()
+"""
 
 from __future__ import annotations
 
@@ -9,13 +21,20 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class TeamDeleteToolInput(BaseModel):
-    """Arguments for deleting a team."""
+    """团队删除参数。
+
+    属性：
+        name: 团队名称
+    """
 
     name: str = Field(description="Team name")
 
 
 class TeamDeleteTool(BaseTool):
-    """Delete an in-memory team."""
+    """删除内存中团队。
+
+    用于在 swarm 工作完成后清理团队和任务目录。
+    """
 
     name = "team_delete"
     description = """# TeamDelete

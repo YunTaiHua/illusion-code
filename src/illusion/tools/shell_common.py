@@ -1,4 +1,42 @@
-"""共享 shell 工具：错误码、输出归一化、命令执行器。"""
+"""
+Shell 工具共享模块
+=================
+
+本模块提供 shell 命令执行的共享工具，包括错误码标准化、输出归一化和命令执行器。
+
+主要功能：
+    - ShellErrorCode: 标准化 shell 退出码常量
+    - NormalizedResult: 标准化命令执行结果数据类
+    - OutputNormalizer: 输出解码与归一化处理
+    - CommandExecutor: 统一命令执行器，处理超时、解码、归一化
+
+类说明：
+    - ShellErrorCode: 标准化 shell 退出码常量类
+        - SUCCESS: 成功 (0)
+        - GENERAL_ERROR: 一般错误 (1)
+        - COMMAND_NOT_FOUND: 命令未找到 (127)
+        - TIMEOUT: 超时 (-1)
+        - PERMISSION_DENIED: 权限拒绝 (126)
+        - SIGNAL_BASE: 信号基准 (128 + signal_number)
+    
+    - NormalizedResult: 标准化命令执行结果
+        - output: 输出文本
+        - is_error: 是否为错误
+        - return_code: 返回码
+        - metadata: 元数据字典
+    
+    - OutputNormalizer: 输出解码与归一化处理
+        - decode_output: 健壮解码（UTF-8 → UTF-16LE → locale → replace）
+        - format_result: 生成上下文相关的输出消息
+    
+    - CommandExecutor: 统一命令执行器
+        - run_and_normalize: 等待进程完成，捕获输出，归一化结果
+
+使用示例：
+    >>> from illusion.tools.shell_common import ShellErrorCode, NormalizedResult
+    >>> print(ShellErrorCode.SUCCESS)  # 输出: 0
+    >>> result = NormalizedResult(output="test", is_error=False, return_code=0)
+"""
 
 from __future__ import annotations
 

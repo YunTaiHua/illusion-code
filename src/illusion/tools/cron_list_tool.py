@@ -1,4 +1,16 @@
-"""Tool for listing local cron jobs."""
+"""
+本地 cron 任务列表工具
+====================
+
+本模块提供列出本地 cron 任务的功能。
+
+主要组件：
+    - CronListTool: 列出 cron 任务的工具
+
+使用示例：
+    >>> from illusion.tools import CronListTool
+    >>> tool = CronListTool()
+"""
 
 from __future__ import annotations
 
@@ -10,11 +22,14 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class CronListToolInput(BaseModel):
-    """Arguments for cron listing."""
+    """Cron 列表参数。"""
 
 
 class CronListTool(BaseTool):
-    """List local cron jobs."""
+    """列出本地 cron 任务。
+
+    列出通过 CronCreate 安排的所有 cron 任务，包括持久化和会话级别的任务。
+    """
 
     name = "cron_list"
     description = """List all cron jobs scheduled via CronCreate, both durable (.illusion/scheduled_tasks.json) and session-only."""
@@ -30,13 +45,16 @@ class CronListTool(BaseTool):
         context: ToolExecutionContext,
     ) -> ToolResult:
         del arguments, context
+        # 加载所有 cron 任务
         jobs = load_cron_jobs()
         if not jobs:
             return ToolResult(output="No cron jobs configured.")
 
+        # 检查调度器状态
         scheduler = "running" if is_scheduler_running() else "stopped"
         lines = [f"Scheduler: {scheduler}", ""]
 
+        # 格式化每个任务
         for job in jobs:
             enabled = "on" if job.get("enabled", True) else "off"
             last_run = job.get("last_run", "never")

@@ -1,4 +1,16 @@
-"""Shell command execution tool."""
+"""
+Bash 命令执行工具
+================
+
+本模块提供执行 shell 命令并捕获标准输出/错误的功能。
+
+主要组件：
+    - BashTool: 执行 bash 命令的工具
+
+使用示例：
+    >>> from illusion.tools import BashTool
+    >>> tool = BashTool()
+"""
 
 from __future__ import annotations
 
@@ -16,7 +28,13 @@ from illusion.utils.shell import _resolve_windows_bash, create_shell_subprocess
 
 
 class BashToolInput(BaseModel):
-    """Arguments for the bash tool."""
+    """Bash 工具参数。
+
+    属性：
+        command: 要执行的 shell 命令
+        cwd: 可选的工作目录覆盖
+        timeout_seconds: 超时秒数（1-600）
+    """
 
     command: str = Field(description="Shell command to execute")
     cwd: str | None = Field(default=None, description="Working directory override")
@@ -24,12 +42,12 @@ class BashToolInput(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Prompt generation (ported from claude-code-sourcemap BashTool/prompt.ts)
+# 提示词生成（从 claude-code-sourcemap BashTool/prompt.ts 移植）
 # ---------------------------------------------------------------------------
 
-_DEFAULT_TIMEOUT_MS = 120_000
-_MAX_TIMEOUT_MS = 600_000
-_MAX_OUTPUT_LENGTH = 30_000
+_DEFAULT_TIMEOUT_MS = 120_000  # 默认超时 2 分钟
+_MAX_TIMEOUT_MS = 600_000      # 最大超时 10 分钟
+_MAX_OUTPUT_LENGTH = 30_000    # 最大输出长度
 
 
 def _get_background_usage_note() -> str | None:
@@ -166,7 +184,7 @@ gh pr create --title "the pr title" --body "$(cat <<'EOF'
 ## Test plan
 [Bulleted markdown checklist of TODOs for testing the pull request...]
 
-🤖 Generated with [Illusion Code](https://illusion.dev)
+🤖 Generated with [Illusion Code]
 EOF
 )"
 </example>
@@ -283,13 +301,17 @@ def _build_bash_description() -> str:
 
 
 class BashTool(BaseTool):
-    """Execute a shell command with stdout/stderr capture."""
+    """执行 shell 命令并捕获标准输出/错误。
+
+    用于执行终端操作，如 git、npm、docker 等命令。
+    """
 
     name = "bash"
     description = _build_bash_description()
     input_model = BashToolInput
 
     async def execute(self, arguments: BashToolInput, context: ToolExecutionContext) -> ToolResult:
+        # 检查 Windows 平台上的 bash 可用性
         if get_platform() == "windows":
             bash_path = _resolve_windows_bash()
             if not bash_path:
@@ -302,18 +324,21 @@ class BashTool(BaseTool):
                     is_error=True,
                 )
 
+        # 解析工作目录
         cwd = Path(arguments.cwd).expanduser() if arguments.cwd else context.cwd
         try:
+            # 创建 shell 子进程
             process = await create_shell_subprocess(
                 arguments.command,
                 cwd=cwd,
-                stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+                stdin=asyncio.subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
         except SandboxUnavailableError as exc:
             return ToolResult(output=str(exc), is_error=True)
 
+        # 执行命令并归一化结果
         result = await CommandExecutor.run_and_normalize(
             process,
             timeout=arguments.timeout_seconds,

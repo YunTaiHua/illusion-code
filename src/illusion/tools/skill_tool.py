@@ -1,4 +1,16 @@
-"""Tool for reading skill contents."""
+"""
+技能内容读取工具
+================
+
+本模块提供读取已加载技能内容的功能，用于执行斜杠命令和自定义技能。
+
+主要组件：
+    - SkillTool: 读取技能内容的工具
+
+使用示例：
+    >>> from illusion.tools import SkillTool
+    >>> tool = SkillTool()
+"""
 
 from __future__ import annotations
 
@@ -9,14 +21,22 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class SkillToolInput(BaseModel):
-    """Arguments for skill lookup."""
+    """技能查找参数。
+
+    属性：
+        name: 技能名称
+        args: 技能的可选参数
+    """
 
     name: str = Field(description="Skill name")
     args: str | None = Field(default=None, description="Optional arguments for the skill")
 
 
 class SkillTool(BaseTool):
-    """Return the content of a loaded skill."""
+    """返回已加载技能的内容。
+
+    用于执行斜杠命令（/command）或调用自定义技能。
+    """
 
     name = "skill"
     description = """Execute a skill within the main conversation
@@ -47,13 +67,16 @@ Important:
         return True
 
     async def execute(self, arguments: SkillToolInput, context: ToolExecutionContext) -> ToolResult:
+        # 加载技能注册表
         registry = load_skill_registry(context.cwd)
+        # 尝试多种名称格式匹配
         skill = registry.get(arguments.name) or registry.get(arguments.name.lower()) or registry.get(arguments.name.title())
         if skill is None:
             return ToolResult(output=f"Skill not found: {arguments.name}", is_error=True)
 
+        # 获取技能内容
         content = skill.content
-        # Interpolate $ARGUMENTS placeholder if args provided
+        # 如果提供了参数，替换 $ARGUMENTS 占位符
         if arguments.args and "$ARGUMENTS" in content:
             content = content.replace("$ARGUMENTS", arguments.args)
 

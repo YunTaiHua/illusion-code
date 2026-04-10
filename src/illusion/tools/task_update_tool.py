@@ -1,4 +1,16 @@
-"""Tool for updating background task metadata."""
+"""
+任务更新工具
+============
+
+本模块提供更新后台任务元数据的功能，用于任务进度跟踪和状态管理。
+
+主要组件：
+    - TaskUpdateTool: 更新任务信息的工具
+
+使用示例：
+    >>> from illusion.tools import TaskUpdateTool
+    >>> tool = TaskUpdateTool()
+"""
 
 from __future__ import annotations
 
@@ -9,7 +21,21 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class TaskUpdateToolInput(BaseModel):
-    """Arguments for task updates."""
+    """任务更新参数。
+
+    属性：
+        task_id: 任务标识符
+        subject: 任务新标题
+        description: 更新后的任务描述
+        active_form: 进行中时显示的现在进行时形式
+        status: 新任务状态（pending, in_progress, completed, deleted）
+        owner: 任务新负责人
+        progress: 进度百分比（0-100）
+        status_note: 简短的人类可读任务备注
+        metadata: 要合并到任务的元数据键
+        add_blocks: 无法开始直到此任务完成的任务ID
+        add_blocked_by: 必须先完成才能开始此任务的任务ID
+    """
 
     task_id: str = Field(description="Task identifier")
     subject: str | None = Field(default=None, description="New subject for the task")
@@ -37,7 +63,10 @@ class TaskUpdateToolInput(BaseModel):
 
 
 class TaskUpdateTool(BaseTool):
-    """Update task metadata for progress tracking."""
+    """更新任务元数据以进行进度跟踪。
+
+    用于更新任务列表中的任务状态、进度和依赖关系。
+    """
 
     name = "task_update"
     description = """Use this tool to update a task in the task list.
@@ -123,6 +152,7 @@ Set up task dependencies:
     ) -> ToolResult:
         del context
         try:
+            # 获取任务管理器并更新任务
             task = get_task_manager().update_task(
                 arguments.task_id,
                 subject=arguments.subject,
@@ -138,6 +168,7 @@ Set up task dependencies:
             )
         except ValueError as exc:
             message = str(exc)
+            # 处理任务不存在的情况
             if message.startswith("No task found with ID:"):
                 return ToolResult(
                     output=(
@@ -148,9 +179,11 @@ Set up task dependencies:
                 )
             return ToolResult(output=message, is_error=True)
 
+        # 处理任务删除
         if arguments.status == "deleted":
             return ToolResult(output=f"Deleted task {task.id}")
 
+        # 构建输出信息
         parts = [f"Updated task {task.id}"]
         if arguments.subject:
             parts.append(f"subject={task.subject}")

@@ -1,7 +1,23 @@
-"""Secure credential storage for illusion.
+"""
+安全凭据存储模块
+================
 
-Default backend: ~/.illusion/credentials.json with mode 600.
-Optional backend: system keyring (if the `keyring` package is installed).
+本模块为 IllusionCode 提供安全的凭据存储功能。
+
+默认后端：~/.illusion/credentials.json，权限 600
+可选后端：系统 keyring（如果安装了 keyring 包）
+
+函数说明：
+    - store_credential: 存储凭据
+    - load_credential: 加载凭据
+    - clear_provider_credentials: 清除提供商凭据
+    - store_external_binding/load_external_binding: 外部绑定存储/加载
+    - encrypt/decrypt: 轻量级混淆加密
+
+使用示例：
+    >>> from illusion.auth.storage import store_credential, load_credential
+    >>> store_credential("anthropic", "api_key", "sk-...")
+    >>> key = load_credential("anthropic", "api_key")
 """
 
 from __future__ import annotations
@@ -14,15 +30,25 @@ from typing import Any
 
 from illusion.config.paths import get_config_dir
 
+# 模块级日志记录器
 log = logging.getLogger(__name__)
 
-_CREDS_FILE_NAME = "credentials.json"
-_KEYRING_SERVICE = "illusion"
+# 常量定义
+_CREDS_FILE_NAME = "credentials.json"  # 凭据文件名
+_KEYRING_SERVICE = "illusion"  # keyring 服务名
 
 
 @dataclass(frozen=True)
 class ExternalAuthBinding:
-    """Pointer to credentials managed by an external CLI."""
+    """指向外部 CLI 管理的凭据的指针
+    
+    Attributes:
+        provider: 提供商名称
+        source_path: 源路径
+        source_kind: 源类型
+        managed_by: 管理程序
+        profile_label: 配置标签
+    """
 
     provider: str
     source_path: str
@@ -32,15 +58,21 @@ class ExternalAuthBinding:
 
 
 # ---------------------------------------------------------------------------
-# File-based backend (always available)
+# 文件后端（始终可用）
 # ---------------------------------------------------------------------------
 
 
 def _creds_path() -> Path:
+    """获取凭据文件路径"""
     return get_config_dir() / _CREDS_FILE_NAME
 
 
 def _load_creds_file() -> dict[str, Any]:
+    """加载凭据文件
+    
+    Returns:
+        dict[str, Any]: 凭据数据字典
+    """
     path = _creds_path()
     if not path.exists():
         return {}
@@ -52,6 +84,11 @@ def _load_creds_file() -> dict[str, Any]:
 
 
 def _save_creds_file(data: dict[str, Any]) -> None:
+    """保存凭据文件
+    
+    Args:
+        data: 凭据数据字典
+    """
     path = _creds_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -62,11 +99,16 @@ def _save_creds_file(data: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Keyring backend (optional)
+# Keyring 后端（可选）
 # ---------------------------------------------------------------------------
 
 
 def _keyring_available() -> bool:
+    """检查 keyring 是否可用
+    
+    Returns:
+        bool: keyring 是否可用
+    """
     try:
         import keyring  # noqa: F401
 
@@ -76,18 +118,33 @@ def _keyring_available() -> bool:
 
 
 def _keyring_key(provider: str, key: str) -> str:
+    """生成 keyring 键
+    
+    Args:
+        provider: 提供商名称
+        key: 键名
+    
+    Returns:
+        str: 组合键名
+    """
     return f"{provider}:{key}"
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# 公共 API
 # ---------------------------------------------------------------------------
 
 
 def store_credential(provider: str, key: str, value: str, *, use_keyring: bool | None = None) -> None:
-    """Persist a credential for *provider* under *key*.
-
-    If *use_keyring* is not set, keyring is used when available.
+    """持久化 provider 下的凭据
+    
+    如果未设置 use_keyring，在可用时使用 keyring。
+    
+    Args:
+        provider: 提供商名称
+        key: 键名
+        value: 凭据值
+        use_keyring: 是否使用 keyring（可选）
     """
     if use_keyring is None:
         use_keyring = _keyring_available()
@@ -109,7 +166,16 @@ def store_credential(provider: str, key: str, value: str, *, use_keyring: bool |
 
 
 def load_credential(provider: str, key: str, *, use_keyring: bool | None = None) -> str | None:
-    """Return the stored credential, or None if not found."""
+    """返回存储的凭据，未找到返回 None
+    
+    Args:
+        provider: 提供商名称
+        key: 键名
+        use_keyring: 是否使用 keyring（可选）
+    
+    Returns:
+        str | None: 凭据值或 None
+    """
     if use_keyring is None:
         use_keyring = _keyring_available()
 
@@ -128,7 +194,12 @@ def load_credential(provider: str, key: str, *, use_keyring: bool | None = None)
 
 
 def clear_provider_credentials(provider: str, *, use_keyring: bool | None = None) -> None:
-    """Remove all stored credentials for *provider*."""
+    """删除 provider 的所有存储凭据
+    
+    Args:
+        provider: 提供商名称
+        use_keyring: 是否使用 keyring（可选）
+    """
     if use_keyring is None:
         use_keyring = _keyring_available()
 
@@ -137,7 +208,7 @@ def clear_provider_credentials(provider: str, *, use_keyring: bool | None = None
             import keyring
             from keyring.errors import PasswordDeleteError
 
-            # Try common keys; silently ignore missing ones.
+            # 尝试常见键；静默忽略缺失的
             for key in ("api_key", "token", "github_token"):
                 try:
                     keyring.delete_password(_KEYRING_SERVICE, _keyring_key(provider, key))
@@ -154,12 +225,20 @@ def clear_provider_credentials(provider: str, *, use_keyring: bool | None = None
 
 
 def list_stored_providers() -> list[str]:
-    """Return the list of providers that have credentials in the file store."""
+    """返回文件中存储了凭据的提供商列表
+    
+    Returns:
+        list[str]: 提供商名称列表
+    """
     return list(_load_creds_file().keys())
 
 
 def store_external_binding(binding: ExternalAuthBinding) -> None:
-    """Persist metadata describing an external auth source for *provider*."""
+    """持久化描述 provider 外部认证源的元数据
+    
+    Args:
+        binding: 外部认证绑定
+    """
     data = _load_creds_file()
     entry = data.setdefault(binding.provider, {})
     entry["external_binding"] = asdict(binding)
@@ -168,7 +247,14 @@ def store_external_binding(binding: ExternalAuthBinding) -> None:
 
 
 def load_external_binding(provider: str) -> ExternalAuthBinding | None:
-    """Load external auth binding metadata for *provider* if present."""
+    """如果存在，加载 provider 的外部认证绑定元数据
+    
+    Args:
+        provider: 提供商名称
+    
+    Returns:
+        ExternalAuthBinding | None: 外部绑定或 None
+    """
     entry = _load_creds_file().get(provider, {})
     if not isinstance(entry, dict):
         return None
@@ -189,21 +275,32 @@ def load_external_binding(provider: str) -> ExternalAuthBinding | None:
 
 
 # ---------------------------------------------------------------------------
-# Encrypt/decrypt helpers (lightweight XOR obfuscation, not true encryption)
+# 加密/解密辅助函数（轻量级 XOR 混淆，非真正加密）
 # ---------------------------------------------------------------------------
 
 
 def _obfuscation_key() -> bytes:
-    """Return a per-user obfuscation key derived from the home directory path."""
+    """返回从主目录路径派生的每用户混淆密钥
+    
+    Returns:
+        bytes: 32 字节混淆密钥
+    """
     seed = str(Path.home()).encode() + b"illusion-v1"
-    # Simple repeating key stretched to 32 bytes via SHA-256 for determinism.
+    # 通过 SHA-256 简单重复密钥拉伸到 32 字节以保持确定性
     import hashlib
 
     return hashlib.sha256(seed).digest()
 
 
 def encrypt(plaintext: str) -> str:
-    """Lightly obfuscate *plaintext* (base64-encoded XOR).  Not cryptographic."""
+    """轻量级混淆 plaintext（base64 编码 XOR）。非加密。
+    
+    Args:
+        plaintext: 明文
+    
+    Returns:
+        str: 混淆后的字符串
+    """
     import base64
 
     key = _obfuscation_key()
@@ -213,7 +310,14 @@ def encrypt(plaintext: str) -> str:
 
 
 def decrypt(ciphertext: str) -> str:
-    """Reverse of :func:`encrypt`."""
+    """encrypt 的反向操作
+    
+    Args:
+        ciphertext: 混淆的字符串
+    
+    Returns:
+        str: 明文
+    """
     import base64
 
     key = _obfuscation_key()

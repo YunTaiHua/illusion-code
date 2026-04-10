@@ -1,4 +1,17 @@
-"""Permission helpers for IllusionCode."""
+"""
+权限模块
+========
+
+本模块提供 IllusionCode 权限检查和管理功能。
+
+主要组件：
+    - PermissionChecker: 权限检查器
+    - PermissionDecision: 权限决策
+    - PermissionMode: 权限模式
+
+使用示例：
+    >>> from illusion.permissions import PermissionChecker, PermissionMode
+"""
 
 from __future__ import annotations
 

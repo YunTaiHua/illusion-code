@@ -1,4 +1,16 @@
-"""Tool for searching available tools."""
+"""
+工具搜索工具
+============
+
+本模块提供搜索可用工具注册表的功能。
+
+主要组件：
+    - ToolSearchTool: 搜索工具注册表的工具
+
+使用示例：
+    >>> from illusion.tools import ToolSearchTool
+    >>> tool = ToolSearchTool()
+"""
 
 from __future__ import annotations
 
@@ -8,13 +20,20 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class ToolSearchToolInput(BaseModel):
-    """Arguments for tool search."""
+    """工具搜索参数。
+
+    属性：
+        query: 在工具名称和描述中搜索的子字符串
+    """
 
     query: str = Field(description="Substring to search in tool names and descriptions")
 
 
 class ToolSearchTool(BaseTool):
-    """Search tool registry contents."""
+    """搜索工具注册表内容。
+
+    用于查找已注册的工具。
+    """
 
     name = "tool_search"
     description = """Fetches full schema definitions for deferred tools so they can be called.
@@ -34,9 +53,11 @@ Query forms:
         return True
 
     async def execute(self, arguments: ToolSearchToolInput, context: ToolExecutionContext) -> ToolResult:
+        # 获取工具注册表
         registry = context.metadata.get("tool_registry") if hasattr(context, "metadata") else None
         if registry is None:
             return ToolResult(output="Tool registry context not available", is_error=True)
+        # 搜索匹配的工具
         query = arguments.query.lower()
         matches = [
             tool for tool in registry.list_tools()

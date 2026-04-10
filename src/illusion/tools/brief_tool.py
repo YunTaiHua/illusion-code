@@ -1,4 +1,16 @@
-"""Tool for producing a brief summary."""
+"""
+简短摘要工具
+============
+
+本模块提供生成文本简短摘要的功能。
+
+主要组件：
+    - BriefTool: 生成简短摘要的工具
+
+使用示例：
+    >>> from illusion.tools import BriefTool
+    >>> tool = BriefTool()
+"""
 
 from __future__ import annotations
 
@@ -8,14 +20,22 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class BriefToolInput(BaseModel):
-    """Arguments for brief mode transformation."""
+    """简短模式转换参数。
+
+    属性：
+        text: 要缩短的文本
+        max_chars: 最大字符数（20-2000）
+    """
 
     text: str = Field(description="Text to shorten")
     max_chars: int = Field(default=200, ge=20, le=2000)
 
 
 class BriefTool(BaseTool):
-    """Return a shortened version of text."""
+    """返回文本的缩短版本。
+
+    用于生成简短的摘要消息给用户阅读。
+    """
 
     name = "brief"
     description = """Send a message the user will read. Text outside this tool is visible in the detail view, but most won't open it — the answer lives here.
@@ -43,7 +63,10 @@ Keep messages tight — the decision, the file:line, the PR number. Second perso
 
     async def execute(self, arguments: BriefToolInput, context: ToolExecutionContext) -> ToolResult:
         del context
+        # 去除首尾空白
         text = arguments.text.strip()
+        # 如果文本足够短，直接返回
         if len(text) <= arguments.max_chars:
             return ToolResult(output=text)
+        # 截断并添加省略号
         return ToolResult(output=text[: arguments.max_chars].rstrip() + "...")

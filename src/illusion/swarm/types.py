@@ -1,4 +1,30 @@
-"""Swarm backend type definitions."""
+"""
+Swarm 后端类型定义模块
+=====================
+
+本模块定义 Swarm 功能使用的所有类型和协议。
+包括后端类型、Pane 后端类型、数据类等。
+
+类型定义：
+    - BackendType: 支持的后端类型
+    - PaneBackendType: Pane 后端类型
+    - PaneId: 终端 pane 标识符
+
+数据类：
+    - BackendDetectionResult: 后端检测结果
+    - TeammateIdentity: 队友身份
+    - TeammateSpawnConfig: 队友生成配置
+    - SpawnResult: 生成结果
+    - TeammateMessage: 队友消息
+    - CreatePaneResult: 创建 Pane 结果
+
+协议：
+    - PaneBackend: Pane 管理后端协议
+    - TeammateExecutor: 队友执行器协议
+
+使用示例：
+    >>> from illusion.swarm.types import BackendType, TeammateExecutor, SpawnResult
+"""
 
 from __future__ import annotations
 
@@ -10,75 +36,74 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
-# Backend type literals
+# 后端类型字面量
 # ---------------------------------------------------------------------------
 
 BackendType = Literal["subprocess", "in_process", "tmux", "iterm2"]
-"""All supported backend types."""
+"""所有支持的后端类型。"""
 
 PaneBackendType = Literal["tmux", "iterm2"]
-"""Subset of BackendType for pane-based (visual) backends only."""
+"""BackendType 的子集，仅用于基于 pane（可视化）的后端。"""
 
 PaneId = str
-"""Opaque identifier for a terminal pane managed by a backend.
+"""后端管理的终端 pane 的不透明标识符。
 
-For tmux this is the pane ID (e.g. ``"%1"``).
-For iTerm2 this is the session ID returned by ``it2``.
+对于 tmux，这是 pane ID（例如 ``"%1"``）。
+对于 iTerm2，这是 ``it2`` 返回的会话 ID。
 """
 
 
 # ---------------------------------------------------------------------------
-# Pane backend types
+# Pane 后端类型
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class CreatePaneResult:
-    """Result of creating a new teammate pane."""
+    """创建新队友 pane 的结果。"""
 
     pane_id: PaneId
-    """The pane ID for the newly created pane."""
+    """新创建的 pane 的 pane ID。"""
 
     is_first_teammate: bool
-    """Whether this is the first teammate pane (affects layout strategy)."""
+    """这是否是第一个队友 pane（影响布局策略）。"""
 
 
 @runtime_checkable
 class PaneBackend(Protocol):
-    """Protocol for pane management backends (tmux / iTerm2).
+    """Pane 管理后端（tmux / iTerm2）的协议。
 
-    Abstracts operations for creating and managing terminal panes for teammate
-    visualization in swarm mode.
+    抽象化用于 swarm 模式中队友可视化的终端 pane 创建和管理操作。
     """
 
     @property
     def type(self) -> BackendType:
-        """The type identifier for this backend."""
+        """此后端的类型标识符。"""
         ...
 
     @property
     def display_name(self) -> str:
-        """Human-readable display name for this backend."""
+        """此后端的人类可读显示名称。"""
         ...
 
     @property
     def supports_hide_show(self) -> bool:
-        """Whether this backend supports hiding and showing panes."""
+        """此后端是否支持隐藏和显示 pane。"""
         ...
 
     async def is_available(self) -> bool:
-        """Return True if this backend is available on the system.
+        """如果此后端在系统上可用则返回 True。
 
-        For tmux: checks if the tmux binary exists.
-        For iTerm2: checks if it2 CLI is installed and configured.
+        对于 tmux：检查 tmux 二进制文件是否存在。
+        对于 iTerm2：检查 it2 CLI 是否已安装和配置。
         """
         ...
 
     async def is_running_inside(self) -> bool:
-        """Return True if we are currently inside this backend's environment.
+        """如果当前在此后端的环境中则返回 True。
 
-        For tmux: checks if we are in a tmux session (``$TMUX`` set).
-        For iTerm2: checks if we are running inside iTerm2.
+        对于 tmux：检查我们是否在 tmux 会话中（``$TMUX`` 设置）。
+        对于 iTerm2：检查我们是否在 iTerm2 中运行。
         """
         ...
 
@@ -87,14 +112,14 @@ class PaneBackend(Protocol):
         name: str,
         color: str | None = None,
     ) -> CreatePaneResult:
-        """Create a new pane for a teammate in the swarm view.
+        """在 swarm 视图中为队友创建新 pane。
 
         Args:
-            name: The teammate's display name.
-            color: Optional color name for the pane border / title.
+            name: 队友的显示名称。
+            color: pane 边框/标题的可选颜色名称。
 
         Returns:
-            :class:`CreatePaneResult` with the pane ID and first-teammate flag.
+            包含 pane ID 和第一个队友标志的 :class:`CreatePaneResult`。
         """
         ...
 
@@ -105,12 +130,12 @@ class PaneBackend(Protocol):
         *,
         use_external_session: bool = False,
     ) -> None:
-        """Send a shell command to execute in *pane_id*.
+        """发送要在 *pane_id* 中执行的 shell 命令。
 
         Args:
-            pane_id: Target pane.
-            command: Command string to execute.
-            use_external_session: If True, use external session socket (tmux only).
+            pane_id: 目标 pane。
+            command: 要执行的命令字符串。
+            use_external_session: 如果为 True，使用外部会话 socket（仅 tmux）。
         """
         ...
 
@@ -121,7 +146,7 @@ class PaneBackend(Protocol):
         *,
         use_external_session: bool = False,
     ) -> None:
-        """Set the border color for *pane_id*."""
+        """为 *pane_id* 设置边框颜色。"""
         ...
 
     async def set_pane_title(
@@ -132,7 +157,7 @@ class PaneBackend(Protocol):
         *,
         use_external_session: bool = False,
     ) -> None:
-        """Set the title displayed in the border / header of *pane_id*."""
+        """设置显示在 *pane_id* 边框/标题中的标题。"""
         ...
 
     async def enable_pane_border_status(
@@ -141,7 +166,7 @@ class PaneBackend(Protocol):
         *,
         use_external_session: bool = False,
     ) -> None:
-        """Enable pane border status display (shows titles in borders)."""
+        """启用 pane 边框状态显示（显示边框中的标题）。"""
         ...
 
     async def rebalance_panes(
@@ -149,11 +174,11 @@ class PaneBackend(Protocol):
         window_target: str,
         has_leader: bool,
     ) -> None:
-        """Rebalance panes to achieve the desired layout.
+        """重新平衡 pane 以实现所需的布局。
 
         Args:
-            window_target: The window containing the panes.
-            has_leader: Whether there is a leader pane (affects strategy).
+            window_target: 包含 pane 的窗口。
+            has_leader: 是否有负责人 pane（影响策略）。
         """
         ...
 
@@ -163,10 +188,10 @@ class PaneBackend(Protocol):
         *,
         use_external_session: bool = False,
     ) -> bool:
-        """Kill / close *pane_id*.
+        """杀死/关闭 *pane_id*。
 
         Returns:
-            True if the pane was killed successfully.
+            如果 pane 成功杀死返回 True。
         """
         ...
 
@@ -176,12 +201,12 @@ class PaneBackend(Protocol):
         *,
         use_external_session: bool = False,
     ) -> bool:
-        """Hide *pane_id* by breaking it out into a hidden window.
+        """通过将其分解为隐藏窗口来隐藏 *pane_id*。
 
-        The pane remains running but is not visible in the main layout.
+        pane 保持运行，但在主布局中不可见。
 
         Returns:
-            True if the pane was hidden successfully.
+            如果 pane 成功隐藏返回 True。
         """
         ...
 
@@ -192,149 +217,149 @@ class PaneBackend(Protocol):
         *,
         use_external_session: bool = False,
     ) -> bool:
-        """Show a previously hidden pane by joining it back into the main window.
+        """通过将其重新加入主窗口来显示先前隐藏的 pane。
 
         Returns:
-            True if the pane was shown successfully.
+            如果 pane 成功显示返回 True。
         """
         ...
 
     def list_panes(self) -> list[PaneId]:
-        """Return a list of all known pane IDs managed by this backend."""
+        """返回此后端管理的所有已知 pane ID 列表。"""
         ...
 
 
 # ---------------------------------------------------------------------------
-# Backend detection result
+# 后端检测结果
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class BackendDetectionResult:
-    """Result from backend auto-detection.
+    """来自后端自动检测的结果。
 
     Attributes:
-        backend: The backend that should be used.
-        is_native: Whether we are running inside the backend's native env.
-        needs_setup: True when iTerm2 is detected but ``it2`` is not installed.
+        backend: 应使用的后端。
+        is_native: 我们是否在后端的本机环境中运行。
+        needs_setup: 当检测到 iTerm2 但 ``it2`` 未安装时为 True。
     """
 
     backend: str
-    """Backend type string (e.g. ``"tmux"``, ``"in_process"``)."""
+    """后端类型字符串（例如 ``"tmux"``, ``"in_process"``）。"""
 
     is_native: bool
-    """True if running inside the backend's own environment."""
+    """如果在后端自己的环境中运行则为 True。"""
 
     needs_setup: bool = False
-    """True when additional setup is needed (e.g. install ``it2``)."""
+    """当需要额外设置时为 True（例如安装 ``it2``）。"""
 
 
 # ---------------------------------------------------------------------------
-# Teammate identity & spawn configuration
+# 队友身份和生成配置
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class TeammateIdentity:
-    """Identity fields for a teammate agent."""
+    """队友代理的身份字段。"""
 
     agent_id: str
-    """Unique agent identifier (format: agentName@teamName)."""
+    """唯一代理标识符（格式：agentName@teamName）。"""
 
     name: str
-    """Agent name (e.g. 'researcher', 'tester')."""
+    """代理名称（例如 'researcher', 'tester'）。"""
 
     team: str
-    """Team name this teammate belongs to."""
+    """此队友所属的团队名称。"""
 
     color: str | None = None
-    """Assigned color for UI differentiation."""
+    """用于 UI 区分的分配颜色。"""
 
     parent_session_id: str | None = None
-    """Parent session ID for context linking."""
+    """用于上下文链接的父会话 ID。"""
 
 
 @dataclass
 class TeammateSpawnConfig:
-    """Configuration for spawning a teammate (any execution mode)."""
+    """生成队友的配置（任何执行模式）。"""
 
     name: str
-    """Human-readable teammate name (e.g. ``"researcher"``)."""
+    """人类可读的队友名称（例如 ``"researcher"``）。"""
 
     team: str
-    """Team name this teammate belongs to."""
+    """此队友所属的团队名称。"""
 
     prompt: str
-    """Initial prompt / task for the teammate."""
+    """队友的初始提示词/任务。"""
 
     cwd: str
-    """Working directory for the teammate."""
+    """队友的工作目录。"""
 
     parent_session_id: str
-    """Parent session ID (for transcript correlation)."""
+    """父会话 ID（用于转录关联）。"""
 
     model: str | None = None
-    """Model override for this teammate."""
+    """此队友的模型覆盖。"""
 
     system_prompt: str | None = None
-    """System prompt resolved from workflow config."""
+    """从工作流配置解析的系统提示词。"""
 
     system_prompt_mode: Literal["default", "replace", "append"] | None = None
-    """How to apply the system prompt: replace or append to default."""
+    """如何应用系统提示词：替换或追加到默认。"""
 
     color: str | None = None
-    """Optional UI color for the teammate."""
+    """队友的可选 UI 颜色。"""
 
     color_override: str | None = None
-    """Explicit color override (takes precedence over ``color``)."""
+    """明确的颜色覆盖（优先于 ``color``）。"""
 
     permissions: list[str] = field(default_factory=list)
-    """Tool permissions to grant this teammate."""
+    """授予此队友的工具权限。"""
 
     plan_mode_required: bool = False
-    """Whether this teammate must enter plan mode before implementing."""
+    """此队友是否必须在实现前进入 plan 模式。"""
 
     allow_permission_prompts: bool = False
-    """When False (default), unlisted tools are auto-denied."""
+    """当为 False（默认）时，未列出的工具被自动拒绝。"""
 
     worktree_path: str | None = None
-    """Optional git worktree path for isolated filesystem access."""
+    """可选的 git worktree 路径，用于隔离的文件系统访问。"""
 
     session_id: str | None = None
-    """Explicit session ID (generated if not provided)."""
+    """明确的会话 ID（如果未提供则生成）。"""
 
     subscriptions: list[str] = field(default_factory=list)
-    """Event topics this teammate subscribes to."""
+    """此队友订阅的事件主题。"""
 
 
 # ---------------------------------------------------------------------------
-# Spawn result & messaging
+# 生成结果和消息
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class SpawnResult:
-    """Result from spawning a teammate."""
+    """生成队友的结果。"""
 
     task_id: str
-    """Task ID in the task manager."""
+    """任务管理器中的任务 ID。"""
 
     agent_id: str
-    """Unique agent identifier (format: agentName@teamName)."""
+    """唯一代理标识符（格式：agentName@teamName）。"""
 
     backend_type: BackendType
-    """The backend used to spawn this agent."""
+    """用于生成此代理的后端。"""
 
     success: bool = True
     error: str | None = None
 
     pane_id: PaneId | None = None
-    """Pane ID for pane-based backends (tmux / iTerm2)."""
+    """基于 pane 的后端（tmux / iTerm2）的 pane ID。"""
 
 
 @dataclass
 class TeammateMessage:
-    """Message to send to a teammate."""
+    """发送给队友的消息。"""
 
     text: str
     from_agent: str
@@ -344,49 +369,49 @@ class TeammateMessage:
 
 
 # ---------------------------------------------------------------------------
-# TeammateExecutor protocol
+# TeammateExecutor 协议
 # ---------------------------------------------------------------------------
 
 
 @runtime_checkable
 class TeammateExecutor(Protocol):
-    """Protocol for teammate execution backends.
+    """队友执行后端的协议。
 
-    Abstracts spawn/messaging/shutdown across subprocess, in-process, and tmux backends.
+    抽象化跨子进程、进程内和 tmux 后端的生成/消息/关闭操作。
     """
 
     type: BackendType
 
     def is_available(self) -> bool:
-        """Check if this backend is available on the system."""
+        """检查此后端在系统上是否可用。"""
         ...
 
     async def spawn(self, config: TeammateSpawnConfig) -> SpawnResult:
-        """Spawn a new teammate with the given configuration."""
+        """使用给定配置生成新队友。"""
         ...
 
     async def send_message(self, agent_id: str, message: TeammateMessage) -> None:
-        """Send a message to a running teammate via stdin."""
+        """通过 stdin 向运行中的队友发送消息。"""
         ...
 
     async def shutdown(self, agent_id: str, *, force: bool = False) -> bool:
-        """Terminate a teammate.
+        """终止队友。
 
         Args:
-            agent_id: The agent to terminate.
-            force: If True, kill immediately. If False, attempt graceful shutdown.
+            agent_id: 要终止的代理。
+            force: 如果为 True，立即杀死。如果为 False，尝试优雅关闭。
 
         Returns:
-            True if the agent was terminated successfully.
+            如果代理成功终止返回 True。
         """
         ...
 
 
 # ---------------------------------------------------------------------------
-# Type guard helpers
+# 类型守卫辅助函数
 # ---------------------------------------------------------------------------
 
 
 def is_pane_backend(backend_type: BackendType) -> bool:
-    """Return True if *backend_type* is a terminal-pane backend (tmux or iterm2)."""
+    """如果 *backend_type* 是终端-pane 后端（tmux 或 iterm2）则返回 True。"""
     return backend_type in ("tmux", "iterm2")

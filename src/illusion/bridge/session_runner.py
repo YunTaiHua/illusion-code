@@ -1,4 +1,23 @@
-"""Minimal bridge session spawner."""
+"""
+桥接会话运行器模块
+=================
+
+本模块提供桥接会话的生成和管理功能。
+
+主要功能：
+    - 生成子会话进程
+    - 管理会话生命周期
+
+类说明：
+    - SessionHandle: 生成的桥接会话句柄
+
+函数说明：
+    - spawn_session: 生成新的桥接会话
+
+使用示例：
+    >>> from illusion.bridge import spawn_session, SessionHandle
+    >>> handle = await spawn_session(session_id="test", command="echo hello", cwd=".")
+"""
 
 from __future__ import annotations
 
@@ -12,21 +31,31 @@ from illusion.utils.shell import create_shell_subprocess
 
 @dataclass
 class SessionHandle:
-    """Handle for a spawned bridge session."""
+    """生成的桥接会话句柄
+    
+    Attributes:
+        session_id: 会话唯一标识符
+        process: 异步子进程对象
+        cwd: 工作目录路径
+        started_at: 启动时间戳
+    """
 
-    session_id: str
-    process: asyncio.subprocess.Process
-    cwd: Path
-    started_at: float = field(default_factory=time.time)
+    session_id: str  # 会话ID
+    process: asyncio.subprocess.Process  # 异步进程
+    cwd: Path  # 工作目录
+    started_at: float = field(default_factory=time.time)  # 启动时间
 
     async def kill(self) -> None:
-        """Terminate the session process."""
-        self.process.terminate()
+        """终止会话进程
+        
+        先尝试优雅终止 (terminate)，超时后强制终止 (kill)
+        """
+        self.process.terminate()  # 发送终止信号
         try:
-            await asyncio.wait_for(self.process.wait(), timeout=3)
-        except asyncio.TimeoutError:
-            self.process.kill()
-            await self.process.wait()
+            await asyncio.wait_for(self.process.wait(), timeout=3)  # 等待进程终止
+        except asyncio.TimeoutError:  # 超时
+            self.process.kill()  # 强制终止
+            await self.process.wait()  # 等待进程
 
 
 async def spawn_session(
@@ -35,12 +64,21 @@ async def spawn_session(
     command: str,
     cwd: str | Path,
 ) -> SessionHandle:
-    """Spawn a bridge-managed child session."""
-    resolved_cwd = Path(cwd).resolve()
-    process = await create_shell_subprocess(
-        command,
-        cwd=resolved_cwd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    """生成一个桥接管理的子会话
+    
+    Args:
+        session_id: 会话唯一标识符
+        command: 要执行的命令
+        cwd: 工作目录
+    
+    Returns:
+        SessionHandle: 会话句柄
+    """
+    resolved_cwd = Path(cwd).resolve()  # 解析为绝对路径
+    process = await create_shell_subprocess(  # 创建子进程
+        command,  # 命令
+        cwd=resolved_cwd,  # 工作目录
+        stdout=asyncio.subprocess.PIPE,  # 标准输出管道
+        stderr=asyncio.subprocess.PIPE,  # 标准错误管道
     )
     return SessionHandle(session_id=session_id, process=process, cwd=resolved_cwd)

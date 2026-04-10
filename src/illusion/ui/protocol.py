@@ -1,4 +1,30 @@
-"""Structured protocol models for the React TUI backend."""
+"""
+Protocol 协议模块
+==============
+
+本模块定义 React 终端前后端通信的结构化协议模型。
+
+主要功能：
+    - 前端请求模型（FrontendRequest）
+    - 后端事件模型（BackendEvent）
+    - 转录项模型（TranscriptItem）
+    - 任务快照模型（TaskSnapshot）
+
+类说明：
+    - FrontendRequest: 前端请求模型
+    - BackendEvent: 后端事件模型
+    - TranscriptItem: 转录项模型
+    - TaskSnapshot: 任务快照模型
+
+使用示例：
+    >>> from illusion.ui.protocol import FrontendRequest, BackendEvent, TranscriptItem
+    >>> 
+    >>> # 创建前端请求
+    >>> request = FrontendRequest(type="submit_line", line="帮我写一个程序")
+    >>> 
+    >>> # 创建后端事件
+    >>> event = BackendEvent.ready(state, tasks, commands)
+"""
 
 from __future__ import annotations
 
@@ -13,7 +39,21 @@ from illusion.tasks.types import TaskRecord
 
 
 class FrontendRequest(BaseModel):
-    """One request sent from the React frontend to the Python backend."""
+    """前端请求模型。
+
+    表示从 React 前端发送到 Python 后端的请求。
+
+    Attributes:
+        type: 请求类型
+        line: 提交的行内容
+        command: 命令名称
+        command: 命令值
+        request_id: 请求 ID
+        allowed: 是否允许
+        always_allow: 是否总是允许
+        tool_name: 工具名称
+        answer: 用户答案
+    """
 
     type: Literal[
         "submit_line",
@@ -36,7 +76,17 @@ class FrontendRequest(BaseModel):
 
 
 class TranscriptItem(BaseModel):
-    """One transcript row rendered by the frontend."""
+    """转录项模型。
+
+    表示前端呈现的一行转录内容。
+
+    Attributes:
+        role: 角色（system/user/assistant/tool/tool_result/log）
+        text: 文本内容
+        tool_name: 工具名称
+        tool_input: 工具输入参数
+        is_error: 是否为错误
+    """
 
     role: Literal["system", "user", "assistant", "tool", "tool_result", "log"]
     text: str
@@ -46,7 +96,17 @@ class TranscriptItem(BaseModel):
 
 
 class TaskSnapshot(BaseModel):
-    """UI-safe task representation."""
+    """任务快照模型。
+
+    UI安全的任务表示形式。
+
+    Attributes:
+        id: 任务 ID
+        type: 任务类型
+        status: 任务状态
+        description: 任务描述
+        metadata: 元数据字典
+    """
 
     id: str
     type: str
@@ -56,6 +116,14 @@ class TaskSnapshot(BaseModel):
 
     @classmethod
     def from_record(cls, record: TaskRecord) -> "TaskSnapshot":
+        """从任务记录创建任务快照。
+
+        Args:
+            record: 任务记录
+
+        Returns:
+            TaskSnapshot: 任务快照
+        """
         return cls(
             id=record.id,
             type=record.type,
@@ -66,7 +134,32 @@ class TaskSnapshot(BaseModel):
 
 
 class BackendEvent(BaseModel):
-    """One event sent from the Python backend to the React frontend."""
+    """后端事件模型。
+
+    表示从 Python 后端发送到 React 前端的事件。
+
+    Attributes:
+        type: 事件类型
+        select_options: 选择选项列表
+        message: 消息文本
+        item: 转录项
+        state: 状态字典
+        tasks: 任务快照列表
+        mcp_servers: MCP 服务器状态列表
+        bridge_sessions: 桥接会话列表
+        commands: 命令列表
+        modal: 模态对话框配置
+        tool_name: 工具名称
+        tool_input: 工具输入参数
+        tool_output: 工具输出
+        is_error: 是否为错误
+        phase: 当前会话阶段
+        tool_count: 工具链中的工具数量
+        todo_markdown: 待办事项 Markdown
+        plan_mode: 计划模式
+        swarm_teammates: Swarm 队友列表
+        swarm_notifications: Swarm 通知列表
+    """
 
     type: Literal[
         "ready",
@@ -104,7 +197,7 @@ class BackendEvent(BaseModel):
     is_error: bool | None = None
     phase: str | None = None          # 当前会话阶段
     tool_count: int | None = None     # 工具链中的工具数量
-    # New fields for enhanced events
+    # 新增字段用于增强事件
     todo_markdown: str | None = None
     plan_mode: str | None = None
     swarm_teammates: list[dict[str, Any]] | None = None
@@ -117,6 +210,16 @@ class BackendEvent(BaseModel):
         tasks: list[TaskRecord],
         commands: list[str],
     ) -> "BackendEvent":
+        """创建就绪事件。
+
+        Args:
+            state: 应用状态
+            tasks: 任务记录列表
+            commands: 命令列表
+
+        Returns:
+            BackendEvent: 就绪事件
+        """
         return cls(
             type="ready",
             state=_state_payload(state),
@@ -128,10 +231,26 @@ class BackendEvent(BaseModel):
 
     @classmethod
     def state_snapshot(cls, state: AppState) -> "BackendEvent":
+        """创建状态快照事件。
+
+        Args:
+            state: 应用状态
+
+        Returns:
+            BackendEvent: 状态快照事件
+        """
         return cls(type="state_snapshot", state=_state_payload(state))
 
     @classmethod
     def tasks_snapshot(cls, tasks: list[TaskRecord]) -> "BackendEvent":
+        """创建任务快照事件。
+
+        Args:
+            tasks: 任务记录列表
+
+        Returns:
+            BackendEvent: 任务快照事件
+        """
         return cls(
             type="tasks_snapshot",
             tasks=[TaskSnapshot.from_record(task) for task in tasks],
@@ -145,6 +264,16 @@ class BackendEvent(BaseModel):
         mcp_servers: list[McpConnectionStatus],
         bridge_sessions: list[BridgeSessionRecord],
     ) -> "BackendEvent":
+        """创建状态快照事件（包含 MCP 和桥接信息）。
+
+        Args:
+            state: 应用状态
+            mcp_servers: MCP 服务器状态列表
+            bridge_sessions: 桥接会话列表
+
+        Returns:
+            BackendEvent: 状态快照事件
+        """
         return cls(
             type="state_snapshot",
             state=_state_payload(state),
@@ -176,6 +305,14 @@ class BackendEvent(BaseModel):
 
 
 def _state_payload(state: AppState) -> dict[str, Any]:
+    """将应用状态转换为载荷字典。
+
+    Args:
+        state: 应用状态
+
+    Returns:
+        dict[str, Any]: 状态载荷
+    """
     return {
         "model": state.model,
         "cwd": state.cwd,
@@ -197,6 +334,7 @@ def _state_payload(state: AppState) -> dict[str, Any]:
     }
 
 
+# 权限模式标签映射
 _MODE_LABELS = {
     "default": "Default",
     "plan": "Plan Mode",
@@ -208,7 +346,14 @@ _MODE_LABELS = {
 
 
 def _format_permission_mode(raw: str) -> str:
-    """Convert raw permission mode to human-readable label."""
+    """将原始权限模式转换为人类可读的标签。
+
+    Args:
+        raw: 原始权限模式字符串
+
+    Returns:
+        str: 格式化的权限模式标签
+    """
     return _MODE_LABELS.get(raw, raw)
 
 

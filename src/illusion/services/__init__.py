@@ -1,4 +1,11 @@
-"""Service exports."""
+"""
+服务模块导出
+==========
+
+本模块导出 services 子目录中的公共接口。
+"""
+
+from __future__ import annotations
 
 from illusion.services.compact import (
     compact_messages,

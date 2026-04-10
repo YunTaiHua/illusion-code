@@ -1,7 +1,17 @@
-"""System prompt builder for IllusionCode.
+"""
+系统提示词构建模块
+==================
 
-Assembles the system prompt from environment info and user configuration.
-Ported from claude-code-sourcemap base system prompt structure.
+本模块实现 IllusionCode 系统提示词的构建功能。
+
+主要功能：
+    - 构建基础系统提示词
+    - 格式化环境信息章节
+    - 从环境信息生成完整的系统提示词
+
+使用示例：
+    >>> from illusion.prompts.system_prompt import build_system_prompt, get_environment_info
+    >>> prompt = build_system_prompt(cwd="/path/to/project")
 """
 
 from __future__ import annotations
@@ -37,8 +47,8 @@ IMPORTANT: You must NEVER generate or guess URLs for the user unless you are con
  - Don't create helpers, utilities, or abstractions for one-time operations. Don't design for hypothetical future requirements. The right amount of complexity is what the task actually requires—no speculative abstractions, but no half-finished implementations either. Three similar lines of code is better than a premature abstraction.
  - Avoid backwards-compatibility hacks like renaming unused _vars, re-exporting types, adding // removed comments for removed code, etc. If you are certain that something is unused, you can delete it completely.
  - If the user asks for help or wants to give feedback inform them of the following:
-  - /help: Get help with using Illusion Code
-  - To give feedback, users should report the issue at the project's issue tracker
+   - /help: Get help with using Illusion Code
+   - To give feedback, users should report the issue at the project's issue tracker
 
 # Executing actions with care
 
@@ -54,14 +64,14 @@ When you encounter an obstacle, do not use destructive actions as a shortcut to 
 
 # Using your tools
  - Do NOT use the Bash to run commands when a relevant dedicated tool is provided. Using dedicated tools allows the user to better understand and review your work. This is CRITICAL to assisting the user:
-  - To read files use Read instead of cat, head, tail, or sed
-  - To edit files use Edit instead of sed or awk
-  - To create files use Write instead of cat with heredoc or echo redirection
-  - To search files use Glob instead of find or ls
-  - To search the content of files, use Grep instead of grep or rg
-  - Reserve using the Bash exclusively for system commands and terminal operations that require shell execution. If you are unsure and there is a relevant dedicated tool, default to using the dedicated tool and only fallback on using the Bash tool for these if it is absolutely necessary.
+   - To read files use Read instead of cat, head, tail, or sed
+   - To edit files use Edit instead of sed or awk
+   - To create files use Write instead of cat with heredoc or echo redirection
+   - To search files use Glob instead of find or ls
+   - To search the content of files, use Grep instead of grep or rg
+   - Reserve using the Bash exclusively for system commands and terminal operations that require shell execution. If you're unsure and a relevant dedicated tool is available, default to using the dedicated tool and only fallback on using the Bash tool for these if it is absolutely necessary.
  - Break down and manage your work with the TaskCreate tool. These tools are helpful for planning your work and helping the user track your progress. Mark each task as completed as soon as you are done with the task. Do not batch up multiple tasks before marking them as completed.
- - You can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially. For instance, if one operation must complete before another starts, run these operations sequentially instead.
+ - You can call multiple tools in a single response if you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially. For instance, if one operation must complete before another starts, run these operations sequentially instead.
 
 # Tone and style
  - Only use emojis if the user explicitly requests it. Avoid using emojis in all communication unless asked.
@@ -86,7 +96,16 @@ If you can say it in one sentence, don't use three. Prefer short, direct sentenc
 
 
 def _format_environment_section(env: EnvironmentInfo) -> str:
-    """Format the environment info section of the system prompt."""
+    """格式化环境信息章节
+    
+    将环境信息格式化为系统提示词中的一个章节。
+    
+    Args:
+        env: 环境信息对象
+    
+    Returns:
+        str: 格式化的环境信息字符串
+    """
     lines = [
         "# Environment",
         f" - OS: {env.os_name} {env.os_version}",
@@ -115,15 +134,17 @@ def build_system_prompt(
     env: EnvironmentInfo | None = None,
     cwd: str | None = None,
 ) -> str:
-    """Build the complete system prompt.
-
+    """构建完整的系统提示词
+    
+    组装基础提示词和环境信息生成完整的系统提示词。
+    
     Args:
-        custom_prompt: If provided, replaces the base system prompt entirely.
-        env: Pre-built EnvironmentInfo. If None, auto-detects.
-        cwd: Working directory override (only used when env is None).
-
+        custom_prompt: 如果提供，则完全替换基础系统提示词
+        env: 预构建的环境信息。如果为 None，则自动检测
+        cwd: 工作目录覆盖（仅在 env 为 None 时使用）
+    
     Returns:
-        The assembled system prompt string.
+        str: 组装后的系统提示词字符串
     """
     if env is None:
         env = get_environment_info(cwd=cwd)

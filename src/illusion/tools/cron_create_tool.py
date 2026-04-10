@@ -1,4 +1,16 @@
-"""Tool for creating local cron-style jobs."""
+"""
+定时任务创建工具
+================
+
+本模块提供创建本地定时任务（cron 风格）的功能。
+
+主要组件：
+    - CronCreateTool: 创建定时任务的工具
+
+使用示例：
+    >>> from illusion.tools import CronCreateTool
+    >>> tool = CronCreateTool()
+"""
 
 from __future__ import annotations
 
@@ -9,7 +21,14 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class CronCreateToolInput(BaseModel):
-    """Arguments for cron job creation."""
+    """定时任务创建参数。
+
+    属性：
+        cron: 标准的 5 字段 cron 表达式（本地时间）
+        prompt: 每次触发时排队的提示词
+        recurring: 是否重复执行
+        durable: 是否持久化到磁盘
+    """
 
     cron: str = Field(
         description="Standard 5-field cron expression in local time (e.g., '*/5 * * * *' for every 5 minutes)",
@@ -26,7 +45,10 @@ class CronCreateToolInput(BaseModel):
 
 
 class CronCreateTool(BaseTool):
-    """Create or replace a local cron job."""
+    """创建或替换本地定时任务。
+
+    用于安排在将来某个时间排队提示词。支持重复计划和一次性提醒。
+    """
 
     name = "cron_create"
     description = """Schedule a prompt to be enqueued at a future time. Use for both recurring schedules and one-shot reminders.
@@ -72,6 +94,7 @@ Returns a job ID you can pass to CronDelete."""
         arguments: CronCreateToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
+        # 验证 cron 表达式是否有效
         if not validate_cron_expression(arguments.cron):
             return ToolResult(
                 output=(
@@ -82,6 +105,7 @@ Returns a job ID you can pass to CronDelete."""
                 is_error=True,
             )
 
+        # 创建或更新 cron 任务
         job_id = upsert_cron_job(
             {
                 "schedule": arguments.cron,

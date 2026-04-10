@@ -1,4 +1,16 @@
-"""Tool for listing tasks."""
+"""
+任务列表工具
+============
+
+本模块提供列出所有后台任务的功能。
+
+主要组件：
+    - TaskListTool: 列出任务的工具
+
+使用示例：
+    >>> from illusion.tools import TaskListTool
+    >>> tool = TaskListTool()
+"""
 
 from __future__ import annotations
 
@@ -9,11 +21,14 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class TaskListToolInput(BaseModel):
-    """Arguments for task listing."""
+    """任务列表参数。"""
 
 
 class TaskListTool(BaseTool):
-    """List background tasks."""
+    """列出后台任务。
+
+    用于查看所有任务的概要信息。
+    """
 
     name = "task_list"
     description = """Use this tool to list all tasks in the task list.
@@ -53,19 +68,20 @@ When working as a teammate:
 
     async def execute(self, arguments: TaskListToolInput, context: ToolExecutionContext) -> ToolResult:
         del context
+        # 获取所有任务
         tasks = get_task_manager().list_tasks()
         if not tasks:
             return ToolResult(output="(no tasks)")
 
-        # Build set of completed task IDs for dependency filtering
+        # 构建已完成任务 ID 集合用于依赖过滤
         completed_ids = {t.id for t in tasks if t.status == "completed"}
 
-        # Format each task
+        # 格式化每个任务
         lines: list[str] = []
         for task in tasks:
             subject = task.subject or task.description
             owner = task.owner or ""
-            # Filter blockedBy to only show unresolved dependencies
+            # 过滤 blockedBy 只显示未解决的依赖
             active_blockers = [bid for bid in task.blocked_by if bid not in completed_ids]
             blocked_str = f" blockedBy={active_blockers}" if active_blockers else ""
             owner_str = f" owner={owner}" if owner else ""

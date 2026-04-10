@@ -1,9 +1,31 @@
-"""Lightweight code-intelligence helpers for the ``lsp`` tool.
+"""
+轻量级代码智能辅助模块 — 用于 LSP 工具
+====================================
 
-This is intentionally smaller than a full language-server integration. It
-provides stable read-only operations for Python source files so the model can
-perform definition, reference, hover, and symbol queries in a Claude
-Code-like workflow.
+本模块实现轻量级代码智能功能，比完整的语言服务器集成更小。
+为 Python 源文件提供稳定的只读操作，使模型能够执行类似 Claude Code 工作流程中的定义、引用、悬停和符号查询。
+
+主要功能：
+    - 列出文档符号
+    - 工作区符号搜索
+    - 跳转到定义
+    - 查找引用
+    - 悬停信息
+
+类说明：
+    - SymbolLocation: 符号位置数据类
+    - list_document_symbols: 列出文档符号
+    - workspace_symbol_search: 工作区符号搜索
+    - go_to_definition: 跳转到定义
+    - find_references: 查找引用
+    - hover: 悬停信息
+
+使用示例：
+    >>> from illusion.services.lsp import list_document_symbols, go_to_definition
+    >>> # 列出文件中的符号
+    >>> symbols = list_document_symbols(Path("src/main.py"))
+    >>> # 跳转到定义
+    >>> defs = go_to_definition(root=Path("."), file_path=Path("src/main.py"), symbol="my_function")
 """
 
 from __future__ import annotations
@@ -14,13 +36,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+# Python 文件模式
 _PYTHON_GLOB = "*.py"
+# 跳过的目录
 _SKIP_PARTS = {".git", ".hg", ".svn", ".venv", "venv", "__pycache__", "node_modules"}
 
 
 @dataclass(frozen=True)
 class SymbolLocation:
-    """Resolved symbol location inside the workspace."""
+    """工作区内的解析符号位置。"""
 
     name: str
     kind: str
@@ -32,7 +56,7 @@ class SymbolLocation:
 
 
 def list_document_symbols(path: Path) -> list[SymbolLocation]:
-    """Return top-level and nested symbols from one Python source file."""
+    """从 Python 源文件中返回顶层和嵌套符号。"""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     symbols: list[SymbolLocation] = []
     _collect_symbols(tree, path, symbols, parent=None)
@@ -40,7 +64,7 @@ def list_document_symbols(path: Path) -> list[SymbolLocation]:
 
 
 def workspace_symbol_search(root: Path, query: str) -> list[SymbolLocation]:
-    """Return symbols whose name contains ``query``."""
+    """返回名称包含 query 的符号。"""
     needle = query.lower().strip()
     if not needle:
         return []
@@ -60,7 +84,7 @@ def go_to_definition(
     line: int | None = None,
     character: int | None = None,
 ) -> list[SymbolLocation]:
-    """Resolve candidate definitions for a symbol."""
+    """解析符号的可能定义。"""
     target = symbol or extract_symbol_at_position(file_path, line=line, character=character)
     if not target:
         return []
@@ -80,7 +104,7 @@ def find_references(
     line: int | None = None,
     character: int | None = None,
 ) -> list[tuple[Path, int, str]]:
-    """Return line-oriented references for a symbol."""
+    """返回符号的行方向引用。"""
     target = symbol or extract_symbol_at_position(file_path, line=line, character=character)
     if not target:
         return []
@@ -101,7 +125,7 @@ def hover(
     line: int | None = None,
     character: int | None = None,
 ) -> SymbolLocation | None:
-    """Return the best hover target for a symbol."""
+    """返回符号的最佳悬停目标。"""
     matches = go_to_definition(
         root=root,
         file_path=file_path,
@@ -118,7 +142,7 @@ def extract_symbol_at_position(
     line: int | None,
     character: int | None,
 ) -> str | None:
-    """Extract a probable identifier from a 1-based line/character position."""
+    """从 1 基数的行/字符位置提取可能的标识符。"""
     if line is None:
         return None
     lines = file_path.read_text(encoding="utf-8").splitlines()
@@ -137,7 +161,7 @@ def extract_symbol_at_position(
 
 
 def iter_python_files(root: Path) -> list[Path]:
-    """Return Python source files in a stable order."""
+    """按稳定顺序返回 Python 源文件列表。"""
     files: list[Path] = []
     for path in root.rglob(_PYTHON_GLOB):
         if any(part in _SKIP_PARTS for part in path.parts):
@@ -155,8 +179,10 @@ def _collect_symbols(
     *,
     parent: str | None,
 ) -> None:
+    """递归收集 AST 中的符号。"""
     for child in ast.iter_child_nodes(node):
         if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # 函数定义
             name = f"{parent}.{child.name}" if parent else child.name
             args = [arg.arg for arg in child.args.args]
             signature = f"def {child.name}({', '.join(args)})"
@@ -173,6 +199,7 @@ def _collect_symbols(
             )
             _collect_symbols(child, path, bucket, parent=name)
         elif isinstance(child, ast.ClassDef):
+            # 类定义
             name = f"{parent}.{child.name}" if parent else child.name
             bucket.append(
                 SymbolLocation(
@@ -187,6 +214,7 @@ def _collect_symbols(
             )
             _collect_symbols(child, path, bucket, parent=name)
         elif isinstance(child, ast.Assign):
+            # 变量赋值
             for target in child.targets:
                 if isinstance(target, ast.Name):
                     name = f"{parent}.{target.id}" if parent else target.id

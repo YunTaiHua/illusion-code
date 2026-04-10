@@ -1,4 +1,22 @@
-"""Plugin exports."""
+"""
+插件模块
+========
+
+本模块提供 IllusionCode 插件系统的加载和管理功能。
+
+主要组件：
+    - PluginManifest: 插件清单
+    - LoadedPlugin: 已加载插件
+    - discover_plugin_paths: 发现插件路径
+    - get_project_plugins_dir: 获取项目插件目录
+    - get_user_plugins_dir: 获取用户插件目录
+    - load_plugins: 加载插件
+    - install_plugin_from_path: 从路径安装插件
+    - uninstall_plugin: 卸载插件
+
+使用示例：
+    >>> from illusion.plugins import load_plugins, get_user_plugins_dir
+"""
 
 from __future__ import annotations
 

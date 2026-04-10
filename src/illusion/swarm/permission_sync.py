@@ -1,22 +1,38 @@
-"""Permission sync protocol for leader-worker coordination in IllusionCode swarms.
+"""
+IllusionCode swarm 中的权限同步协议模块
+======================================
 
-Provides both file-based (pending/resolved directories) and mailbox-based
-permission request/response coordination between swarm workers and the leader.
+本模块提供 swarm 工作者与负责人之间的权限请求/响应协调功能。
 
-File-based flow (directory storage):
-    1. Worker calls ``write_permission_request()`` → pending/{id}.json
-    2. Leader calls ``read_pending_permissions()`` to list pending requests
-    3. Leader calls ``resolve_permission()`` → moves to resolved/{id}.json
-    4. Worker calls ``read_resolved_permission(id)`` or ``poll_for_response(id)``
+支持两种流程：
+1. 基于文件的流程（目录存储）：
+    1. 工作者调用 ``write_permission_request()`` → pending/{id}.json
+    2. 负责人调用 ``read_pending_permissions()`` 列出待处理请求
+    3. 负责人调用 ``resolve_permission()`` → 移动到 resolved/{id}.json
+    4. 工作者调用 ``read_resolved_permission(id)`` 或 ``poll_for_response(id)``
 
-Mailbox-based flow:
-    1. Worker calls ``send_permission_request_via_mailbox()``
-    2. Leader polls mailbox, sends response via ``send_permission_response_via_mailbox()``
-    3. Worker calls ``poll_permission_response()`` on its own mailbox
+2. 基于邮箱的流程：
+    1. 工作者调用 ``send_permission_request_via_mailbox()``
+    2. 负责人轮询邮箱，通过 ``send_permission_response_via_mailbox()`` 发送响应
+    3. 工作者调用 ``poll_permission_response()`` 在自己的邮箱中轮询
 
-Paths:
+文件路径：
     ~/.illusion/teams/<teamName>/permissions/pending/<id>.json
     ~/.illusion/teams/<teamName>/permissions/resolved/<id>.json
+
+主要组件：
+    - SwarmPermissionRequest: 权限请求数据结构
+    - SwarmPermissionResponse: 权限响应数据结构
+    - PermissionResolution: 权限决议数据结构
+
+使用示例：
+    >>> from illusion.swarm.permission_sync import create_permission_request, resolve_permission
+    >>> 
+    >>> # 创建权限请求
+    >>> request = create_permission_request("Edit", "tool_123", {"file_path": "/test.py"})
+    >>> 
+    >>> # 发送请求（基于文件）
+    >>> await write_permission_request(request)
 """
 
 from __future__ import annotations
@@ -32,6 +48,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+# 导入锁文件和邮箱模块
 from illusion.swarm.lockfile import exclusive_file_lock
 from illusion.swarm.mailbox import (
     MailboxMessage,
@@ -49,30 +66,35 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
-# Environment helpers
+# 环境变量辅助函数
 # ---------------------------------------------------------------------------
 
 
 def _get_team_name() -> str | None:
+    """获取团队名称环境变量。"""
     return os.environ.get("CLAUDE_CODE_TEAM_NAME")
 
 
 def _get_agent_id() -> str | None:
+    """获取代理 ID 环境变量。"""
     return os.environ.get("CLAUDE_CODE_AGENT_ID")
 
 
 def _get_agent_name() -> str | None:
+    """获取代理名称环境变量。"""
     return os.environ.get("CLAUDE_CODE_AGENT_NAME")
 
 
 def _get_teammate_color() -> str | None:
+    """获取队友颜色环境变量。"""
     return os.environ.get("CLAUDE_CODE_AGENT_COLOR")
 
 
 # ---------------------------------------------------------------------------
-# Read-only tool heuristic
+# 只读工具启发式
 # ---------------------------------------------------------------------------
 
+# 只读/安全工具集合
 _READ_ONLY_TOOLS: frozenset[str] = frozenset(
     {
         "read_file",
@@ -89,75 +111,76 @@ _READ_ONLY_TOOLS: frozenset[str] = frozenset(
 
 
 def _is_read_only(tool_name: str) -> bool:
-    """Return True for tools that are considered safe/read-only."""
+    """对于被视为安全/只读的工具返回 True。"""
     return tool_name in _READ_ONLY_TOOLS
 
 
 # ---------------------------------------------------------------------------
-# Data structures
+# 数据结构
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class SwarmPermissionRequest:
-    """Permission request forwarded from a worker to the team leader.
+    """从工作者转发到团队负责人的权限请求。
 
-    All fields are present to match the TS SwarmPermissionRequestSchema.
+    所有字段都存在以匹配 TS SwarmPermissionRequestSchema。
     """
 
     id: str
-    """Unique identifier for this request."""
+    """此请求的唯一标识符。"""
 
     worker_id: str
-    """The requesting worker's agent ID (CLAUDE_CODE_AGENT_ID)."""
+    """请求工作者的代理 ID（CLAUDE_CODE_AGENT_ID）。"""
 
     worker_name: str
-    """The requesting worker's agent name (CLAUDE_CODE_AGENT_NAME)."""
+    """请求工作者的代理名称（CLAUDE_CODE_AGENT_NAME）。"""
 
     team_name: str
-    """Team name for routing."""
+    """用于路由的团队名称。"""
 
     tool_name: str
-    """Name of the tool requiring permission (e.g. 'Bash', 'Edit')."""
+    """需要权限的工具名称（例如 'Bash', 'Edit'）。"""
 
     tool_use_id: str
-    """Original tool-use ID from the worker's execution context."""
+    """工作者执行上下文中的原始工具使用 ID。"""
 
     description: str
-    """Human-readable description of the requested operation."""
+    """请求操作的人类可读描述。"""
 
     input: dict[str, Any]
-    """Serialized tool input parameters."""
+    """序列化的工具输入参数。"""
 
-    # Optional / defaulted fields
+    # 可选/默认字段
     permission_suggestions: list[Any] = field(default_factory=list)
-    """Suggested rule updates produced by the worker's local permission system."""
+    """工作者本地权限系统产生的建议规则更新。"""
 
     worker_color: str | None = None
-    """The requesting worker's assigned color (CLAUDE_CODE_AGENT_COLOR)."""
+    """请求工作者的分配颜色（CLAUDE_CODE_AGENT_COLOR）。"""
 
     status: Literal["pending", "approved", "rejected"] = "pending"
-    """Current status of the request."""
+    """请求的当前状态。"""
 
     resolved_by: Literal["worker", "leader"] | None = None
-    """Who resolved the request."""
+    """谁解决了请求。"""
 
     resolved_at: float | None = None
-    """Timestamp (seconds since epoch) when the request was resolved."""
+    """解决请求的时间戳（自 epoch 以来的秒数）。"""
 
     feedback: str | None = None
-    """Optional rejection reason or leader comment."""
+    """可选的拒绝原因或负责人评论。"""
 
     updated_input: dict[str, Any] | None = None
-    """Modified input if changed by the resolver."""
+    """如果解决者修改了输入则为修改后的输入。"""
 
     permission_updates: list[Any] | None = None
-    """'Always allow' rules applied during resolution."""
+    """解决期间应用的"始终允许"规则。"""
 
     created_at: float = field(default_factory=time.time)
-    """Timestamp when request was created."""
+    """请求创建时的时间戳。"""
 
     def to_dict(self) -> dict[str, Any]:
+        """将 SwarmPermissionRequest 转换为字典。"""
         return {
             "id": self.id,
             "worker_id": self.worker_id,
@@ -180,6 +203,7 @@ class SwarmPermissionRequest:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SwarmPermissionRequest":
+        """从字典数据创建 SwarmPermissionRequest 实例。"""
         return cls(
             id=data["id"],
             worker_id=data.get("worker_id", data.get("workerId", "")),
@@ -208,73 +232,73 @@ class SwarmPermissionRequest:
 
 @dataclass
 class PermissionResolution:
-    """Resolution data returned when leader/worker resolves a request."""
+    """负责人/工作者解决请求时返回的决议数据。"""
 
     decision: Literal["approved", "rejected"]
-    """Decision: approved or rejected."""
+    """决议：批准或拒绝。"""
 
     resolved_by: Literal["worker", "leader"]
-    """Who resolved the request."""
+    """谁解决了请求。"""
 
     feedback: str | None = None
-    """Optional feedback message if rejected."""
+    """如果拒绝则可选的反馈消息。"""
 
     updated_input: dict[str, Any] | None = None
-    """Optional updated input if the resolver modified it."""
+    """如果解决者修改了输入则为可选的更新输入。"""
 
     permission_updates: list[Any] | None = None
-    """Permission updates to apply (e.g. 'always allow' rules)."""
+    """要应用的权限更新（例如"始终允许"规则）。"""
 
 
 @dataclass
 class PermissionResponse:
-    """Legacy response type for worker polling (backward compatibility)."""
+    """工作者轮询的旧响应类型（向后兼容）。"""
 
     request_id: str
-    """ID of the request this responds to."""
+    """此响应的请求 ID。"""
 
     decision: Literal["approved", "denied"]
-    """Decision: approved or denied."""
+    """决议：批准或拒绝。"""
 
     timestamp: str
-    """ISO timestamp when response was created."""
+    """响应创建时的 ISO 时间戳。"""
 
     feedback: str | None = None
-    """Optional feedback message if denied."""
+    """如果拒绝则可选的反馈消息。"""
 
     updated_input: dict[str, Any] | None = None
-    """Optional updated input if the resolver modified it."""
+    """如果解决者修改了输入则为可选的更新输入。"""
 
     permission_updates: list[Any] | None = None
-    """Permission updates to apply."""
+    """要应用的权限更新。"""
 
 
 @dataclass
 class SwarmPermissionResponse:
-    """Response sent from the leader back to the requesting worker."""
+    """从负责人发送回请求工作者的响应。"""
 
     request_id: str
-    """ID of the ``SwarmPermissionRequest`` this responds to."""
+    """此响应的 ``SwarmPermissionRequest`` 的 ID。"""
 
     allowed: bool
-    """True if the tool use is approved."""
+    """如果工具使用被批准则为 True。"""
 
     feedback: str | None = None
-    """Optional rejection reason or leader comment."""
+    """可选的拒绝原因或负责人评论。"""
 
     updated_rules: list[dict[str, Any]] = field(default_factory=list)
-    """Permission-rule updates the leader decided to apply."""
+    """负责人决定应用的权限规则更新。"""
 
 
 # ---------------------------------------------------------------------------
-# Request ID generation
+# 请求 ID 生成
 # ---------------------------------------------------------------------------
 
 
 def generate_request_id() -> str:
-    """Generate a unique permission request ID.
+    """生成唯一的权限请求 ID。
 
-    Format: ``perm-{timestamp_ms}-{random7}``, matching the TS implementation:
+    格式：``perm-{timestamp_ms}-{random7}``，匹配 TS 实现：
     ``perm-${Date.now()}-${Math.random().toString(36).substring(2, 9)}``
     """
     ts = int(time.time() * 1000)
@@ -283,9 +307,9 @@ def generate_request_id() -> str:
 
 
 def generate_sandbox_request_id() -> str:
-    """Generate a unique sandbox permission request ID.
+    """生成唯一的沙箱权限请求 ID。
 
-    Format: ``sandbox-{timestamp_ms}-{random7}``.
+    格式：``sandbox-{timestamp_ms}-{random7}``。
     """
     ts = int(time.time() * 1000)
     rand = "".join(random.choices(string.ascii_lowercase + string.digits, k=7))
@@ -293,24 +317,27 @@ def generate_sandbox_request_id() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Permission directory helpers
+# 权限目录辅助函数
 # ---------------------------------------------------------------------------
 
 
 def get_permission_dir(team_name: str) -> Path:
-    """Return ~/.illusion/teams/{teamName}/permissions/"""
+    """返回 ~/.illusion/teams/{teamName}/permissions/"""
     return get_team_dir(team_name) / "permissions"
 
 
 def _get_pending_dir(team_name: str) -> Path:
+    """获取 pending 目录路径。"""
     return get_permission_dir(team_name) / "pending"
 
 
 def _get_resolved_dir(team_name: str) -> Path:
+    """获取 resolved 目录路径。"""
     return get_permission_dir(team_name) / "resolved"
 
 
 def _ensure_permission_dirs(team_name: str) -> None:
+    """确保权限目录存在。"""
     for d in (
         get_permission_dir(team_name),
         _get_pending_dir(team_name),
@@ -320,15 +347,17 @@ def _ensure_permission_dirs(team_name: str) -> None:
 
 
 def _pending_request_path(team_name: str, request_id: str) -> Path:
+    """获取 pending 请求文件路径。"""
     return _get_pending_dir(team_name) / f"{request_id}.json"
 
 
 def _resolved_request_path(team_name: str, request_id: str) -> Path:
+    """获取 resolved 请求文件路径。"""
     return _get_resolved_dir(team_name) / f"{request_id}.json"
 
 
 # ---------------------------------------------------------------------------
-# Factory
+# 工厂函数
 # ---------------------------------------------------------------------------
 
 
@@ -343,29 +372,30 @@ def create_permission_request(
     worker_name: str | None = None,
     worker_color: str | None = None,
 ) -> SwarmPermissionRequest:
-    """Build a new :class:`SwarmPermissionRequest` with a generated ID.
+    """使用生成的 ID 构建新的 :class:`SwarmPermissionRequest`。
 
-    Missing worker/team fields are read from environment variables
-    (``CLAUDE_CODE_AGENT_ID``, ``CLAUDE_CODE_AGENT_NAME``,
-    ``CLAUDE_CODE_TEAM_NAME``, ``CLAUDE_CODE_AGENT_COLOR``).
+    缺少的工作者/团队字段从环境变量读取
+    （``CLAUDE_CODE_AGENT_ID``、``CLAUDE_CODE_AGENT_NAME``、
+    ``CLAUDE_CODE_TEAM_NAME``、``CLAUDE_CODE_AGENT_COLOR``）。
 
     Args:
-        tool_name: Name of the tool requesting permission.
-        tool_use_id: Original tool-use ID from the execution context.
-        tool_input: The tool's input parameters.
-        description: Optional human-readable description of the operation.
-        permission_suggestions: Optional list of suggested permission-rule dicts.
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
-        worker_id: Worker agent ID (falls back to ``CLAUDE_CODE_AGENT_ID``).
-        worker_name: Worker agent name (falls back to ``CLAUDE_CODE_AGENT_NAME``).
-        worker_color: Worker color (falls back to ``CLAUDE_CODE_AGENT_COLOR``).
+        tool_name: 请求权限的工具名称。
+        tool_use_id: 执行上下文中的原始工具使用 ID。
+        tool_input: 工具的输入参数。
+        description: 操作的可选人类可读描述。
+        permission_suggestions: 可选的建议权限规则字典列表。
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
+        worker_id: 工作者代理 ID（回退到 ``CLAUDE_CODE_AGENT_ID``）。
+        worker_name: 工作者代理名称（回退到 ``CLAUDE_CODE_AGENT_NAME``）。
+        worker_color: 工作者颜色（回退到 ``CLAUDE_CODE_AGENT_COLOR``）。
 
     Returns:
-        A new :class:`SwarmPermissionRequest` in *pending* state.
+        处于 *pending* 状态的新 :class:`SwarmPermissionRequest`。
 
     Raises:
-        ValueError: if team_name, worker_id, or worker_name cannot be resolved.
+        ValueError: 如果 team_name、worker_id 或 worker_name 无法解析。
     """
+    # 解析环境变量或使用提供的值
     resolved_team = team_name or _get_team_name() or ""
     resolved_id = worker_id or _get_agent_id() or ""
     resolved_name = worker_name or _get_agent_name() or ""
@@ -388,13 +418,14 @@ def create_permission_request(
 
 
 # ---------------------------------------------------------------------------
-# File-based storage: write / read / resolve / cleanup
+# 基于文件的存储：写入/读取/解决/清理
 # ---------------------------------------------------------------------------
 
 
 def _sync_write_permission_request(
     request: SwarmPermissionRequest,
 ) -> SwarmPermissionRequest:
+    """同步写入权限请求。"""
     _ensure_permission_dirs(request.team_name)
     pending_path = _pending_request_path(request.team_name, request.id)
     lock_path = _get_pending_dir(request.team_name) / ".lock"
@@ -409,15 +440,15 @@ def _sync_write_permission_request(
 async def write_permission_request(
     request: SwarmPermissionRequest,
 ) -> SwarmPermissionRequest:
-    """Write *request* to the pending directory with file locking.
+    """将 *request* 写入 pending 目录，使用文件锁定。
 
-    Called by worker agents when they need permission approval from the leader.
+    当工作者代理需要负责人批准时由工作者代理调用。
 
     Args:
-        request: The permission request to persist.
+        request: 要持久化的权限请求。
 
     Returns:
-        The written request (same object, for convenience).
+        写入的请求（同一对象，便于使用）。
     """
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _sync_write_permission_request, request)
@@ -426,16 +457,16 @@ async def write_permission_request(
 async def read_pending_permissions(
     team_name: str | None = None,
 ) -> list[SwarmPermissionRequest]:
-    """Read all pending permission requests for a team.
+    """读取团队的所有待处理权限请求。
 
-    Called by the team leader to see what requests need attention.  Requests
-    are returned sorted oldest-first.
+    由团队负责人调用以查看需要关注的请求。
+    请求按最旧优先排序返回。
 
     Args:
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
 
     Returns:
-        List of pending :class:`SwarmPermissionRequest` objects.
+        待处理 :class:`SwarmPermissionRequest` 对象列表。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -463,17 +494,16 @@ async def read_resolved_permission(
     request_id: str,
     team_name: str | None = None,
 ) -> SwarmPermissionRequest | None:
-    """Read a resolved permission request by ID.
+    """按 ID 读取已解决的权限请求。
 
-    Called by workers to check if their request has been resolved.
+    由工作者调用以检查其请求是否已解决。
 
     Args:
-        request_id: The permission request ID to look up.
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
+        request_id: 要查找的权限请求 ID。
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
 
     Returns:
-        The resolved :class:`SwarmPermissionRequest`, or ``None`` if not yet
-        resolved.
+        已解决的 :class:`SwarmPermissionRequest`，如果尚未解决则返回 ``None``。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -495,6 +525,7 @@ def _sync_resolve_permission(
     resolution: PermissionResolution,
     team: str,
 ) -> bool:
+    """同步解决权限请求。"""
     _ensure_permission_dirs(team)
     pending_path = _pending_request_path(team, request_id)
     resolved_path = _resolved_request_path(team, request_id)
@@ -511,6 +542,7 @@ def _sync_resolve_permission(
         except (json.JSONDecodeError, KeyError):
             return False
 
+        # 构建已解决的请求
         resolved_request = SwarmPermissionRequest(
             id=request.id,
             worker_id=request.worker_id,
@@ -531,6 +563,7 @@ def _sync_resolve_permission(
             created_at=request.created_at,
         )
 
+        # 写入 resolved 目录并删除 pending
         tmp_path.write_text(
             json.dumps(resolved_request.to_dict(), indent=2), encoding="utf-8"
         )
@@ -548,17 +581,17 @@ async def resolve_permission(
     resolution: PermissionResolution,
     team_name: str | None = None,
 ) -> bool:
-    """Resolve a permission request, moving it from pending/ to resolved/.
+    """解决权限请求，将其从 pending/ 移动到 resolved/。
 
-    Called by the team leader (or worker in self-resolution cases).
+    由团队负责人（或工作者在自我解决情况下）调用。
 
     Args:
-        request_id: The permission request ID to resolve.
-        resolution: The resolution data (decision, resolvedBy, etc.).
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
+        request_id: 要解决的权限请求 ID。
+        resolution: 决议数据（decision、resolvedBy 等）。
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
 
     Returns:
-        ``True`` if the request was found and resolved, ``False`` otherwise.
+        如果找到并解决了请求返回 ``True``，否则返回 ``False``。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -570,6 +603,7 @@ async def resolve_permission(
 
 
 def _sync_cleanup_old_resolutions(team: str, max_age_seconds: float) -> int:
+    """同步清理旧的已解决权限文件。"""
     resolved_dir = _get_resolved_dir(team)
     if not resolved_dir.exists():
         return 0
@@ -598,16 +632,16 @@ async def cleanup_old_resolutions(
     team_name: str | None = None,
     max_age_seconds: float = 3600.0,
 ) -> int:
-    """Clean up old resolved permission files.
+    """清理旧的已解决权限文件。
 
-    Called periodically to prevent file accumulation.
+    定期调用以防止文件积累。
 
     Args:
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
-        max_age_seconds: Maximum age in seconds (default: 1 hour).
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
+        max_age_seconds: 最大年龄（秒）（默认：1 小时）。
 
     Returns:
-        Number of files removed.
+        删除的文件数量。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -622,14 +656,14 @@ async def delete_resolved_permission(
     request_id: str,
     team_name: str | None = None,
 ) -> bool:
-    """Delete a resolved permission file after a worker has processed it.
+    """在工作者处理后删除已解决的权限文件。
 
     Args:
-        request_id: The permission request ID.
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
+        request_id: 权限请求 ID。
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
 
     Returns:
-        ``True`` if the file was found and deleted, ``False`` otherwise.
+        如果找到并删除了文件返回 ``True``，否则返回 ``False``。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -646,7 +680,7 @@ async def delete_resolved_permission(
 
 
 # ---------------------------------------------------------------------------
-# Legacy / backward-compat helpers
+# 旧版/向后兼容辅助函数
 # ---------------------------------------------------------------------------
 
 
@@ -655,17 +689,17 @@ async def poll_for_response(
     _agent_name: str | None = None,
     team_name: str | None = None,
 ) -> PermissionResponse | None:
-    """Poll for a permission response (worker-side convenience function).
+    """轮询权限响应（工作者端便捷函数）。
 
-    Converts the resolved request into the simpler legacy response format.
+    将已解决的请求转换为更简单的旧版响应格式。
 
     Args:
-        request_id: The permission request ID to check.
-        _agent_name: Unused; kept for API compatibility.
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
+        request_id: 要检查的权限请求 ID。
+        _agent_name: 未使用；为 API 兼容性保留。
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
 
     Returns:
-        A :class:`PermissionResponse`, or ``None`` if not yet resolved.
+        :class:`PermissionResponse`，如果尚未解决则返回 ``None``。
     """
     from datetime import datetime, timezone
 
@@ -692,23 +726,23 @@ async def remove_worker_response(
     _agent_name: str | None = None,
     team_name: str | None = None,
 ) -> None:
-    """Remove a worker's response after processing (alias for delete_resolved_permission)."""
+    """在工作者处理后移除工作者的响应（delete_resolved_permission 的别名）。"""
     await delete_resolved_permission(request_id, team_name)
 
 
-# Alias: submitPermissionRequest → writePermissionRequest
+# 别名：submitPermissionRequest → writePermissionRequest
 submit_permission_request = write_permission_request
 
 
 # ---------------------------------------------------------------------------
-# Team leader / worker role detection
+# 团队负责人/工作者角色检测
 # ---------------------------------------------------------------------------
 
 
 def is_team_leader(team_name: str | None = None) -> bool:
-    """Return True if the current agent is a team leader.
+    """如果当前代理是团队负责人则返回 True。
 
-    Team leaders don't have an agent ID set, or their ID is 'team-lead'.
+    团队负责人没有设置代理 ID，或其 ID 是 'team-lead'。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -718,28 +752,28 @@ def is_team_leader(team_name: str | None = None) -> bool:
 
 
 def is_swarm_worker() -> bool:
-    """Return True if the current agent is a worker in a swarm."""
+    """如果当前代理是 swarm 中的工作者则返回 True。"""
     team_name = _get_team_name()
     agent_id = _get_agent_id()
     return bool(team_name) and bool(agent_id) and not is_team_leader()
 
 
 # ---------------------------------------------------------------------------
-# Leader name lookup
+# 负责人名称查找
 # ---------------------------------------------------------------------------
 
 
 async def get_leader_name(team_name: str | None = None) -> str | None:
-    """Get the leader's agent name from the team file.
+    """从团队文件获取负责人的代理名称。
 
-    This is needed to address permission requests to the leader's mailbox.
+    这需要将权限请求寻址到负责人的邮箱。
 
     Args:
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
 
     Returns:
-        The leader's name string, or ``None`` if the team file is missing.
-        Falls back to ``'team-lead'`` if the lead member is not found.
+        负责人的名称字符串，如果团队文件缺失则返回 ``None``。
+        如果未找到 lead 成员则回退到 ``'team-lead'``。
     """
     from illusion.swarm.team_lifecycle import read_team_file_async
 
@@ -759,23 +793,23 @@ async def get_leader_name(team_name: str | None = None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Mailbox-based permission send/receive
+# 基于邮箱的权限发送/接收
 # ---------------------------------------------------------------------------
 
 
 async def send_permission_request_via_mailbox(
     request: SwarmPermissionRequest,
 ) -> bool:
-    """Send a permission request to the leader via the mailbox system.
+    """通过邮箱系统将权限请求发送到负责人。
 
-    This is the mailbox-based approach for forwarding permission requests.
-    Writes a ``permission_request`` message to the leader's mailbox.
+    这是转发权限请求的基于邮箱的方法。
+    将 ``permission_request`` 消息写入负责人的邮箱。
 
     Args:
-        request: The permission request to send.
+        request: 要发送的权限请求。
 
     Returns:
-        ``True`` if the message was sent successfully.
+        如果消息发送成功返回 ``True``。
     """
     leader_name = await get_leader_name(request.team_name)
     if not leader_name:
@@ -819,18 +853,18 @@ async def send_permission_response_via_mailbox(
     request_id: str,
     team_name: str | None = None,
 ) -> bool:
-    """Send a permission response to a worker via the mailbox system.
+    """通过邮箱系统将权限响应发送到工作者。
 
-    Called by the leader when approving/denying a permission request.
+    在负责人批准/拒绝权限请求时调用。
 
     Args:
-        worker_name: The worker's name to send the response to.
-        resolution: The permission resolution.
-        request_id: The original request ID.
-        team_name: Team name (falls back to ``CLAUDE_CODE_TEAM_NAME``).
+        worker_name: 要发送响应的工作者名称。
+        resolution: 权限决议。
+        request_id: 原始请求 ID。
+        team_name: 团队名称（回退到 ``CLAUDE_CODE_TEAM_NAME``）。
 
     Returns:
-        ``True`` if the message was sent successfully.
+        如果消息发送成功返回 ``True``。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -869,7 +903,7 @@ async def send_permission_response_via_mailbox(
 
 
 # ---------------------------------------------------------------------------
-# Sandbox permission mailbox helpers
+# 沙箱权限邮箱辅助函数
 # ---------------------------------------------------------------------------
 
 
@@ -878,17 +912,17 @@ async def send_sandbox_permission_request_via_mailbox(
     request_id: str,
     team_name: str | None = None,
 ) -> bool:
-    """Send a sandbox permission request to the leader via the mailbox system.
+    """通过邮箱系统将沙箱权限请求发送到负责人。
 
-    Called by workers when sandbox runtime needs network access approval.
+    当沙箱运行时需要网络访问批准时由工作者调用。
 
     Args:
-        host: The host requesting network access.
-        request_id: Unique ID for this request.
-        team_name: Optional team name.
+        host: 请求网络访问的主机。
+        request_id: 此请求的唯一 ID。
+        team_name: 可选的团队名称。
 
     Returns:
-        ``True`` if the message was sent successfully.
+        如果消息发送成功返回 ``True``。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -942,19 +976,19 @@ async def send_sandbox_permission_response_via_mailbox(
     allow: bool,
     team_name: str | None = None,
 ) -> bool:
-    """Send a sandbox permission response to a worker via the mailbox system.
+    """通过邮箱系统将沙箱权限响应发送到工作者。
 
-    Called by the leader when approving/denying a sandbox network access request.
+    在负责人批准/拒绝沙箱网络访问请求时调用。
 
     Args:
-        worker_name: The worker's name to send the response to.
-        request_id: The original request ID.
-        host: The host that was approved/denied.
-        allow: Whether the connection is allowed.
-        team_name: Optional team name.
+        worker_name: 要发送响应的工作者名称。
+        request_id: 原始请求 ID。
+        host: 被批准/拒绝的主机。
+        allow: 是否允许连接。
+        team_name: 可选的团队名称。
 
     Returns:
-        ``True`` if the message was sent successfully.
+        如果消息发送成功返回 ``True``。
     """
     team = team_name or _get_team_name()
     if not team:
@@ -990,7 +1024,7 @@ async def send_sandbox_permission_response_via_mailbox(
 
 
 # ---------------------------------------------------------------------------
-# Worker helpers: send request / poll response (original mailbox-only approach)
+# 工作者辅助函数：发送请求/轮询响应（原始的仅邮箱方法）
 # ---------------------------------------------------------------------------
 
 
@@ -1000,16 +1034,16 @@ async def send_permission_request(
     worker_id: str,
     leader_id: str = "leader",
 ) -> None:
-    """Serialize *request* and write it to the leader's mailbox.
+    """序列化 *request* 并写入负责人的邮箱。
 
-    This is the original structured-payload approach.  For new code prefer
-    :func:`send_permission_request_via_mailbox`.
+    这是原始的结构化有效负载方法。对于新代码优先使用
+    :func:`send_permission_request_via_mailbox`。
 
     Args:
-        request: The permission request to forward.
-        team_name: The swarm team name used for mailbox routing.
-        worker_id: The sending worker's agent ID.
-        leader_id: The leader's agent ID (default ``"leader"``).
+        request: 要转发的权限请求。
+        team_name: 用于邮箱路由的 swarm 团队名称。
+        worker_id: 发送工作者的代理 ID。
+        leader_id: 负责人的代理 ID（默认 ``"leader"``）。
     """
     payload: dict[str, Any] = {
         "request_id": request.id,
@@ -1038,20 +1072,20 @@ async def poll_permission_response(
     request_id: str,
     timeout: float = 60.0,
 ) -> SwarmPermissionResponse | None:
-    """Poll the worker's own mailbox until a matching ``permission_response`` arrives.
+    """轮询工作者自己的邮箱直到收到匹配的 ``permission_response``。
 
-    Checks every 0.5 s up to *timeout* seconds.  When a response matching
-    *request_id* is found, the message is marked read and the decoded
-    :class:`SwarmPermissionResponse` is returned.
+    每 0.5 秒检查一次，最长 *timeout* 秒。当找到匹配
+    *request_id* 的响应时，消息被标记为已读并返回解码的
+    :class:`SwarmPermissionResponse`。
 
     Args:
-        team_name: The swarm team name.
-        worker_id: The worker's agent ID (owns this mailbox).
-        request_id: The ``SwarmPermissionRequest.id`` to match against.
-        timeout: Maximum seconds to wait before returning ``None``.
+        team_name: swarm 团队名称。
+        worker_id: 工作者代理 ID（拥有此邮箱）。
+        request_id: 要匹配的 ``SwarmPermissionRequest.id``。
+        timeout: 超时前等待的最大秒数。
 
     Returns:
-        A :class:`SwarmPermissionResponse`, or ``None`` on timeout.
+        :class:`SwarmPermissionResponse`，或超时时返回 ``None``。
     """
     worker_mailbox = TeammateMailbox(team_name, worker_id)
     deadline = time.monotonic() + timeout
@@ -1075,7 +1109,7 @@ async def poll_permission_response(
 
 
 # ---------------------------------------------------------------------------
-# Leader helper: evaluate and send response
+# 负责人辅助函数：评估并发送响应
 # ---------------------------------------------------------------------------
 
 
@@ -1083,20 +1117,20 @@ async def handle_permission_request(
     request: SwarmPermissionRequest,
     checker: "PermissionChecker",
 ) -> SwarmPermissionResponse:
-    """Evaluate *request* using the existing :class:`PermissionChecker`.
+    """使用现有的 :class:`PermissionChecker` 评估 *request*。
 
-    Read-only tools are auto-approved without consulting the checker.  For
-    all other tools the checker's ``evaluate`` method is called; if the tool
-    is allowed or only requires confirmation (and nothing blocks it), it is
-    approved; otherwise it is denied.
+    只读工具会自动批准，无需咨询检查器。对于
+    所有其他工具，调用检查器的 ``evaluate`` 方法；如果工具被允许
+    或只需要确认（且没有阻止它），则批准；否则拒绝。
 
     Args:
-        request: The incoming permission request from a worker.
-        checker: An already-configured :class:`~illusion.permissions.checker.PermissionChecker`.
+        request: 来自工作者的传入权限请求。
+        checker: 已配置的 :class:`~illusion.permissions.checker.PermissionChecker`。
 
     Returns:
-        A :class:`SwarmPermissionResponse` with the decision.
+        包含决策的 :class:`SwarmPermissionResponse`。
     """
+    # 只读工具自动批准
     if _is_read_only(request.tool_name):
         return SwarmPermissionResponse(
             request_id=request.id,
@@ -1104,6 +1138,7 @@ async def handle_permission_request(
             feedback=None,
         )
 
+    # 获取文件路径和命令参数
     file_path: str | None = (
         request.input.get("file_path")  # type: ignore[assignment]
         or request.input.get("path")
@@ -1111,6 +1146,7 @@ async def handle_permission_request(
     )
     command: str | None = request.input.get("command")  # type: ignore[assignment]
 
+    # 评估请求
     decision = checker.evaluate(
         request.tool_name,
         is_read_only=False,
@@ -1129,7 +1165,7 @@ async def handle_permission_request(
 
 
 # ---------------------------------------------------------------------------
-# Leader helper: write response back to a worker's mailbox
+# 负责人辅助函数：将响应写回工作者邮箱
 # ---------------------------------------------------------------------------
 
 
@@ -1139,16 +1175,16 @@ async def send_permission_response(
     worker_id: str,
     leader_id: str = "leader",
 ) -> None:
-    """Write *response* to the worker's mailbox.
+    """将 *response* 写入工作者的邮箱。
 
-    This is the original structured-payload approach.  For new code prefer
-    :func:`send_permission_response_via_mailbox`.
+    这是原始的结构化有效负载方法。对于新代码优先使用
+    :func:`send_permission_response_via_mailbox`。
 
     Args:
-        response: The resolution to send.
-        team_name: The swarm team name.
-        worker_id: The target worker's agent ID.
-        leader_id: The sending leader's agent ID (default ``"leader"``).
+        response: 要发送的决议。
+        team_name: swarm 团队名称。
+        worker_id: 目标工作者的代理 ID。
+        leader_id: 发送负责人的代理 ID（默认 ``"leader"``）。
     """
     payload: dict[str, Any] = {
         "request_id": response.request_id,

@@ -1,4 +1,25 @@
-"""JSON-lines backend host for the React terminal frontend."""
+"""
+React 终端后端主机模块
+====================
+
+本模块实现 JSON-lines 协议的后端主机，用于与 React 终端前端通信。
+
+主要功能：
+    - 基于 stdin/stdout 的 JSON-lines 协议通信
+    - 命令处理（/provider, /resume, /permissions, /theme 等）
+    - 权限确认和工作流管理
+    - 会话状态快照
+    - 任务管理快照
+    - MCP 服务器状态管理
+
+类说明：
+    - BackendHostConfig: 后端主机配置数据类
+    - ReactBackendHost: 后端主机实现类
+
+使用示例：
+    >>> from illusion.ui.backend_host import run_backend_host
+    >>> await run_backend_host(model="claude-sonnet-4-20250514")
+"""
 
 from __future__ import annotations
 
@@ -33,14 +54,28 @@ from illusion.ui.protocol import BackendEvent, FrontendRequest, TranscriptItem
 from illusion.ui.permission_store import add_always_allowed_tool, load_always_allowed_tools
 from illusion.ui.runtime import build_runtime, close_runtime, handle_line, start_runtime
 
+# 配置模块级日志记录器
 log = logging.getLogger(__name__)
 
+# 协议前缀 - 用于标识 JSON-lines 协议
 _PROTOCOL_PREFIX = "OHJSON:"
 
 
 @dataclass(frozen=True)
 class BackendHostConfig:
-    """Configuration for one backend host session."""
+    """后端主机配置数据类。
+
+    Attributes:
+        model: 使用的模型名称
+        max_turns: 最大对话轮次
+        base_url: API 基础 URL
+        system_prompt: 系统提示词
+        api_key: API 密钥
+        api_format: API 格式（copilot/openai/anthropic）
+        api_client: 流式 API 客户端实例
+        restore_messages: 恢复的会话消息列表
+        enforce_max_turns: 是否强制限制最大轮次
+    """
 
     model: str | None = None
     max_turns: int | None = None
@@ -54,23 +89,42 @@ class BackendHostConfig:
 
 
 class ReactBackendHost:
-    """Drive the illusion runtime over a structured stdin/stdout protocol."""
+    """React 终端后端主机。
+
+    通过 JSON-lines 协议与 React 前端通信，驱动 IllusionCode 运行时。
+    处理所有前端请求并发送后端事件。
+
+    Attributes:
+        _config: 后端配置
+        _bundle: 运行时数据bundle
+        _write_lock: 异步写入锁
+        _request_queue: 请求队列
+        _permission_requests: 权限请求字典（request_id -> Future）
+        _question_requests: 用户问答请求字典
+        _always_allowed_tools: "总是允许"的工具集合
+        _busy: 当前是否正在处理请求
+        _running: 是否正在运行
+        _active_line_task: 当前活动的行处理任务
+        _last_tool_inputs: 每个工具名称的最后输入（用于富事件发射）
+    """
 
     def __init__(self, config: BackendHostConfig) -> None:
         self._config = config
         self._bundle = None
-        self._write_lock = asyncio.Lock()
+        self._write_lock = asyncio.Lock()  # 异步写入锁
         self._request_queue: asyncio.Queue[FrontendRequest] = asyncio.Queue()
-        self._permission_requests: dict[str, asyncio.Future[bool]] = {}
-        self._question_requests: dict[str, asyncio.Future[str]] = {}
-        self._always_allowed_tools: set[str] = set()
-        self._busy = False
-        self._running = True
-        self._active_line_task: asyncio.Task[bool] | None = None
-        # Track last tool input per name for rich event emission
+        self._permission_requests: dict[str, asyncio.Future[bool]] = {}  # 权限请求
+        self._question_requests: dict[str, asyncio.Future[str]] = {}      # 用户问答
+        self._always_allowed_tools: set[str] = set()                # 总是允许的工具
+        self._busy = False            # 忙碌状态
+        self._running = True           # 运行状态
+        self._active_line_task: asyncio.Task[bool] | None = None    # 当前任务
+        # 跟踪每个工具名称的最后输入，用于富事件发射
         self._last_tool_inputs: dict[str, dict] = {}
 
     async def run(self) -> int:
+        """运行后端主机主循环。"""
+        # 构建运行时环境
         self._bundle = await build_runtime(
             model=self._config.model,
             max_turns=self._config.max_turns,
@@ -84,7 +138,9 @@ class ReactBackendHost:
             ask_user_prompt=self._ask_question,
         )
         await start_runtime(self._bundle)
+        # 加载总是允许的工具列表
         self._always_allowed_tools = load_always_allowed_tools(self._bundle.cwd)
+        # 发送就绪事件
         await self._emit(
             BackendEvent.ready(
                 self._bundle.app_state.get(),
@@ -92,29 +148,37 @@ class ReactBackendHost:
                 [f"/{command.name}" for command in self._bundle.commands.list_commands()],
             )
         )
+        # 发送状态快照
         await self._emit(self._status_snapshot())
 
+        # 创建请求读取任务
         reader = asyncio.create_task(self._read_requests())
         try:
+            # 主循环：处理请求
             while self._running:
                 request = await self._request_queue.get()
+                # 关闭请求
                 if request.type == "shutdown":
                     await self._emit(BackendEvent(type="shutdown"))
                     break
+                # 停止当前任务
                 if request.type == "stop":
                     await self._stop_active_line()
                     continue
+                # 提交行且为 /stop
                 if request.type == "submit_line":
                     if (request.line or "").strip() == "/stop":
                         await self._stop_active_line()
                         continue
+                # 选择命令且为 stop
                 if request.type == "select_command" and (request.command or "").strip().lstrip("/").lower() == "stop":
                     await self._stop_active_line()
                     continue
+                # 权限响应
                 if request.type == "permission_response":
                     if request.request_id in self._permission_requests:
                         self._permission_requests[request.request_id].set_result(bool(request.allowed))
-                    # Remember "always allow" for this tool
+                    # 记住"总是允许"工具
                     if request.always_allow and request.tool_name:
                         self._always_allowed_tools.add(request.tool_name)
                         if self._bundle is not None:
@@ -124,17 +188,21 @@ class ReactBackendHost:
                             )
                     await self._emit(BackendEvent(type="modal_request", modal=None))
                     continue
+                # 用户问答响应
                 if request.type == "question_response":
                     if request.request_id in self._question_requests:
                         self._question_requests[request.request_id].set_result(request.answer or "")
                     await self._emit(BackendEvent(type="modal_request", modal=None))
                     continue
+                # 列出会话
                 if request.type == "list_sessions":
                     await self._handle_list_sessions()
                     continue
+                # 选择命令
                 if request.type == "select_command":
                     await self._handle_select_command(request.command or "")
                     continue
+                # 应用选择命令
                 if request.type == "apply_select_command":
                     if self._busy:
                         await self._emit(BackendEvent(type="error", message="Session is busy"))
@@ -157,12 +225,15 @@ class ReactBackendHost:
                         await self._emit(BackendEvent(type="shutdown"))
                         break
                     continue
+                # 未知请求类型
                 if request.type != "submit_line":
                     await self._emit(BackendEvent(type="error", message=f"Unknown request type: {request.type}"))
                     continue
+                # 忙碌中
                 if self._busy:
                     await self._emit(BackendEvent(type="error", message="Session is busy"))
                     continue
+                # 处理提交的行
                 line = (request.line or "").strip()
                 if not line:
                     continue
@@ -179,14 +250,15 @@ class ReactBackendHost:
                     await self._emit(BackendEvent(type="shutdown"))
                     break
         finally:
+            # 清理资源
             reader.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await reader
             if self._bundle is not None:
                 await close_runtime(self._bundle)
         return 0
-
     async def _read_requests(self) -> None:
+        """从 stdin 读取请求。"""
         while True:
             raw = await asyncio.to_thread(sys.stdin.buffer.readline)
             if not raw:
@@ -197,12 +269,12 @@ class ReactBackendHost:
                 continue
             try:
                 request = FrontendRequest.model_validate_json(payload)
-            except Exception as exc:  # pragma: no cover - defensive protocol handling
+            except Exception as exc:  # 防御性协议处理
                 await self._emit(BackendEvent(type="error", message=f"Invalid request: {exc}"))
                 continue
 
-            # Resolve modal interactions immediately to avoid deadlock while the
-            # main loop is waiting inside _process_line() for user input.
+            # 立即解析模态对话框交互以避免死锁
+            # 主循环在 _process_line() 中等待用户输入
             if request.type == "permission_response":
                 if request.request_id in self._permission_requests:
                     self._permission_requests[request.request_id].set_result(bool(request.allowed))
@@ -227,21 +299,28 @@ class ReactBackendHost:
             await self._request_queue.put(request)
 
     async def _process_line(self, line: str, *, transcript_line: str | None = None) -> bool:
+        """处理用户输入的行内容。"""
         assert self._bundle is not None
+        # 更新会话阶段为思考中
         await self._update_phase("thinking")
+        # 发送用户消息
         await self._emit(
             BackendEvent(type="transcript_item", item=TranscriptItem(role="user", text=transcript_line or line))
         )
 
         async def _print_system(message: str) -> None:
+            """打印系统消息。"""
             await self._emit(
                 BackendEvent(type="transcript_item", item=TranscriptItem(role="system", text=message))
             )
 
         async def _render_event(event: StreamEvent) -> None:
+            """渲染流式事件。"""
+            # 助手文本增量
             if isinstance(event, AssistantTextDelta):
                 await self._emit(BackendEvent(type="assistant_delta", message=event.text))
                 return
+            # 助手回合完成
             if isinstance(event, AssistantTurnComplete):
                 await self._emit(
                     BackendEvent(
@@ -252,6 +331,7 @@ class ReactBackendHost:
                 )
                 await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
                 return
+            # 工具链开始
             if isinstance(event, ToolChainStarted):
                 await self._update_phase("tool_executing")
                 await self._emit(
@@ -261,6 +341,7 @@ class ReactBackendHost:
                     )
                 )
                 return
+            # 工具链完成
             if isinstance(event, ToolChainCompleted):
                 await self._update_phase("thinking")
                 await self._emit(
@@ -270,6 +351,7 @@ class ReactBackendHost:
                     )
                 )
                 return
+            # 工具开始执行
             if isinstance(event, ToolExecutionStarted):
                 self._last_tool_inputs[event.tool_name] = event.tool_input or {}
                 await self._emit(
@@ -286,6 +368,7 @@ class ReactBackendHost:
                     )
                 )
                 return
+            # 工具执行完成
             if isinstance(event, ToolExecutionCompleted):
                 await self._emit(
                     BackendEvent(
@@ -303,10 +386,10 @@ class ReactBackendHost:
                 )
                 await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
                 await self._emit(self._status_snapshot())
-                # Emit todo_update when TodoWrite tool runs
+                # TodoWrite 工具执行时发送 todo_update 事件
                 if event.tool_name in ("TodoWrite", "todo_write"):
                     tool_input = self._last_tool_inputs.get(event.tool_name, {})
-                    # TodoWrite input may have 'todos' list or markdown content field
+                    # TodoWrite 输入可能有 'todos' 列表或 markdown content 字段
                     todos = tool_input.get("todos") or tool_input.get("content") or []
                     if isinstance(todos, list) and todos:
                         lines = []
@@ -319,18 +402,20 @@ class ReactBackendHost:
                             await self._emit(BackendEvent(type="todo_update", todo_markdown="\n".join(lines)))
                     else:
                         await self._emit_todo_update_from_output(event.output)
-                # Emit plan_mode_change when plan-related tools complete
+                # 计划相关工具完成时发送 plan_mode_change 事件
                 if event.tool_name in ("set_permission_mode", "plan_mode"):
                     assert self._bundle is not None
                     new_mode = self._bundle.app_state.get().permission_mode
                     await self._emit(BackendEvent(type="plan_mode_change", plan_mode=new_mode))
                 return
+            # 错误事件
             if isinstance(event, ErrorEvent):
                 await self._emit(BackendEvent(type="error", message=event.message))
                 await self._emit(
                     BackendEvent(type="transcript_item", item=TranscriptItem(role="system", text=event.message))
                 )
                 return
+            # 状态事件
             if isinstance(event, StatusEvent):
                 await self._emit(
                     BackendEvent(type="transcript_item", item=TranscriptItem(role="system", text=event.message))
@@ -338,6 +423,7 @@ class ReactBackendHost:
                 return
 
         async def _clear_output() -> None:
+            """清空输出。"""
             await self._emit(BackendEvent(type="clear_transcript"))
 
         should_continue = await handle_line(
@@ -348,6 +434,7 @@ class ReactBackendHost:
             clear_output=_clear_output,
         )
 
+        # 更新会话阶段为空闲
         await self._update_phase("idle")
         await self._emit(self._status_snapshot())
         await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
@@ -355,6 +442,7 @@ class ReactBackendHost:
         return should_continue
 
     async def _apply_select_command(self, command_name: str, value: str) -> bool:
+        """应用选择的命令值。"""
         command = command_name.strip().lstrip("/").lower()
         selected = value.strip()
         line = self._build_select_command_line(command, selected)
@@ -365,6 +453,7 @@ class ReactBackendHost:
         return await self._process_line(line, transcript_line=f"/{command}")
 
     def _build_select_command_line(self, command: str, value: str) -> str | None:
+        """构建选择命令的实际命令字符串。"""
         if command == "provider":
             return f"/provider {value}"
         if command == "resume":
@@ -392,6 +481,7 @@ class ReactBackendHost:
         return None
 
     def _status_snapshot(self) -> BackendEvent:
+        """生成状态快照事件。"""
         assert self._bundle is not None
         return BackendEvent.status_snapshot(
             state=self._bundle.app_state.get(),
@@ -400,9 +490,9 @@ class ReactBackendHost:
         )
 
     async def _emit_todo_update_from_output(self, output: str) -> None:
-        """Emit a todo_update event by extracting markdown checklist from tool output."""
-        # TodoWrite tools typically echo back the written content
-        # We look for markdown checklist patterns in the output
+        """从工具输出中提取 markdown 复选框并发送 todo_update 事件。"""
+        # TodoWrite 工具通常会回显写入的内容
+        # 我们查找 markdown 复选框模式
         lines = output.splitlines()
         checklist_lines = [line for line in lines if line.strip().startswith("- [")]
         if checklist_lines:
@@ -410,7 +500,7 @@ class ReactBackendHost:
             await self._emit(BackendEvent(type="todo_update", todo_markdown=markdown))
 
     def _emit_swarm_status(self, teammates: list[dict], notifications: list[dict] | None = None) -> None:
-        """Emit a swarm_status event synchronously (schedule as coroutine)."""
+        """同步发送 swarm_status 事件（调度为协程）。"""
         import asyncio
         loop = asyncio.get_event_loop()
         loop.create_task(
@@ -418,6 +508,7 @@ class ReactBackendHost:
         )
 
     async def _handle_list_sessions(self) -> None:
+        """处理列出会话请求。"""
         from illusion.services.session_storage import list_session_snapshots
         import time as _time
 
@@ -440,6 +531,7 @@ class ReactBackendHost:
         )
 
     async def _handle_select_command(self, command_name: str) -> None:
+        """处理选择命令请求。"""
         assert self._bundle is not None
         command = command_name.strip().lstrip("/").lower()
         if command == "resume":
@@ -646,6 +738,7 @@ class ReactBackendHost:
         await self._emit(BackendEvent(type="error", message=f"No selector available for /{command}"))
 
     def _model_select_options(self, current_model: str, provider: str) -> list[dict[str, object]]:
+        """生成模型选择选项列表。"""
         provider_name = provider.lower()
         if provider_name in {"anthropic", "anthropic_claude"}:
             return [
@@ -707,7 +800,7 @@ class ReactBackendHost:
         return options
 
     async def _ask_permission(self, tool_name: str, reason: str) -> bool:
-        # If previously allowed via "Always Allow", skip prompt
+        # 如果工具在"总是允许"列表中，则直接允许
         if tool_name in self._always_allowed_tools:
             return True
         request_id = uuid4().hex

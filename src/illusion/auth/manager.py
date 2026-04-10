@@ -1,4 +1,24 @@
-"""Unified authentication manager for illusion providers."""
+"""
+统一认证管理器模块
+==================
+
+本模块为 IllusionCode 提供统一的认证状态管理功能。
+
+主要功能：
+    - 管理提供商认证状态
+    - 切换和配置提供商配置文件
+    - 存储和加载凭据
+    - 获取认证源配置状态
+
+类说明：
+    - AuthManager: 认证管理器类，负责所有认证相关的操作
+
+使用示例：
+    >>> from illusion.auth import AuthManager
+    >>> manager = AuthManager()
+    >>> status = manager.get_auth_status()
+    >>> print(status)
+"""
 
 from __future__ import annotations
 
@@ -19,9 +39,10 @@ from illusion.auth.storage import (
     store_credential,
 )
 
+# 模块级日志记录器
 log = logging.getLogger(__name__)
 
-# Providers that illusion knows about.
+# Illusion 已知的提供商列表
 _KNOWN_PROVIDERS = [
     "anthropic",
     "anthropic_claude",
@@ -33,6 +54,7 @@ _KNOWN_PROVIDERS = [
     "vertex",
 ]
 
+# 支持的认证源列表
 _AUTH_SOURCES = [
     "anthropic_api_key",
     "openai_api_key",
@@ -44,6 +66,7 @@ _AUTH_SOURCES = [
     "vertex_api_key",
 ]
 
+# 提供商到配置文件的映射关系
 _PROFILE_BY_PROVIDER = {
     "anthropic": "claude-api",
     "anthropic_claude": "claude-subscription",
@@ -54,23 +77,32 @@ _PROFILE_BY_PROVIDER = {
 
 
 class AuthManager:
-    """Central authority for provider authentication state.
-
-    Reads/writes credentials via :mod:`illusion.auth.storage` and keeps
-    track of the currently active provider via settings.
+    """认证管理器
+    
+    提供商认证状态的中央管理类。
+    通过 :mod:`illusion.auth.storage` 读写凭据，
+    并通过设置跟踪当前活动的提供商。
+    
+    Attributes:
+        _settings: 设置对象（延迟加载）
+    
+    使用示例：
+        >>> manager = AuthManager()
+        >>> provider = manager.get_active_provider()
+        >>> print(f"当前提供商: {provider}")
     """
 
     def __init__(self, settings: Any | None = None) -> None:
-        # Lazy-load settings when not provided so that the manager can be
-        # instantiated without importing the full config subsystem.
+        # 延迟加载设置，以便管理器可以在不导入完整配置子系统的情况下实例化
         self._settings = settings
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # 内部辅助方法
     # ------------------------------------------------------------------
 
     @property
     def settings(self) -> Any:
+        """获取设置对象（延迟加载）"""
         if self._settings is None:
             from illusion.config import load_settings
 
@@ -78,28 +110,48 @@ class AuthManager:
         return self._settings
 
     def _provider_from_settings(self) -> str:
-        """Return the provider name derived from the active profile."""
+        """从设置中获取当前的提供商名称
+        
+        Returns:
+            str: 提供商名称
+        """
         _, profile = self.settings.resolve_profile()
         return profile.provider
 
     # ------------------------------------------------------------------
-    # Public API
+    # 公共 API
     # ------------------------------------------------------------------
 
     def get_active_provider(self) -> str:
-        """Return the name of the currently active provider."""
+        """获取当前活动的提供商名称
+        
+        Returns:
+            str: 提供商名称
+        """
         return self._provider_from_settings()
 
     def get_active_profile(self) -> str:
-        """Return the active provider profile name."""
+        """获取当前活动的提供商配置文件名称
+        
+        Returns:
+            str: 配置文件名称
+        """
         return self.settings.resolve_profile()[0]
 
     def list_profiles(self) -> dict[str, ProviderProfile]:
-        """Return the configured provider profiles."""
+        """获取配置的提供商配置文件列表
+        
+        Returns:
+            dict[str, ProviderProfile]: 配置文件字典
+        """
         return self.settings.merged_profiles()
 
     def get_auth_source_statuses(self) -> dict[str, Any]:
-        """Return auth source configuration status."""
+        """获取认证源配置状态
+        
+        Returns:
+            dict[str, Any]: 认证源状态字典
+        """
         import os
 
         from illusion.auth.external import describe_external_binding
@@ -160,18 +212,21 @@ class AuthManager:
         return result
 
     def get_auth_status(self) -> dict[str, Any]:
-        """Return authentication status for all known providers.
-
-        Returns a dict keyed by provider name with the following structure::
-
+        """获取所有已知提供商的认证状态
+        
+        返回以提供商名称为键的字典，结构如下::
+        
             {
                 "anthropic": {
                     "configured": True,
-                    "source": "env",   # "env", "file", "keyring", or "missing"
+                    "source": "env",   # "env", "file", "keyring", 或 "missing"
                     "active": True,
                 },
                 ...
             }
+        
+        Returns:
+            dict[str, Any]: 提供商认证状态字典
         """
         import os
 
@@ -226,7 +281,7 @@ class AuthManager:
                     source = "file"
 
             elif provider in ("bedrock", "vertex"):
-                # These typically use environment-level credentials (AWS/GCP).
+                # 这些通常使用环境级凭据（AWS/GCP）
                 cred = load_credential(provider, "api_key")
                 if cred:
                     configured = True
@@ -241,7 +296,11 @@ class AuthManager:
         return result
 
     def get_profile_statuses(self) -> dict[str, Any]:
-        """Return the available provider profiles and whether their auth is configured."""
+        """获取可用的提供商配置文件及其认证配置状态
+        
+        Returns:
+            dict[str, Any]: 配置文件状态字典
+        """
         active = self.get_active_profile()
         auth_sources = self.get_auth_source_statuses()
         return {
@@ -260,13 +319,20 @@ class AuthManager:
         }
 
     def save_settings(self) -> None:
-        """Persist the in-memory settings."""
+        """保存内存中的设置到持久化存储"""
         from illusion.config import save_settings
 
         save_settings(self.settings)
 
     def use_profile(self, name: str) -> None:
-        """Activate a provider profile."""
+        """激活指定的提供商配置文件
+        
+        Args:
+            name: 配置文件名称
+        
+        Raises:
+            ValueError: 配置文件不存在
+        """
         profiles = self.settings.merged_profiles()
         if name not in profiles:
             raise ValueError(f"Unknown provider profile: {name!r}")
@@ -276,7 +342,12 @@ class AuthManager:
         log.info("Switched active profile to %s", name)
 
     def upsert_profile(self, name: str, profile: ProviderProfile) -> None:
-        """Create or replace a provider profile."""
+        """创建或替换提供商配置文件
+        
+        Args:
+            name: 配置文件名称
+            profile: 配置文件对象
+        """
         profiles = self.settings.merged_profiles()
         profiles[name] = profile
         updated = self.settings.model_copy(update={"profiles": profiles})
@@ -295,7 +366,21 @@ class AuthManager:
         default_model: str | None = None,
         last_model: str | None = None,
     ) -> None:
-        """Update a profile in-place."""
+        """原地更新配置文件
+        
+        Args:
+            name: 配置文件名称
+            label: 显示标签
+            provider: 提供商名称
+            api_format: API 格式
+            base_url: 基础 URL
+            auth_source: 认证源
+            default_model: 默认模型
+            last_model: 上次使用的模型
+        
+        Raises:
+            ValueError: 配置文件不存在
+        """
         profiles = self.settings.merged_profiles()
         if name not in profiles:
             raise ValueError(f"Unknown provider profile: {name!r}")
@@ -317,7 +402,14 @@ class AuthManager:
         self.save_settings()
 
     def remove_profile(self, name: str) -> None:
-        """Remove a non-built-in provider profile."""
+        """移除非内置的提供商配置文件
+        
+        Args:
+            name: 配置文件名称
+        
+        Raises:
+            ValueError: 配置文件不存在、正在使用或为内置配置
+        """
         if name == self.get_active_profile():
             raise ValueError("Cannot remove the active profile.")
         if name in builtin_provider_profile_names():
@@ -331,14 +423,29 @@ class AuthManager:
         self.save_settings()
 
     def switch_auth_source(self, auth_source: str, *, profile_name: str | None = None) -> None:
-        """Switch the auth source for a profile."""
+        """切换配置文件的认证源
+        
+        Args:
+            auth_source: 认证源名称
+            profile_name: 配置文件名称（可选，默认当前活动配置）
+        
+        Raises:
+            ValueError: 认证源不存在
+        """
         if auth_source not in _AUTH_SOURCES:
             raise ValueError(f"Unknown auth source: {auth_source!r}. Known auth sources: {_AUTH_SOURCES}")
         target = profile_name or self.get_active_profile()
         self.update_profile(target, auth_source=auth_source)
 
     def switch_provider(self, name: str) -> None:
-        """Backward-compatible switch entrypoint for profile/provider/auth source names."""
+        """向后兼容的切换入口，用于配置文件/提供商/认证源名称
+        
+        Args:
+            name: 提供商名称、认证源名称或配置文件名称
+        
+        Raises:
+            ValueError: 名称不存在
+        """
         if name in _AUTH_SOURCES:
             self.switch_auth_source(name)
             return
@@ -355,9 +462,15 @@ class AuthManager:
         )
 
     def store_credential(self, provider: str, key: str, value: str) -> None:
-        """Store a credential for the given provider."""
+        """存储给定提供商的凭据
+        
+        Args:
+            provider: 提供商名称
+            key: 键名
+            value: 凭据值
+        """
         store_credential(provider, key, value)
-        # Keep the flattened active settings snapshot aligned for compatibility.
+        # 保持扁平化的活动设置快照同步以保持兼容性
         if key == "api_key" and provider == auth_source_provider_name(self.settings.resolve_profile()[1].auth_source):
             try:
                 updated = self.settings.model_copy(update={"api_key": value})
@@ -367,9 +480,13 @@ class AuthManager:
                 log.warning("Could not sync api_key to settings: %s", exc)
 
     def clear_credential(self, provider: str) -> None:
-        """Remove all stored credentials for the given provider."""
+        """删除给定提供商的所有存储凭据
+        
+        Args:
+            provider: 提供商名称
+        """
         clear_provider_credentials(provider)
-        # Also clear api_key in settings if this is the active provider.
+        # 如果这是活动提供商，也清除设置中的 api_key
         if provider == auth_source_provider_name(self.settings.resolve_profile()[1].auth_source):
             try:
                 updated = self.settings.model_copy(update={"api_key": ""})

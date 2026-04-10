@@ -1,4 +1,16 @@
-"""File reading tool."""
+"""
+文件读取工具
+===========
+
+本模块提供读取本地文件系统文件的功能，支持文本文件和部分二进制格式。
+
+主要组件：
+    - FileReadTool: 读取 UTF-8 文本文件的工具
+
+使用示例：
+    >>> from illusion.tools import FileReadTool
+    >>> tool = FileReadTool()
+"""
 
 from __future__ import annotations
 
@@ -10,7 +22,13 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class FileReadToolInput(BaseModel):
-    """Arguments for the file read tool."""
+    """文件读取参数。
+
+    属性：
+        path: 要读取的文件路径
+        offset: 起始行号（从 0 开始）
+        limit: 返回的行数限制
+    """
 
     path: str = Field(description="Path of the file to read")
     offset: int = Field(default=0, ge=0, description="Zero-based starting line")
@@ -18,7 +36,10 @@ class FileReadToolInput(BaseModel):
 
 
 class FileReadTool(BaseTool):
-    """Read a UTF-8 text file with line numbers."""
+    """读取带行号的 UTF-8 文本文件。
+
+    用于查看文件内容，支持指定行范围。
+    """
 
     name = "read_file"
     description = """Reads a file from the local filesystem. You can access any file directly by using this tool.
@@ -46,19 +67,27 @@ Usage:
         arguments: FileReadToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
+        # 解析文件路径
         path = _resolve_path(context.cwd, arguments.path)
+        # 检查文件是否存在
         if not path.exists():
             return ToolResult(output=f"File not found: {path}", is_error=True)
+        # 检查是否为目录
         if path.is_dir():
             return ToolResult(output=f"Cannot read directory: {path}", is_error=True)
 
+        # 读取文件内容
         raw = path.read_bytes()
+        # 检查是否为二进制文件
         if b"\x00" in raw:
             return ToolResult(output=f"Binary file cannot be read as text: {path}", is_error=True)
 
+        # 解码为 UTF-8 文本
         text = raw.decode("utf-8", errors="replace")
         lines = text.splitlines()
+        # 根据 offset 和 limit 选取行
         selected = lines[arguments.offset : arguments.offset + arguments.limit]
+        # 添加行号
         numbered = [
             f"{arguments.offset + index + 1:>6}\t{line}"
             for index, line in enumerate(selected)
@@ -66,7 +95,7 @@ Usage:
         if not numbered:
             return ToolResult(output=f"(no content in selected range for {path})")
 
-        # Register this file as having been read (for read-before-edit enforcement)
+        # 注册文件已被读取（用于读后编辑强制检查）
         from illusion.tools.file_edit_tool import mark_file_read
         mark_file_read(str(path))
 
@@ -74,6 +103,15 @@ Usage:
 
 
 def _resolve_path(base: Path, candidate: str) -> Path:
+    """解析相对路径为绝对路径。
+
+    参数：
+        base: 基础目录
+        candidate: 候选路径（可能是相对路径）
+
+    返回：
+        解析后的绝对路径
+    """
     path = Path(candidate).expanduser()
     if not path.is_absolute():
         path = base / path

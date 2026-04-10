@@ -1,4 +1,20 @@
-"""Theme loading utilities."""
+"""
+主题加载工具模块
+================
+
+本模块实现主题的加载和管理功能。
+
+主要功能：
+    - 获取自定义主题目录
+    - 加载自定义主题
+    - 列出所有可用主题
+    - 按名称加载主题
+
+使用示例：
+    >>> from illusion.themes.loader import load_theme, list_themes, load_custom_themes
+    >>> themes = list_themes()
+    >>> theme = load_theme("dark")
+"""
 
 from __future__ import annotations
 
@@ -13,14 +29,22 @@ logger = logging.getLogger(__name__)
 
 
 def get_custom_themes_dir() -> Path:
-    """Return the user custom themes directory."""
+    """获取用户自定义主题目录
+    
+    Returns:
+        Path: 自定义主题目录路径（~/.illusion/themes）
+    """
     path = Path.home() / ".illusion" / "themes"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def load_custom_themes() -> dict[str, ThemeConfig]:
-    """Load custom themes from ~/.illusion/themes/*.json."""
+    """从 ~/.illusion/themes/*.json 加载自定义主题
+    
+    Returns:
+        dict[str, ThemeConfig]: 主题名称到配置的字典
+    """
     themes: dict[str, ThemeConfig] = {}
     for path in sorted(get_custom_themes_dir().glob("*.json")):
         try:
@@ -28,12 +52,16 @@ def load_custom_themes() -> dict[str, ThemeConfig]:
             theme = ThemeConfig.model_validate(data)
             themes[theme.name] = theme
         except Exception as exc:
-            logger.debug("Skipping invalid theme file %s: %s", path, exc)
+            logger.debug("跳过无效的主题文件 %s: %s", path, exc)
     return themes
 
 
 def list_themes() -> list[str]:
-    """Return names of all available themes (builtin + custom)."""
+    """列出所有可用主题的名称（内置 + 自定义）
+    
+    Returns:
+        list[str]: 主题名称列表
+    """
     names = list(BUILTIN_THEMES.keys())
     for name in load_custom_themes():
         if name not in names:
@@ -42,10 +70,18 @@ def list_themes() -> list[str]:
 
 
 def load_theme(name: str) -> ThemeConfig:
-    """Load a theme by name.
-
-    Looks up custom themes first, then falls back to builtins.
-    Raises ``KeyError`` if the theme is not found.
+    """按名称加载主题
+    
+    首先查找自定义主题，然后回退到内置主题。
+    
+    Args:
+        name: 主题名称
+    
+    Returns:
+        ThemeConfig: 主题配置对象
+    
+    Raises:
+        KeyError: 如果主题不存在
     """
     custom = load_custom_themes()
     if name in custom:

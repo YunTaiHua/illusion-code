@@ -1,4 +1,16 @@
-"""Sleep tool."""
+"""
+休眠工具
+========
+
+本模块提供暂停执行的功能。
+
+主要组件：
+    - SleepTool: 暂停执行的工具
+
+使用示例：
+    >>> from illusion.tools import SleepTool
+    >>> tool = SleepTool()
+"""
 
 from __future__ import annotations
 
@@ -10,13 +22,20 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class SleepToolInput(BaseModel):
-    """Arguments for sleep."""
+    """休眠参数。
+
+    属性：
+        seconds: 休眠秒数
+    """
 
     seconds: float = Field(default=1.0, ge=0.0, le=30.0)
 
 
 class SleepTool(BaseTool):
-    """Pause execution briefly."""
+    """短暂暂停执行。
+
+    用于等待指定时间后继续执行。
+    """
 
     name = "sleep"
     description = """Wait for a specified duration. The user can interrupt the sleep at any time.
@@ -38,5 +57,6 @@ Each wake-up costs an API call, but the prompt cache expires after 5 minutes of 
 
     async def execute(self, arguments: SleepToolInput, context: ToolExecutionContext) -> ToolResult:
         del context
+        # 异步休眠
         await asyncio.sleep(arguments.seconds)
         return ToolResult(output=f"Slept for {arguments.seconds} seconds")

@@ -1,4 +1,16 @@
-"""Tool for asking the interactive user a follow-up question."""
+"""
+交互式用户问题工具
+==================
+
+本模块提供向交互式用户提问并获取答案的功能，用于收集用户偏好和需求。
+
+主要组件：
+    - AskUserQuestionTool: 向用户提问的工具
+
+使用示例：
+    >>> from illusion.tools import AskUserQuestionTool
+    >>> tool = AskUserQuestionTool()
+"""
 
 from __future__ import annotations
 
@@ -10,11 +22,18 @@ from pydantic import BaseModel, Field
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
+# 用户提示回调函数类型
 AskUserPrompt = Callable[..., Awaitable[dict[str, str]]]
 
 
 class QuestionOption(BaseModel):
-    """A single choice option for a question."""
+    """问题的单个选项。
+
+    属性：
+        label: 选项的显示文本（1-5 个词）
+        description: 选项的解释或选择后会发生什么
+        preview: 可选的预览内容（markdown 格式）
+    """
 
     label: str = Field(description="Display text for this option (1-5 words)")
     description: str = Field(description="Explanation of what this option means or what will happen if chosen")
@@ -22,7 +41,14 @@ class QuestionOption(BaseModel):
 
 
 class QuestionItem(BaseModel):
-    """A single question to ask the user."""
+    """单个问题项。
+
+    属性：
+        question: 完整的问题文本
+        header: 简短的标签，显示为 chip/tag（最多 12 个字符）
+        options: 可用选项列表（2-4 个）
+        multiSelect: 是否允许多选
+    """
 
     question: str = Field(description="The complete question to ask the user. Should be clear, specific, and end with a question mark.")
     header: str = Field(description="Very short label displayed as a chip/tag (max 12 chars). Examples: 'Auth method', 'Library', 'Approach'.")
@@ -38,7 +64,14 @@ class QuestionItem(BaseModel):
 
 
 class AskUserQuestionToolInput(BaseModel):
-    """Arguments for asking the user a question."""
+    """向用户提问的参数。
+
+    属性：
+        questions: 要问的问题列表（1-4 个）
+        answers: 权限组件收集的用户答案
+        annotations: 来自用户的可选的每问题注解
+        metadata: 用于跟踪和分析的可选元数据
+    """
 
     questions: list[QuestionItem] = Field(
         description="Questions to ask the user (1-4 questions)",
@@ -60,7 +93,10 @@ class AskUserQuestionToolInput(BaseModel):
 
 
 class AskUserQuestionTool(BaseTool):
-    """Ask the interactive user a question and return the answer."""
+    """向交互式用户提问并返回答案。
+
+    用于收集用户偏好、澄清模糊指令、获取实现选择决策等。
+    """
 
     name = "ask_user_question"
     description = """Use this tool when you need to ask the user questions during execution. This allows you to:
@@ -95,6 +131,7 @@ Preview content is rendered as markdown in a monospace box. Multi-line text with
         arguments: AskUserQuestionToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
+        # 获取用户提示回调函数
         prompt = context.metadata.get("ask_user_prompt")
         if not callable(prompt):
             return ToolResult(
@@ -102,7 +139,7 @@ Preview content is rendered as markdown in a monospace box. Multi-line text with
                 is_error=True,
             )
 
-        # Build question display text for the prompt
+        # 构建问题显示文本
         parts: list[str] = []
         for i, q in enumerate(arguments.questions, 1):
             header = f"[{q.header}]" if q.header else ""
@@ -119,7 +156,7 @@ Preview content is rendered as markdown in a monospace box. Multi-line text with
         if not answers:
             return ToolResult(output="(no response)")
 
-        # Format answers
+        # 格式化答案
         if isinstance(answers, dict):
             lines = [f"{k}: {v}" for k, v in answers.items()]
             return ToolResult(output="\n".join(lines))

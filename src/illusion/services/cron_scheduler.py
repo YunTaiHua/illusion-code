@@ -1,9 +1,25 @@
-"""Background cron scheduler daemon.
+"""
+后台 Cron 调度器守护进程
+===================
 
-Runs as a standalone process (``illusion cron start``) or can be embedded via
-:func:`run_scheduler_loop`.  Every tick it reads the cron registry, checks
-which enabled jobs are due, executes them, and records results in a history
-log.
+本模块实现后台定时任务调度功能，支持独立进程运行（illusion cron start）或嵌入模式（run_scheduler_loop）。
+每个调度周期会读取Cron任务注册表，检查到期任务，执行并记录结果到历史日志。
+
+主要功能：
+    - 定时执行 Cron 任务
+    - 管理调度器进程（PID文件）
+    - 任务执行历史记录
+    - 守护进程启动/停止控制
+
+类说明：
+    - run_scheduler_loop: 调度器主循环
+    - start_daemon: 守护进程启动入口
+    - scheduler_status: 获取调度器状态
+
+使用示例：
+    >>> from illusion.services.cron_scheduler import start_daemon
+    >>> # 启动守护进程
+    >>> pid = start_daemon()
 """
 
 from __future__ import annotations
@@ -28,23 +44,25 @@ from illusion.services.cron import (
 from illusion.sandbox import SandboxUnavailableError
 from illusion.utils.shell import create_shell_subprocess
 
+# 配置模块级日志记录器
 logger = logging.getLogger(__name__)
 
+# 调度周期间隔（秒）- 每30秒检查一次到期任务
 TICK_INTERVAL_SECONDS = 30
-"""How often the scheduler checks for due jobs."""
+"""调度器检查到期任务的频率（秒）。"""
 
 
 # ---------------------------------------------------------------------------
-# History helpers
+# 历史记录辅助函数
 # ---------------------------------------------------------------------------
 
 def get_history_path() -> Path:
-    """Return the path to the cron execution history file."""
+    """返回 Cron 执行历史记录文件路径。"""
     return get_data_dir() / "cron_history.jsonl"
 
 
 def append_history(entry: dict[str, Any]) -> None:
-    """Append one execution record to the history log."""
+    """向历史日志追加一条执行记录。"""
     path = get_history_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
@@ -52,7 +70,7 @@ def append_history(entry: dict[str, Any]) -> None:
 
 
 def load_history(*, limit: int = 50, job_name: str | None = None) -> list[dict[str, Any]]:
-    """Load the most recent execution history entries."""
+    """加载最近的执行历史记录。"""
     path = get_history_path()
     if not path.exists():
         return []
@@ -72,16 +90,16 @@ def load_history(*, limit: int = 50, job_name: str | None = None) -> list[dict[s
 
 
 # ---------------------------------------------------------------------------
-# PID file helpers
+# PID 文件辅助函数
 # ---------------------------------------------------------------------------
 
 def get_pid_path() -> Path:
-    """Return the scheduler PID file path."""
+    """返回调度器 PID 文件路径。"""
     return get_data_dir() / "cron_scheduler.pid"
 
 
 def read_pid() -> int | None:
-    """Read the PID of a running scheduler, or None."""
+    """读取运行中的调度器 PID，如果不存在则返回 None。"""
     path = get_pid_path()
     if not path.exists():
         return None
@@ -89,10 +107,11 @@ def read_pid() -> int | None:
         pid = int(path.read_text(encoding="utf-8").strip())
     except (ValueError, OSError):
         return None
-    # Check if process is alive
+    # 检查进程是否存活
     try:
         os.kill(pid, 0)
     except OSError:
+        # 移除过期的 PID 文件
         logger.debug("Removed stale scheduler PID file (pid=%d)", pid)
         path.unlink(missing_ok=True)
         return None
@@ -100,24 +119,24 @@ def read_pid() -> int | None:
 
 
 def write_pid() -> None:
-    """Write the current process PID."""
+    """写入当前进程 PID。"""
     path = get_pid_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(str(os.getpid()) + "\n", encoding="utf-8")
 
 
 def remove_pid() -> None:
-    """Remove the PID file."""
+    """删除 PID 文件。"""
     get_pid_path().unlink(missing_ok=True)
 
 
 def is_scheduler_running() -> bool:
-    """Return True if a scheduler process is alive."""
+    """返回是否存在运行的调度器进程。"""
     return read_pid() is not None
 
 
 def stop_scheduler() -> bool:
-    """Send SIGTERM to the running scheduler. Returns True if killed."""
+    """向运行中的调度器发送 SIGTERM 信号。如果成功终止则返回 True。"""
     pid = read_pid()
     if pid is None:
         return False
@@ -126,7 +145,7 @@ def stop_scheduler() -> bool:
     except OSError:
         remove_pid()
         return False
-    # Wait briefly for process to exit
+    # 等待进程退出
     for _ in range(10):
         try:
             os.kill(pid, 0)
@@ -134,7 +153,7 @@ def stop_scheduler() -> bool:
             remove_pid()
             return True
         time.sleep(0.2)
-    # Force kill
+    # 强制终止
     try:
         os.kill(pid, signal.SIGKILL)
     except OSError:
@@ -144,11 +163,11 @@ def stop_scheduler() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Job execution
+# 任务执行
 # ---------------------------------------------------------------------------
 
 async def execute_job(job: dict[str, Any]) -> dict[str, Any]:
-    """Run a single cron job and return a history entry."""
+    """执行单个 Cron 任务并返回历史记录条目。"""
     name = job["name"]
     command = job["command"]
     cwd = Path(job.get("cwd") or ".").expanduser()
@@ -156,6 +175,7 @@ async def execute_job(job: dict[str, Any]) -> dict[str, Any]:
 
     logger.info("Executing cron job %r: %s", name, command)
     try:
+        # 创建异步子进程执行命令
         process = await create_shell_subprocess(
             command,
             cwd=cwd,
@@ -167,6 +187,7 @@ async def execute_job(job: dict[str, Any]) -> dict[str, Any]:
             timeout=300,
         )
     except asyncio.TimeoutError:
+        # 处理超时
         try:
             process.kill()
             await process.wait()
@@ -186,6 +207,7 @@ async def execute_job(job: dict[str, Any]) -> dict[str, Any]:
         append_history(entry)
         return entry
     except SandboxUnavailableError as exc:
+        # 处理沙箱不可用错误
         entry = {
             "name": name,
             "command": command,
@@ -200,6 +222,7 @@ async def execute_job(job: dict[str, Any]) -> dict[str, Any]:
         append_history(entry)
         return entry
     except Exception as exc:
+        # 处理其他异常
         entry = {
             "name": name,
             "command": command,
@@ -214,6 +237,7 @@ async def execute_job(job: dict[str, Any]) -> dict[str, Any]:
         append_history(entry)
         return entry
 
+    # 任务成功完成
     success = process.returncode == 0
     entry = {
         "name": name,
@@ -232,11 +256,11 @@ async def execute_job(job: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Scheduler loop
+# 调度器主循环
 # ---------------------------------------------------------------------------
 
 def _jobs_due(jobs: list[dict[str, Any]], now: datetime) -> list[dict[str, Any]]:
-    """Return jobs whose next_run is at or before *now*."""
+    """返回 next_run 时间在当前时间或之前的任务列表。"""
     due: list[dict[str, Any]] = []
     for job in jobs:
         if not job.get("enabled", True):
@@ -259,7 +283,7 @@ def _jobs_due(jobs: list[dict[str, Any]], now: datetime) -> list[dict[str, Any]]
 
 
 async def run_scheduler_loop(*, once: bool = False) -> None:
-    """Main scheduler loop.  Runs until SIGTERM or *once* is True (test mode)."""
+    """主调度器循环。运行直到收到 SIGTERM 或 once 为 True（测试模式）。"""
     shutdown = asyncio.Event()
 
     def _on_signal() -> None:
@@ -270,6 +294,7 @@ async def run_scheduler_loop(*, once: bool = False) -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _on_signal)
 
+    # 写入 PID 文件
     write_pid()
     logger.info("Cron scheduler started (pid=%d, tick=%ds)", os.getpid(), TICK_INTERVAL_SECONDS)
 
@@ -281,7 +306,7 @@ async def run_scheduler_loop(*, once: bool = False) -> None:
 
             if due:
                 logger.info("Tick: %d job(s) due", len(due))
-                # Execute due jobs concurrently
+                # 并发执行到期任务
                 results = await asyncio.gather(
                     *(execute_job(job) for job in due), return_exceptions=True
                 )
@@ -292,21 +317,23 @@ async def run_scheduler_loop(*, once: bool = False) -> None:
             if once:
                 break
 
+            # 等待下一个调度周期
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=TICK_INTERVAL_SECONDS)
             except asyncio.TimeoutError:
                 pass
     finally:
+        # 清理 PID 文件
         remove_pid()
         logger.info("Cron scheduler stopped")
 
 
 # ---------------------------------------------------------------------------
-# Daemon entry point (spawned by ``illusion cron start``)
+# 守护进程入口点（由 illusion cron start 启动）
 # ---------------------------------------------------------------------------
 
 def _run_daemon() -> None:
-    """Entry point for the scheduler subprocess."""
+    """调度器子进程入口点。"""
     log_file = get_logs_dir() / "cron_scheduler.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -318,20 +345,20 @@ def _run_daemon() -> None:
 
 
 def start_daemon() -> int:
-    """Fork and start the scheduler daemon.  Returns the child PID."""
+    """Fork 并启动调度器守护进程。返回子进程 PID。"""
     existing = read_pid()
     if existing is not None:
         raise RuntimeError(f"Scheduler already running (pid={existing})")
 
     pid = os.fork()
     if pid > 0:
-        # Parent — wait a moment for the child to write its PID file
+        # 父进程 - 等待子进程写入 PID 文件
         time.sleep(0.3)
         return pid
 
-    # Child — detach
+    # 子进程 - 脱离终端
     os.setsid()
-    # Redirect stdio
+    # 重定向标准输入输出到 /dev/null
     devnull = os.open(os.devnull, os.O_RDWR)
     os.dup2(devnull, 0)
     os.dup2(devnull, 1)
@@ -343,7 +370,7 @@ def start_daemon() -> int:
 
 
 def scheduler_status() -> dict[str, Any]:
-    """Return a status dict about the scheduler."""
+    """返回调度器状态信息字典。"""
     pid = read_pid()
     log_path = get_logs_dir() / "cron_scheduler.log"
     jobs = load_cron_jobs()

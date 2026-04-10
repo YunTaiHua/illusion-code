@@ -1,4 +1,18 @@
-"""Load keybindings from config."""
+"""
+从配置加载按键绑定模块
+======================
+
+本模块实现从配置文件加载按键绑定的功能。
+
+主要功能：
+    - 获取用户按键绑定文件路径
+    - 加载并合并按键绑定配置
+
+使用示例：
+    >>> from illusion.keybindings.loader import get_keybindings_path, load_keybindings
+    >>> path = get_keybindings_path()
+    >>> bindings = load_keybindings()
+"""
 
 from __future__ import annotations
 
@@ -10,12 +24,22 @@ from illusion.keybindings.resolver import resolve_keybindings
 
 
 def get_keybindings_path() -> Path:
-    """Return the user keybindings path."""
+    """获取用户按键绑定文件路径
+    
+    Returns:
+        Path: 配置文件路径（~/.illusion/keybindings.json）
+    """
     return get_config_dir() / "keybindings.json"
 
 
 def load_keybindings() -> dict[str, str]:
-    """Load and merge keybindings."""
+    """加载并合并按键绑定
+    
+    如果配置文件存在则加载用户配置，否则使用默认配置。
+    
+    Returns:
+        dict[str, str]: 按键到动作的映射字典
+    """
     path = get_keybindings_path()
     if not path.exists():
         return resolve_keybindings()

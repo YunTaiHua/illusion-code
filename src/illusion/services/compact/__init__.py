@@ -1,9 +1,31 @@
-"""Conversation compaction — microcompact and full LLM-based summarization.
+"""
+会话压缩模块 — 微压缩和基于 LLM 的完整摘要
+==============================================
 
-Faithfully translated from Claude Code's compaction system:
-- Microcompact: clear old tool result content to reduce token count cheaply
-- Full compact: call the LLM to produce a structured summary of older messages
-- Auto-compact: trigger compaction automatically when token count exceeds threshold
+本模块实现会话压缩功能，忠实翻译自 Claude Code 的压缩系统：
+- 微压缩（Microcompact）：清除旧工具结果内容以廉价方式减少 Token 数量
+- 完整压缩（Full Compact）：调用 LLM 生成早期消息的结构化摘要
+- 自动压缩（Auto-compact）：当 Token 数量超过阈值时自动触发压缩
+
+主要功能：
+    - 估算会话 Token 数量
+    - 微压缩：清除旧工具结果
+    - 完整压缩：LLM 生成摘要
+    - 自动压缩：自动触发压缩
+
+类说明：
+    - AutoCompactState: 自动压缩状态数据类
+    - estimate_message_tokens: 估算消息 Token 数
+    - microcompact_messages: 执行微压缩
+    - compact_conversation: 执行完整压缩
+    - auto_compact_if_needed: 检查并执行自动压缩
+
+使用示例：
+    >>> from illusion.services.compact import microcompact_messages, estimate_message_tokens
+    >>> # 估算 Token 数量
+    >>> token_count = estimate_message_tokens(messages)
+    >>> # 执行微压缩
+    >>> messages, tokens_saved = microcompact_messages(messages, keep_recent=5)
 """
 
 from __future__ import annotations
@@ -22,12 +44,14 @@ from illusion.engine.messages import (
 )
 from illusion.services.token_estimation import estimate_tokens
 
+# 配置模块级日志记录器
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Constants (from Claude Code microCompact.ts / autoCompact.ts)
+# 常量（来自 Claude Code microCompact.ts / autoCompact.ts）
 # ---------------------------------------------------------------------------
 
+# 可压缩的工具列表
 COMPACTABLE_TOOLS: frozenset[str] = frozenset({
     "read_file",
     "bash",
@@ -39,30 +63,31 @@ COMPACTABLE_TOOLS: frozenset[str] = frozenset({
     "write_file",
 })
 
+# 微压缩清除后的占位符消息
 TIME_BASED_MC_CLEARED_MESSAGE = "[Old tool result content cleared]"
 
-# Auto-compact thresholds
-AUTOCOMPACT_BUFFER_TOKENS = 13_000
-MAX_OUTPUT_TOKENS_FOR_SUMMARY = 20_000
-MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
+# 自动压缩阈值
+AUTOCOMPACT_BUFFER_TOKENS = 13_000  # 缓冲区 Token 数
+MAX_OUTPUT_TOKENS_FOR_SUMMARY = 20_000  # 摘要最大输出 Token 数
+MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3  # 最大连续失败次数
 
-# Microcompact defaults
-DEFAULT_KEEP_RECENT = 5
-DEFAULT_GAP_THRESHOLD_MINUTES = 60
+# 微压缩默认值
+DEFAULT_KEEP_RECENT = 5  # 保留最近工具结果数量
+DEFAULT_GAP_THRESHOLD_MINUTES = 60  # 时间间隔阈值（分钟）
 
-# Token estimation padding (conservative)
+# Token 估算 padding（保守估计）
 TOKEN_ESTIMATION_PADDING = 4 / 3
 
-# Default context windows per model family
+# 默认上下文窗口大小（按模型系列）
 _DEFAULT_CONTEXT_WINDOW = 200_000
 
 
 # ---------------------------------------------------------------------------
-# Token estimation
+# Token 估算
 # ---------------------------------------------------------------------------
 
 def estimate_message_tokens(messages: list[ConversationMessage]) -> int:
-    """Estimate total tokens for a conversation, including the 4/3 padding."""
+    """估算会话消息的总 Token 数，包含 4/3 padding。"""
     total = 0
     for msg in messages:
         for block in msg.content:
@@ -77,16 +102,16 @@ def estimate_message_tokens(messages: list[ConversationMessage]) -> int:
 
 
 def estimate_conversation_tokens(messages: list[ConversationMessage]) -> int:
-    """Alias kept for backward compatibility."""
+    """保持向后兼容性的别名。"""
     return estimate_message_tokens(messages)
 
 
 # ---------------------------------------------------------------------------
-# Microcompact — clear old tool results to reduce tokens cheaply
+# 微压缩 — 清除旧工具结果以廉价方式减少 Token
 # ---------------------------------------------------------------------------
 
 def _collect_compactable_tool_ids(messages: list[ConversationMessage]) -> list[str]:
-    """Walk messages and collect tool_use IDs whose results are compactable."""
+    """遍历消息并收集可压缩的工具使用 ID。"""
     ids: list[str] = []
     for msg in messages:
         if msg.role != "assistant":
@@ -102,20 +127,21 @@ def microcompact_messages(
     *,
     keep_recent: int = DEFAULT_KEEP_RECENT,
 ) -> tuple[list[ConversationMessage], int]:
-    """Clear old compactable tool results, keeping the most recent *keep_recent*.
+    """清除旧的可压缩工具结果，保留最近的 keep_recent 个。
 
-    This is the cheap first pass — no LLM call required. Tool result content
-    is replaced with :data:`TIME_BASED_MC_CLEARED_MESSAGE`.
+    这是廉价的第一轮压缩 — 无需调用 LLM。工具结果内容
+    将被替换为 TIME_BASED_MC_CLEARED_MESSAGE。
 
     Returns:
-        (messages, tokens_saved) — messages are mutated in place for efficiency.
+        (messages, tokens_saved) — 消息在原地修改以提高效率。
     """
-    keep_recent = max(1, keep_recent)  # never clear ALL results
+    keep_recent = max(1, keep_recent)  # 永远不清除所有结果
     all_ids = _collect_compactable_tool_ids(messages)
 
     if len(all_ids) <= keep_recent:
         return messages, 0
 
+    # 计算需要保留和清除的 ID 集合
     keep_set = set(all_ids[-keep_recent:])
     clear_set = set(all_ids) - keep_set
 
@@ -130,6 +156,7 @@ def microcompact_messages(
                 and block.tool_use_id in clear_set
                 and block.content != TIME_BASED_MC_CLEARED_MESSAGE
             ):
+                # 计算节省的 Token 数
                 tokens_saved += estimate_tokens(block.content)
                 new_content.append(
                     ToolResultBlock(
@@ -143,15 +170,17 @@ def microcompact_messages(
         msg.content = new_content
 
     if tokens_saved > 0:
+        # 记录微压缩结果
         log.info("Microcompact cleared %d tool results, saved ~%d tokens", len(clear_set), tokens_saved)
 
     return messages, tokens_saved
 
 
 # ---------------------------------------------------------------------------
-# Full compact — LLM-based summarization
+# 完整压缩 — 基于 LLM 的摘要
 # ---------------------------------------------------------------------------
 
+# 不使用工具的前导文本
 NO_TOOLS_PREAMBLE = """\
 CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
 
@@ -162,6 +191,7 @@ CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
 
 """
 
+# 基础压缩提示词
 BASE_COMPACT_PROMPT = """\
 Your task is to create a detailed summary of the conversation so far. This summary will replace the earlier messages, so it must capture all important information.
 
@@ -185,12 +215,13 @@ Then, produce a structured summary inside <summary> tags with these sections:
 9. **Optional Next Step**: The single most logical next step, directly aligned with the user's recent request.
 """
 
+# 不使用工具的结尾文本
 NO_TOOLS_TRAILER = """
 REMINDER: Do NOT call any tools. Respond with plain text only — an <analysis> block followed by a <summary> block. Tool calls will be rejected and you will fail the task."""
 
 
 def get_compact_prompt(custom_instructions: str | None = None) -> str:
-    """Build the full compaction prompt sent to the model."""
+    """构建发送给模型的完整压缩提示词。"""
     prompt = NO_TOOLS_PREAMBLE + BASE_COMPACT_PROMPT
     if custom_instructions and custom_instructions.strip():
         prompt += f"\n\nAdditional Instructions:\n{custom_instructions}"
@@ -199,11 +230,12 @@ def get_compact_prompt(custom_instructions: str | None = None) -> str:
 
 
 def format_compact_summary(raw_summary: str) -> str:
-    """Strip the <analysis> scratchpad and extract the <summary> content."""
+    """移除 <analysis> 草稿并提取 <summary> 内容。"""
     text = re.sub(r"<analysis>[\s\S]*?</analysis>", "", raw_summary)
     m = re.search(r"<summary>([\s\S]*?)</summary>", text)
     if m:
         text = text.replace(m.group(0), f"Summary:\n{m.group(1).strip()}")
+    # 清理多余空行
     text = re.sub(r"\n\n+", "\n\n", text)
     return text.strip()
 
@@ -214,7 +246,7 @@ def build_compact_summary_message(
     suppress_follow_up: bool = False,
     recent_preserved: bool = False,
 ) -> str:
-    """Create the injected user message that replaces compacted history."""
+    """创建替换压缩历史的消息。"""
     formatted = format_compact_summary(summary)
     text = (
         "This session is being continued from a previous conversation that ran "
@@ -236,12 +268,12 @@ def build_compact_summary_message(
 
 
 # ---------------------------------------------------------------------------
-# Auto-compact tracking
+# 自动压缩跟踪
 # ---------------------------------------------------------------------------
 
 @dataclass
 class AutoCompactState:
-    """Mutable state that persists across query loop turns."""
+    """跨查询循环轮次持久的可变状态。"""
 
     compacted: bool = False
     turn_counter: int = 0
@@ -249,11 +281,11 @@ class AutoCompactState:
 
 
 # ---------------------------------------------------------------------------
-# Context window helpers
+# 上下文窗口辅助函数
 # ---------------------------------------------------------------------------
 
 def get_context_window(model: str) -> int:
-    """Return the context window size for a model (conservative defaults)."""
+    """返回模型的上下文窗口大小（保守默认值）。"""
     m = model.lower()
     if "opus" in m:
         return 200_000
@@ -261,12 +293,12 @@ def get_context_window(model: str) -> int:
         return 200_000
     if "haiku" in m:
         return 200_000
-    # Kimi / other providers — be conservative
+    # Kimi / other providers — 保守估计
     return _DEFAULT_CONTEXT_WINDOW
 
 
 def get_autocompact_threshold(model: str) -> int:
-    """Calculate the token count at which auto-compact fires."""
+    """计算触发自动压缩的 Token 数量阈值。"""
     context_window = get_context_window(model)
     reserved = min(MAX_OUTPUT_TOKENS_FOR_SUMMARY, 20_000)
     effective = context_window - reserved
@@ -278,7 +310,7 @@ def should_autocompact(
     model: str,
     state: AutoCompactState,
 ) -> bool:
-    """Return True when the conversation should be auto-compacted."""
+    """返回是否应该自动压缩会话。"""
     if state.consecutive_failures >= MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES:
         return False
     token_count = estimate_message_tokens(messages)
@@ -287,7 +319,7 @@ def should_autocompact(
 
 
 # ---------------------------------------------------------------------------
-# Full compact execution (calls the LLM)
+# 完整压缩执行（调用 LLM）
 # ---------------------------------------------------------------------------
 
 async def compact_conversation(
@@ -300,41 +332,41 @@ async def compact_conversation(
     custom_instructions: str | None = None,
     suppress_follow_up: bool = True,
 ) -> list[ConversationMessage]:
-    """Compact messages by calling the LLM to produce a summary.
+    """通过调用 LLM 生成摘要来压缩消息。
 
-    1. Microcompact first (cheap token reduction).
-    2. Split into older (to summarize) and recent (to preserve).
-    3. Call the LLM with the compact prompt to get a structured summary.
-    4. Replace older messages with the summary + preserved recent messages.
+    1. 先执行微压缩（廉价 Token 减少）。
+    2. 分割为待摘要的旧消息和待保留的新消息。
+    3. 调用 LLM 获取结构化摘要。
+    4. 用摘要 + 保留的新消息替换旧消息。
 
     Args:
-        messages: The full conversation history.
-        api_client: An ``AnthropicApiClient`` or compatible for the summary call.
-        model: Model ID to use for the summary.
-        system_prompt: System prompt for the summary call.
-        preserve_recent: Number of recent messages to keep verbatim.
-        custom_instructions: Optional extra instructions for the summary prompt.
-        suppress_follow_up: If True, instruct the model not to ask follow-ups.
+        messages: 完整的会话历史。
+        api_client: 用于摘要调用的 ApiClient 或兼容客户端。
+        model: 使用的模型 ID。
+        system_prompt: 摘要调用的系统提示词。
+        preserve_recent: 保留 verbatim 的最近消息数量。
+        custom_instructions: 摘要提示词的可选额外指令。
+        suppress_follow_up: 为 True 时指示模型不询问后续问题。
 
     Returns:
-        The new compacted message list.
+        压缩后的新消息列表。
     """
     from illusion.api.client import ApiMessageRequest, ApiMessageCompleteEvent
 
     if len(messages) <= preserve_recent:
         return list(messages)
 
-    # Step 1: microcompact to reduce tokens cheaply
+    # 步骤 1：微压缩以廉价方式减少 Token
     messages, tokens_freed = microcompact_messages(messages, keep_recent=DEFAULT_KEEP_RECENT)
 
     pre_compact_tokens = estimate_message_tokens(messages)
     log.info("Compacting conversation: %d messages, ~%d tokens", len(messages), pre_compact_tokens)
 
-    # Step 2: split into older (summarize) and newer (preserve)
+    # 步骤 2：分割为待摘要和待保留部分
     older = messages[:-preserve_recent]
     newer = messages[-preserve_recent:]
 
-    # Step 3: build compact request — send older messages + compact prompt
+    # 步骤 3：构建压缩请求 — 发送旧消息 + 压缩提示词
     compact_prompt = get_compact_prompt(custom_instructions)
     compact_messages = list(older) + [ConversationMessage.from_user_text(compact_prompt)]
 
@@ -345,17 +377,18 @@ async def compact_conversation(
             messages=compact_messages,
             system_prompt=system_prompt or "You are a conversation summarizer.",
             max_tokens=MAX_OUTPUT_TOKENS_FOR_SUMMARY,
-            tools=[],  # no tools for compact call
+            tools=[],  # 压缩调用不使用工具
         )
     ):
         if isinstance(event, ApiMessageCompleteEvent):
             summary_text = event.message.text
 
     if not summary_text:
+        # 空摘要则返回原始消息
         log.warning("Compact summary was empty — returning original messages")
         return messages
 
-    # Step 4: build the new message list
+    # 步骤 4：构建新消息列表
     summary_content = build_compact_summary_message(
         summary_text,
         suppress_follow_up=suppress_follow_up,
@@ -375,7 +408,7 @@ async def compact_conversation(
 
 
 # ---------------------------------------------------------------------------
-# Auto-compact integration (called from query loop)
+# 自动压缩集成（从查询循环调用）
 # ---------------------------------------------------------------------------
 
 async def auto_compact_if_needed(
@@ -387,25 +420,25 @@ async def auto_compact_if_needed(
     state: AutoCompactState,
     preserve_recent: int = 6,
 ) -> tuple[list[ConversationMessage], bool]:
-    """Check if auto-compact should fire, and if so, compact.
+    """检查是否应该自动压缩，如果是则执行压缩。
 
-    Call this at the start of each query loop turn.
+    在每个查询循环轮次开始时调用此函数。
 
     Returns:
-        (messages, was_compacted) — if compacted, messages is the new list.
+        (messages, was_compacted) — 如果已压缩，messages 是新列表。
     """
     if not should_autocompact(messages, model, state):
         return messages, False
 
     log.info("Auto-compact triggered (failures=%d)", state.consecutive_failures)
 
-    # Try microcompact first — may be enough
+    # 先尝试微压缩 — 可能已经足够
     messages, tokens_freed = microcompact_messages(messages)
     if tokens_freed > 0 and not should_autocompact(messages, model, state):
-        log.info("Microcompact freed ~%d tokens, auto-compact no longer needed", tokens_freed)
+        log.info("Microcompact freed ~d tokens, auto-compact no longer needed", tokens_freed)
         return messages, True
 
-    # Full compact needed
+    # 需要完整压缩
     try:
         result = await compact_conversation(
             messages,
@@ -431,7 +464,7 @@ async def auto_compact_if_needed(
 
 
 # ---------------------------------------------------------------------------
-# Legacy compat
+# 向后兼容
 # ---------------------------------------------------------------------------
 
 def summarize_messages(
@@ -439,7 +472,7 @@ def summarize_messages(
     *,
     max_messages: int = 8,
 ) -> str:
-    """Produce a compact textual summary of recent messages (legacy)."""
+    """生成最近消息的紧凑文本摘要（传统方法）。"""
     selected = messages[-max_messages:]
     lines: list[str] = []
     for message in selected:
@@ -455,7 +488,7 @@ def compact_messages(
     *,
     preserve_recent: int = 6,
 ) -> list[ConversationMessage]:
-    """Replace older conversation history with a synthetic summary (legacy)."""
+    """用合成摘要替换旧的会话历史（传统方法）。"""
     if len(messages) <= preserve_recent:
         return list(messages)
     older = messages[:-preserve_recent]

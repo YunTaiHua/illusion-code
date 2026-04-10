@@ -1,4 +1,17 @@
-"""Built-in theme definitions."""
+"""
+内置主题定义模块
+================
+
+本模块定义 IllusionCode 的内置主题。
+
+主要功能：
+    - 提供多种预设主题
+    - 支持深色、浅色、极简等多种风格
+
+使用示例：
+    >>> from illusion.themes.builtin import BUILTIN_THEMES
+    >>> BUILTIN_THEMES.keys()
+"""
 
 from __future__ import annotations
 
@@ -11,6 +24,7 @@ from illusion.themes.schema import (
 )
 
 BUILTIN_THEMES: dict[str, ThemeConfig] = {
+    # 默认主题 - One Dark 风格
     "default": ThemeConfig(
         name="default",
         colors=ColorsConfig(
@@ -26,6 +40,7 @@ BUILTIN_THEMES: dict[str, ThemeConfig] = {
         icons=IconConfig(spinner="⠋", tool="⚙", error="✖", success="✔", agent="◆"),
         layout=LayoutConfig(compact=False, show_tokens=True, show_time=True),
     ),
+    # 深色主题 - Tokyo Night 风格
     "dark": ThemeConfig(
         name="dark",
         colors=ColorsConfig(
@@ -41,6 +56,7 @@ BUILTIN_THEMES: dict[str, ThemeConfig] = {
         icons=IconConfig(spinner="·", tool="*", error="!", success="+", agent=">"),
         layout=LayoutConfig(compact=False, show_tokens=True, show_time=True),
     ),
+    # 极简主题 - 仅黑白
     "minimal": ThemeConfig(
         name="minimal",
         colors=ColorsConfig(
@@ -56,6 +72,7 @@ BUILTIN_THEMES: dict[str, ThemeConfig] = {
         icons=IconConfig(spinner="-", tool=":", error="E", success=".", agent="#"),
         layout=LayoutConfig(compact=True, show_tokens=False, show_time=False),
     ),
+    # 赛博朋克主题 - 霓虹风格
     "cyberpunk": ThemeConfig(
         name="cyberpunk",
         colors=ColorsConfig(
@@ -71,6 +88,7 @@ BUILTIN_THEMES: dict[str, ThemeConfig] = {
         icons=IconConfig(spinner="◈", tool="◉", error="◌", success="◍", agent="◎"),
         layout=LayoutConfig(compact=False, show_tokens=True, show_time=True),
     ),
+    # Solarized 主题
     "solarized": ThemeConfig(
         name="solarized",
         colors=ColorsConfig(

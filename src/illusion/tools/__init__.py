@@ -1,4 +1,20 @@
-"""Built-in tool registration."""
+"""
+内置工具注册模块
+================
+
+本模块提供 IllusionCode 内置工具的注册和管理功能。
+
+主要组件：
+    - BaseTool: 工具抽象基类
+    - ToolExecutionContext: 工具执行上下文
+    - ToolResult: 工具执行结果
+    - ToolRegistry: 工具注册表
+    - create_default_tool_registry: 创建默认工具注册表
+
+使用示例：
+    >>> from illusion.tools import create_default_tool_registry, ToolRegistry
+    >>> registry = create_default_tool_registry()
+"""
 
 from illusion.tools.ask_user_question_tool import AskUserQuestionTool
 from illusion.tools.agent_tool import AgentTool
@@ -46,7 +62,14 @@ from illusion.tools.web_search_tool import WebSearchTool
 
 
 def create_default_tool_registry(mcp_manager=None) -> ToolRegistry:
-    """Return the default built-in tool registry."""
+    """返回默认内置工具注册表
+    
+    Args:
+        mcp_manager: MCP 管理器（可选）
+    
+    Returns:
+        ToolRegistry: 工具注册表
+    """
     registry = ToolRegistry()
     for tool in (
         BashTool(),

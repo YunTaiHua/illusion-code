@@ -1,4 +1,15 @@
-"""Skill exports."""
+"""
+Skill 模块导出
+=============
+
+本模块导出 skills 子目录中的公共接口。
+
+导出内容：
+    - SkillDefinition: Skill 定义数据类
+    - SkillRegistry: Skill 注册表
+    - get_user_skills_dir: 用户 skills 目录
+    - load_skill_registry: 加载 skill 注册表
+"""
 
 from __future__ import annotations
 

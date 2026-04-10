@@ -1,4 +1,32 @@
-"""Coordinator mode detection and orchestration support."""
+"""
+协调器模式检测与编排支持模块
+==========================
+
+本模块提供协调器模式检测、团队管理和任务通知功能。
+
+主要功能：
+    - 协调器模式检测与切换
+    - 团队注册表管理
+    - 任务通知XML序列化/反序列化
+    - 协调器系统提示词构建
+
+类说明：
+    - TeamRecord: 轻量级内存团队记录
+    - TeamRegistry: 团队和代理成员关系存储
+    - TaskNotification: 已完成任务的结果结构
+    - WorkerConfig: 工作进程代理配置
+
+函数说明：
+    - is_coordinator_mode: 检测是否在协调器模式
+    - get_team_registry: 获取团队注册表
+    - format_task_notification: 序列化任务通知为XML
+    - parse_task_notification: 从XML解析任务通知
+
+使用示例：
+    >>> from illusion.coordinator import is_coordinator_mode, get_team_registry
+    >>> if is_coordinator_mode():
+    ...     registry = get_team_registry()
+"""
 
 from __future__ import annotations
 
@@ -15,59 +43,127 @@ from typing import Optional
 
 @dataclass
 class TeamRecord:
-    """A lightweight in-memory team."""
+    """轻量级内存团队记录
+    
+    Attributes:
+        name: 团队名称
+        description: 团队描述
+        agents: 代理ID列表
+        messages: 消息列表
+    """
 
-    name: str
-    description: str = ""
-    agents: list[str] = field(default_factory=list)
-    messages: list[str] = field(default_factory=list)
+    name: str  # 团队名称
+    description: str = ""  # 描述
+    agents: list[str] = field(default_factory=list)  # 代理ID列表
+    messages: list[str] = field(default_factory=list)  # 消息列表
 
 
 class TeamRegistry:
-    """Store teams and agent memberships."""
+    """团队和代理成员关系存储容器
+    
+    Attributes:
+        _teams: 团队名称到TeamRecord的映射
+    
+    Example:
+        >>> registry = TeamRegistry()
+        >>> team = registry.create_team("my-team", "A test team")
+        >>> registry.add_agent("my-team", "agent-1")
+    """
 
     def __init__(self) -> None:
-        self._teams: dict[str, TeamRecord] = {}
+        self._teams: dict[str, TeamRecord] = {}  # 团队映射初始化
 
     def create_team(self, name: str, description: str = "") -> TeamRecord:
-        if name in self._teams:
+        """创建新团队
+        
+        Args:
+            name: 团队名称
+            description: 团队描述
+        
+        Returns:
+            TeamRecord: 创建的团队记录
+        
+        Raises:
+            ValueError: 如果团队已存在
+        """
+        if name in self._teams:  # 检查是否已存在
             raise ValueError(f"Team '{name}' already exists")
-        team = TeamRecord(name=name, description=description)
-        self._teams[name] = team
-        return team
+        team = TeamRecord(name=name, description=description)  # 创建团队记录
+        self._teams[name] = team  # 添加到映射
+        return team  # 返回团队记录
 
     def delete_team(self, name: str) -> None:
-        if name not in self._teams:
+        """删除团队
+        
+        Args:
+            name: 团队名称
+        
+        Raises:
+            ValueError: 如果团队不存在
+        """
+        if name not in self._teams:  # 检查是否存在
             raise ValueError(f"Team '{name}' does not exist")
-        del self._teams[name]
+        del self._teams[name]  # 删除团队
 
     def add_agent(self, team_name: str, task_id: str) -> None:
-        team = self._require_team(team_name)
-        if task_id not in team.agents:
-            team.agents.append(task_id)
+        """向团队添加代理
+        
+        Args:
+            team_name: 团队名称
+            task_id: 代理任务ID
+        """
+        team = self._require_team(team_name)  # 获取团队
+        if task_id not in team.agents:  # 检查是否已添加
+            team.agents.append(task_id)  # 添加代理
 
     def send_message(self, team_name: str, message: str) -> None:
-        self._require_team(team_name).messages.append(message)
+        """向团队发送消息
+        
+        Args:
+            team_name: 团队名称
+            message: 消息内容
+        """
+        self._require_team(team_name).messages.append(message)  # 添加消息
 
     def list_teams(self) -> list[TeamRecord]:
-        return sorted(self._teams.values(), key=lambda item: item.name)
+        """列出所有团队
+        
+        Returns:
+            list[TeamRecord]: 按名称排序的团队列表
+        """
+        return sorted(self._teams.values(), key=lambda item: item.name)  # 按名称排序
 
     def _require_team(self, name: str) -> TeamRecord:
-        team = self._teams.get(name)
-        if team is None:
+        """获取团队记录，若不存在则抛出异常
+        
+        Args:
+            name: 团队名称
+        
+        Returns:
+            TeamRecord: 团队记录
+        
+        Raises:
+            ValueError: 如果团队不存在
+        """
+        team = self._teams.get(name)  # 查找团队
+        if team is None:  # 不存在
             raise ValueError(f"Team '{name}' does not exist")
-        return team
+        return team  # 返回团队记录
 
 
-_DEFAULT_TEAM_REGISTRY: TeamRegistry | None = None
+_DEFAULT_TEAM_REGISTRY: TeamRegistry | None = None  # 默认团队注册表单例
 
 
 def get_team_registry() -> TeamRegistry:
-    """Return the singleton team registry."""
-    global _DEFAULT_TEAM_REGISTRY
-    if _DEFAULT_TEAM_REGISTRY is None:
-        _DEFAULT_TEAM_REGISTRY = TeamRegistry()
-    return _DEFAULT_TEAM_REGISTRY
+    """获取单例团队注册表
+    
+    Returns:
+        TeamRegistry: 全局团队注册表实例
+    """
+    global _DEFAULT_TEAM_REGISTRY  # 声明全局变量
+    if _DEFAULT_TEAM_REGISTRY is None:  # 未初始化
+        _DEFAULT_TEAM_REGISTRY = TeamRegistry()  # 创建实例
+    return _DEFAULT_TEAM_REGISTRY  # 返回实例
 
 
 # ---------------------------------------------------------------------------
@@ -77,81 +173,114 @@ def get_team_registry() -> TeamRegistry:
 
 @dataclass
 class TaskNotification:
-    """Structured result from a completed agent task."""
+    """已完成代理任务的结构化结果
+    
+    Attributes:
+        task_id: 任务ID
+        status: 状态 (completed/failed/killed)
+        summary: 人类可读的状态摘要
+        result: 代理的最终文本响应 (可选)
+        usage: 使用统计信息 (可选)
+    """
 
-    task_id: str
-    status: str
-    summary: str
-    result: Optional[str] = None
-    usage: Optional[dict[str, int]] = None
+    task_id: str  # 任务ID
+    status: str  # 状态
+    summary: str  # 摘要
+    result: Optional[str] = None  # 结果
+    usage: Optional[dict[str, int]] = None  # 使用统计
 
 
 @dataclass
 class WorkerConfig:
-    """Configuration for a spawned worker agent."""
+    """生成的工作进程代理配置
+    
+    Attributes:
+        agent_id: 代理ID
+        name: 代理名称
+        prompt: 代理提示词
+        model: 模型名称 (可选)
+        color: 颜色名称 (可选)
+        team: 团队名称 (可选)
+    """
 
-    agent_id: str
-    name: str
-    prompt: str
-    model: Optional[str] = None
-    color: Optional[str] = None
-    team: Optional[str] = None
+    agent_id: str  # 代理ID
+    name: str  # 名称
+    prompt: str  # 提示词
+    model: Optional[str] = None  # 模型
+    color: Optional[str] = None  # 颜色
+    team: Optional[str] = None  # 团队
 
 
 # ---------------------------------------------------------------------------
 # XML helpers
 # ---------------------------------------------------------------------------
 
+# 使用统计字段名
 _USAGE_FIELDS = ("total_tokens", "tool_uses", "duration_ms")
 
 
 def format_task_notification(n: TaskNotification) -> str:
-    """Serialize a TaskNotification to the canonical XML envelope."""
+    """将TaskNotification序列化为标准XML envelope
+    
+    Args:
+        n: 任务通知对象
+    
+    Returns:
+        str: XML格式的字符串
+    """
     parts = [
-        "<task-notification>",
-        f"<task-id>{n.task_id}</task-id>",
-        f"<status>{n.status}</status>",
-        f"<summary>{n.summary}</summary>",
+        "<task-notification>",  # 开始标签
+        f"<task-id>{n.task_id}</task-id>",  # 任务ID
+        f"<status>{n.status}</status>",  # 状态
+        f"<summary>{n.summary}</summary>",  # 摘要
     ]
-    if n.result is not None:
-        parts.append(f"<result>{n.result}</result>")
-    if n.usage:
-        parts.append("<usage>")
-        for key in _USAGE_FIELDS:
-            if key in n.usage:
-                parts.append(f"  <{key}>{n.usage[key]}</{key}>")
-        parts.append("</usage>")
-    parts.append("</task-notification>")
-    return "\n".join(parts)
+    if n.result is not None:  # 有结果
+        parts.append(f"<result>{n.result}</result>")  # 添加结果
+    if n.usage:  # 有使用统计
+        parts.append("<usage>")  # 开始usage标签
+        for key in _USAGE_FIELDS:  # 遍历字段
+            if key in n.usage:  # 存在
+                parts.append(f"  <{key}>{n.usage[key]}</{key}>")  # 添加字段
+        parts.append("</usage>")  # 结束usage标签
+    parts.append("</task-notification>")  # 结束标签
+    return "\n".join(parts)  # 返回合并的字符串
 
 
 def parse_task_notification(xml: str) -> TaskNotification:
-    """Parse a <task-notification> XML string into a TaskNotification."""
+    """从XML字符串解析TaskNotification
+    
+    Args:
+        xml: XML格式的字符串
+    
+    Returns:
+        TaskNotification: 解析后的任务通知对象
+    """
 
     def _extract(tag: str) -> Optional[str]:
-        m = re.search(rf"<{tag}>(.*?)</{tag}>", xml, re.DOTALL)
-        return m.group(1).strip() if m else None
+        """提取XML标签内容"""
+        m = re.search(rf"<{tag}>(.*?)</{tag}>", xml, re.DOTALL)  # 正则匹配
+        return m.group(1).strip() if m else None  # 返回提取内容
 
-    task_id = _extract("task-id") or ""
-    status = _extract("status") or ""
-    summary = _extract("summary") or ""
-    result = _extract("result")
+    task_id = _extract("task-id") or ""  # 提取任务ID
+    status = _extract("status") or ""  # 提取状态
+    summary = _extract("summary") or ""  # 提取摘要
+    result = _extract("result")  # 提取结果
 
-    usage: Optional[dict[str, int]] = None
-    usage_block = re.search(r"<usage>(.*?)</usage>", xml, re.DOTALL)
-    if usage_block:
-        usage = {}
-        for key in _USAGE_FIELDS:
-            m = re.search(rf"<{key}>(\d+)</{key}>", usage_block.group(1))
-            if m:
-                usage[key] = int(m.group(1))
+    usage: Optional[dict[str, int]] = None  # 使用统计
+    usage_block = re.search(r"<usage>(.*?)</usage>", xml, re.DOTALL)  # 匹配usage块
+    if usage_block:  # 存在
+        usage = {}  # 初始化
+        for key in _USAGE_FIELDS:  # 遍历字段
+            m = re.search(rf"<{key}>(\d+)</{key}>", usage_block.group(1))  # 匹配字段值
+            if m:  # 找到
+                usage[key] = int(m.group(1))  # 转换为整数
 
     return TaskNotification(
-        task_id=task_id,
-        status=status,
-        summary=summary,
-        result=result,
-        usage=usage,
+        task_id=task_id,  # 任务ID
+        status=status,  # 状态
+        summary=summary,  # 摘要
+        result=result,  # 结果
+        usage=usage,  # 使用统计
     )
 
 
@@ -159,108 +288,139 @@ def parse_task_notification(xml: str) -> TaskNotification:
 # CoordinatorMode
 # ---------------------------------------------------------------------------
 
-_AGENT_TOOL_NAME = "agent"
-_SEND_MESSAGE_TOOL_NAME = "send_message"
-_TASK_STOP_TOOL_NAME = "task_stop"
+# 协调器工具名称常量
+_AGENT_TOOL_NAME = "agent"  # 生成代理工具名
+_SEND_MESSAGE_TOOL_NAME = "send_message"  # 发送消息工具名
+_TASK_STOP_TOOL_NAME = "task_stop"  # 停止任务工具名
 
+# 工作进程可使用的工具列表
 _WORKER_TOOLS = [
-    "bash",
-    "file_read",
-    "file_edit",
-    "file_write",
-    "glob",
-    "grep",
-    "web_fetch",
-    "web_search",
-    "task_create",
-    "task_get",
-    "task_list",
-    "task_output",
-    "skill",
+    "bash",  # Bash工具
+    "file_read",  # 文件读取
+    "file_edit",  # 文件编辑
+    "file_write",  # 文件写入
+    "glob",  # 文件搜索
+    "grep",  # 内容搜索
+    "web_fetch",  # 网页抓取
+    "web_search",  # 网页搜索
+    "task_create",  # 任务创建
+    "task_get",  # 任务获取
+    "task_list",  # 任务列表
+    "task_output",  # 任务输出
+    "skill",  # 技能
 ]
 
-_SIMPLE_WORKER_TOOLS = ["bash", "file_read", "file_edit"]
+# 简化模式下的工作进程工具
+_SIMPLE_WORKER_TOOLS = ["bash", "file_read", "file_edit"]  # 仅基础工具
 
 
 def is_coordinator_mode() -> bool:
-    """Return True when the process is running in coordinator mode."""
-    val = os.environ.get("CLAUDE_CODE_COORDINATOR_MODE", "")
-    return val.lower() in {"1", "true", "yes"}
+    """检测当前进程是否运行在协调器模式
+    
+    通过环境变量 CLAUDE_CODE_COORDINATOR_MODE 判断
+    
+    Returns:
+        bool: 是否在协调器模式
+    """
+    val = os.environ.get("CLAUDE_CODE_COORDINATOR_MODE", "")  # 获取环境变量
+    return val.lower() in {"1", "true", "yes"}  # 判断值
 
 
 def match_session_mode(session_mode: Optional[str]) -> Optional[str]:
-    """Align the env-var coordinator flag with a resumed session's stored mode.
-
-    Returns a warning string if the mode was switched, or None if no change.
+    """将环境变量协调器标志与恢复会话的存储模式对齐
+    
+    如果模式切换返回警告字符串，否则返回None
+    
+    Args:
+        session_mode: 会话存储的模式 ("coordinator" 或 None)
+    
+    Returns:
+        Optional[str]: 警告字符串或None
     """
-    if not session_mode:
+    if not session_mode:  # 无会话模式
         return None
 
-    current_is_coordinator = is_coordinator_mode()
-    session_is_coordinator = session_mode == "coordinator"
+    current_is_coordinator = is_coordinator_mode()  # 当前模式
+    session_is_coordinator = session_mode == "coordinator"  # 会话��式
 
-    if current_is_coordinator == session_is_coordinator:
+    if current_is_coordinator == session_is_coordinator:  # 相同模式
         return None
 
-    if session_is_coordinator:
-        os.environ["CLAUDE_CODE_COORDINATOR_MODE"] = "1"
-    else:
-        os.environ.pop("CLAUDE_CODE_COORDINATOR_MODE", None)
+    if session_is_coordinator:  # 会话是协调器模式
+        os.environ["CLAUDE_CODE_COORDINATOR_MODE"] = "1"  # 设置环境变量
+    else:  # 会话不是协调器模式
+        os.environ.pop("CLAUDE_CODE_COORDINATOR_MODE", None)  # 移除环境变量
 
-    if session_is_coordinator:
+    if session_is_coordinator:  # 切换到协调器模式
         return "Entered coordinator mode to match resumed session."
     return "Exited coordinator mode to match resumed session."
 
 
 def get_coordinator_tools() -> list[str]:
-    """Return the tool names reserved for the coordinator."""
-    return [_AGENT_TOOL_NAME, _SEND_MESSAGE_TOOL_NAME, _TASK_STOP_TOOL_NAME]
+    """返回协调器保留的工具名称列表
+    
+    Returns:
+        list[str]: 保留工具名列表
+    """
+    return [_AGENT_TOOL_NAME, _SEND_MESSAGE_TOOL_NAME, _TASK_STOP_TOOL_NAME]  # 返回工具名列表
 
 
 def get_coordinator_user_context(
     mcp_clients: list[dict[str, str]] | None = None,
     scratchpad_dir: Optional[str] = None,
 ) -> dict[str, str]:
-    """Build the workerToolsContext injected into the coordinator's user turn."""
-    if not is_coordinator_mode():
+    """构建注入协调器用户回合的 workerToolsContext
+    
+    Args:
+        mcp_clients: MCP客户端列表 (可选)
+        scratchpad_dir: 草稿板目录 (可选)
+    
+    Returns:
+        dict[str, str]: 包含workerToolsContext的字典
+    """
+    if not is_coordinator_mode():  # 非协调器模式
         return {}
 
-    is_simple = os.environ.get("CLAUDE_CODE_SIMPLE", "").lower() in {"1", "true", "yes"}
-    tools = sorted(_SIMPLE_WORKER_TOOLS if is_simple else _WORKER_TOOLS)
-    worker_tools_str = ", ".join(tools)
+    is_simple = os.environ.get("CLAUDE_CODE_SIMPLE", "").lower() in {"1", "true", "yes"}  # 简化模式
+    tools = sorted(_SIMPLE_WORKER_TOOLS if is_simple else _WORKER_TOOLS)  # 根据模式选择工具
+    worker_tools_str = ", ".join(tools)  # 拼接工具名
 
     content = (
-        f"Workers spawned via the {_AGENT_TOOL_NAME} tool have access to these tools: "
-        f"{worker_tools_str}"
+        f"Workers spawned via the {_AGENT_TOOL_NAME} tool have access to these tools: "  # 基础内容
+        f"{worker_tools_str}"  # 工具列表
     )
 
-    if mcp_clients:
-        server_names = ", ".join(c["name"] for c in mcp_clients)
-        content += f"\n\nWorkers also have access to MCP tools from connected MCP servers: {server_names}"
+    if mcp_clients:  # 有MCP客户端
+        server_names = ", ".join(c["name"] for c in mcp_clients)  # 获取服务器名
+        content += f"\n\nWorkers also have access to MCP tools from connected MCP servers: {server_names}"  # 添加MCP说明
 
-    if scratchpad_dir:
+    if scratchpad_dir:  # 有草稿板目录
         content += (
-            f"\n\nScratchpad directory: {scratchpad_dir}\n"
-            "Workers can read and write here without permission prompts. "
+            f"\n\nScratchpad directory: {scratchpad_dir}\n"  # 目录说明
+            "Workers can read and write here without permission prompts. "  # 权限说明
             "Use this for durable cross-worker knowledge — structure files however fits the work."
         )
 
-    return {"workerToolsContext": content}
+    return {"workerToolsContext": content}  # 返回上下文字典
 
 
 def get_coordinator_system_prompt() -> str:
-    """Return the system prompt injected when running in coordinator mode."""
-    is_simple = os.environ.get("CLAUDE_CODE_SIMPLE", "").lower() in {"1", "true", "yes"}
+    """返回协调器模式注入的系统提示词
+    
+    Returns:
+        str: 完整的系统提示词
+    """
+    is_simple = os.environ.get("CLAUDE_CODE_SIMPLE", "").lower() in {"1", "true", "yes"}  # 简化模式
 
-    if is_simple:
+    if is_simple:  # 简化模式
         worker_capabilities = (
-            "Workers have access to Bash, Read, and Edit tools, "
+            "Workers have access to Bash, Read, and Edit tools, "  # 基础工具
             "plus MCP tools from configured MCP servers."
         )
-    else:
+    else:  # 完整模式
         worker_capabilities = (
-            "Workers have access to standard tools, MCP tools from configured MCP servers, "
-            "and project skills via the Skill tool. "
+            "Workers have access to standard tools, MCP tools from configured MCP servers, "  # 标准工具
+            "and project skills via the Skill tool. "  # 技能工具
             "Delegate skill invocations (e.g. /commit, /verify) to workers."
         )
 
@@ -517,3 +677,6 @@ User:
 
 You:
   Fix for the new test is in progress. Still waiting to hear back about the test suite."""
+
+
+# CoordinatorMode 模块结束

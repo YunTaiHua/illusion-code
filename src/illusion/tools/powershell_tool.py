@@ -1,4 +1,16 @@
-"""PowerShell command execution tool."""
+"""
+PowerShell 命令执行工具
+======================
+
+本模块提供执行 PowerShell 命令并捕获标准输出/错误的功能。
+
+主要组件：
+    - PowerShellTool: 执行 PowerShell 命令的工具
+
+使用示例：
+    >>> from illusion.tools import PowerShellTool
+    >>> tool = PowerShellTool()
+"""
 
 from __future__ import annotations
 
@@ -14,15 +26,16 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 from illusion.tools.shell_common import CommandExecutor
 
 
+# PowerShell 版本类型
 PowerShellEdition = Literal["core", "desktop"]
 
 
 # ---------------------------------------------------------------------------
-# PowerShell detection (ported from claude-code-sourcemap powershellDetection.ts)
+# PowerShell 检测
 # ---------------------------------------------------------------------------
 
 def _find_powershell() -> str | None:
-    """Find PowerShell on the system. Prefers pwsh (Core 7+) over powershell (5.1)."""
+    """在系统上查找 PowerShell。优先 pwsh (Core 7+) 而非 powershell (5.1)。"""
     pwsh = shutil.which("pwsh")
     if pwsh:
         return pwsh
@@ -33,9 +46,9 @@ def _find_powershell() -> str | None:
 
 
 def _get_powershell_edition(powershell_path: str | None) -> PowerShellEdition | None:
-    """Determine PowerShell edition from the executable name.
+    """根据可执行文件名确定 PowerShell 版本。
 
-    'pwsh' → Core (7+), 'powershell' → Desktop (5.1).
+    'pwsh' → Core (7+), 'powershell' → Desktop (5.1)。
     """
     if not powershell_path:
         return None
@@ -47,12 +60,12 @@ def _get_powershell_edition(powershell_path: str | None) -> PowerShellEdition | 
 
 
 # ---------------------------------------------------------------------------
-# Prompt generation (ported from claude-code-sourcemap PowerShellTool/prompt.ts)
+# 提示词生成
 # ---------------------------------------------------------------------------
 
-_DEFAULT_TIMEOUT_MS = 120_000
-_MAX_TIMEOUT_MS = 600_000
-_MAX_OUTPUT_LENGTH = 30_000
+_DEFAULT_TIMEOUT_MS = 120_000  # 默认超时 2 分钟
+_MAX_TIMEOUT_MS = 600_000      # 最大超时 10 分钟
+_MAX_OUTPUT_LENGTH = 30_000    # 最大输出长度
 
 
 def _get_background_usage_note() -> str | None:
@@ -243,37 +256,44 @@ class PowerShellToolInput(BaseModel):
 
 
 class PowerShellTool(BaseTool):
-    """Execute a PowerShell command with stdout/stderr capture."""
+    """执行 PowerShell 命令并捕获标准输出/错误。
+
+    用于在 Windows 平台上执行 PowerShell 命令。
+    """
 
     name = "powershell"
     description = _build_powershell_description()
     input_model = PowerShellToolInput
 
     async def execute(self, arguments: PowerShellToolInput, context: ToolExecutionContext) -> ToolResult:
+        # 查找 PowerShell
         powershell = _find_powershell()
         if powershell is None:
             return ToolResult(output="PowerShell is not available on this machine", is_error=True)
 
+        # 解析工作目录
         cwd = Path(arguments.cwd).expanduser() if arguments.cwd else context.cwd
 
-        # Determine edition-specific flags
+        # 确定版本特定的标志
         edition = _get_powershell_edition(powershell)
         if edition == "core":
-            # pwsh 7+ supports -NoProfile -NonInteractive -Command
+            # pwsh 7+ 支持 -NoProfile -NonInteractive -Command
             args = ["-NoProfile", "-NonInteractive", "-Command", arguments.command]
         else:
-            # Windows PowerShell 5.1 uses -NoLogo -NoProfile -Command
+            # Windows PowerShell 5.1 使用 -NoLogo -NoProfile -Command
             args = ["-NoLogo", "-NoProfile", "-Command", arguments.command]
 
+        # 创建子进程
         process = await asyncio.create_subprocess_exec(
             powershell,
             *args,
             cwd=str(cwd.resolve()),
-            stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+            stdin=asyncio.subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
 
+        # 执行命令并归一化结果
         result = await CommandExecutor.run_and_normalize(
             process,
             timeout=arguments.timeout_seconds,

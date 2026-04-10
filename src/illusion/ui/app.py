@@ -1,4 +1,27 @@
-"""Interactive session entry points."""
+"""
+App 应用程序模块
+=============
+
+本模块实现 IllusionCode 交互式会话入口点。
+
+主要功能：
+    - REPL 交互模式（默认的 React 终端界面）
+    - 打印模式（非交互式，适合脚本和自动化任务）
+    - 后端单独运行模式
+
+函数说明：
+    - run_repl: 运行交互式 REPL
+    - run_print_mode: 运行非交互式打印模式
+
+使用示例：
+    >>> from illusion.ui.app import run_repl, run_print_mode
+    >>> 
+    >>> # 启动交互式 REPL
+    >>> await run_repl()
+    >>> 
+    >>> # 运行单次交互模式
+    >>> await run_print_mode(prompt="帮我写一个 hello world 程序")
+"""
 
 from __future__ import annotations
 
@@ -26,7 +49,22 @@ async def run_repl(
     backend_only: bool = False,
     restore_messages: list[dict] | None = None,
 ) -> None:
-    """Run the default illusion interactive application (React TUI)."""
+    """运行默认的 IllusionCode 交互式应用程序（React TUI）。
+
+    Args:
+        prompt: 初始提示词
+        cwd: 工作目录
+        model: 使用的模型名称
+        max_turns: 最大对话轮次
+        base_url: API 基础 URL
+        system_prompt: 系统提示词
+        api_key: API 密钥
+        api_format: API 格式（copilot/openai/anthropic）
+        api_client: 流式 API 客户端实例
+        backend_only: 是否仅运行后端
+        restore_messages: 恢复的会话消息列表
+    """
+    # 后端单独运行模式
     if backend_only:
         await run_backend_host(
             cwd=cwd,
@@ -42,6 +80,7 @@ async def run_repl(
         )
         return
 
+    # 启动 React TUI 前端
     exit_code = await launch_react_tui(
         prompt=prompt,
         cwd=cwd,
@@ -52,6 +91,7 @@ async def run_repl(
         api_key=api_key,
         api_format=api_format,
     )
+    # 如果前端退出代码非零，抛出 SystemExit
     if exit_code != 0:
         raise SystemExit(exit_code)
 
@@ -71,7 +111,22 @@ async def run_print_mode(
     permission_mode: str | None = None,
     max_turns: int | None = None,
 ) -> None:
-    """Non-interactive mode: submit prompt, stream output, exit."""
+    """非交互式模式：提交提示词，流式输出，然后退出。
+
+    Args:
+        prompt: 用户提示词
+        output_format: 输出格式（text/json/stream-json）
+        cwd: 工作目录
+        model: 使用的模型名称
+        base_url: API 基础 URL
+        system_prompt: 系统提示词
+        append_system_prompt: 追加的系统提示词
+        api_key: API 密钥
+        api_format: API 格式
+        api_client: 流式 API 客户端实例
+        permission_mode: 权限模式
+        max_turns: 最大对话轮次
+    """
     from illusion.engine.stream_events import (
         AssistantTextDelta,
         AssistantTurnComplete,
@@ -81,12 +136,15 @@ async def run_print_mode(
         ToolExecutionStarted,
     )
 
+    # 空权限回调 - 自动允许所有操作
     async def _noop_permission(tool_name: str, reason: str) -> bool:
         return True
 
+    # 空问答回调 - 返回空字符串
     async def _noop_ask(question: str) -> str:
         return ""
 
+    # 构建运行时
     bundle = await build_runtime(
         prompt=prompt,
         model=model,
@@ -102,10 +160,12 @@ async def run_print_mode(
     )
     await start_runtime(bundle)
 
+    # 收集输出
     collected_text = ""
     events_list: list[dict] = []
 
     try:
+        # 系统消息打印回调
         async def _print_system(message: str) -> None:
             nonlocal collected_text
             if output_format == "text":
@@ -115,8 +175,10 @@ async def run_print_mode(
                 print(json.dumps(obj), flush=True)
                 events_list.append(obj)
 
+        # 流式事件渲染回调
         async def _render_event(event: StreamEvent) -> None:
             nonlocal collected_text
+            # 助手文本增量
             if isinstance(event, AssistantTextDelta):
                 collected_text += event.text
                 if output_format == "text":
@@ -126,6 +188,7 @@ async def run_print_mode(
                     obj = {"type": "assistant_delta", "text": event.text}
                     print(json.dumps(obj), flush=True)
                     events_list.append(obj)
+            # 助手回合完成
             elif isinstance(event, AssistantTurnComplete):
                 if output_format == "text":
                     sys.stdout.write("\n")
@@ -134,16 +197,19 @@ async def run_print_mode(
                     obj = {"type": "assistant_complete", "text": event.message.text.strip()}
                     print(json.dumps(obj), flush=True)
                     events_list.append(obj)
+            # 工具开始执行
             elif isinstance(event, ToolExecutionStarted):
                 if output_format == "stream-json":
                     obj = {"type": "tool_started", "tool_name": event.tool_name, "tool_input": event.tool_input}
                     print(json.dumps(obj), flush=True)
                     events_list.append(obj)
+            # 工具执行完成
             elif isinstance(event, ToolExecutionCompleted):
                 if output_format == "stream-json":
                     obj = {"type": "tool_completed", "tool_name": event.tool_name, "output": event.output, "is_error": event.is_error}
                     print(json.dumps(obj), flush=True)
                     events_list.append(obj)
+            # 错误事件
             elif isinstance(event, ErrorEvent):
                 if output_format == "text":
                     print(event.message, file=sys.stderr)
@@ -151,6 +217,7 @@ async def run_print_mode(
                     obj = {"type": "error", "message": event.message, "recoverable": event.recoverable}
                     print(json.dumps(obj), flush=True)
                     events_list.append(obj)
+            # 状态事件
             elif isinstance(event, StatusEvent):
                 if output_format == "text":
                     print(event.message, file=sys.stderr)
@@ -159,9 +226,11 @@ async def run_print_mode(
                     print(json.dumps(obj), flush=True)
                     events_list.append(obj)
 
+        # 空清空输出回调
         async def _clear_output() -> None:
             pass
 
+        # 处理输入行
         await handle_line(
             bundle,
             prompt,
@@ -170,8 +239,10 @@ async def run_print_mode(
             clear_output=_clear_output,
         )
 
+        # JSON 格式输出最终结果
         if output_format == "json":
             result = {"type": "result", "text": collected_text.strip()}
             print(json.dumps(result))
     finally:
+        # 关闭运行时
         await close_runtime(bundle)

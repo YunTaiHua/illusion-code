@@ -1,4 +1,22 @@
-"""Git worktree isolation for swarm agents."""
+"""
+Git Worktree 隔离模块
+====================
+
+本模块提供 swarm 代理的 Git worktree 隔离功能。
+使用 Git worktree 实现代理间的文件系统隔离。
+
+主要组件：
+    - WorktreeManager: Git worktree 管理器
+    - WorktreeInfo: Worktree 元数据
+    - validate_worktree_slug: Worktree slug 验证函数
+
+使用示例：
+    >>> from illusion.swarm.worktree import WorktreeManager
+    >>> 
+    >>> manager = WorktreeManager()
+    >>> info = await manager.create_worktree(repo_path, "researcher-1", agent_id="agent-1")
+    >>> print(f"Worktree created at: {info.path}")
+"""
 
 from __future__ import annotations
 
@@ -10,24 +28,27 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Slug validation
+# Slug 验证
 # ---------------------------------------------------------------------------
 
+# 有效的路径段正则
 _VALID_SEGMENT = re.compile(r"^[a-zA-Z0-9._-]+$")
+# 最大 slug 长度
 _MAX_SLUG_LENGTH = 64
+# 常见符号链接目录
 _COMMON_SYMLINK_DIRS = ("node_modules", ".venv", "__pycache__", ".tox")
 
 
 def validate_worktree_slug(slug: str) -> str:
-    """Sanitize and validate a worktree slug.
+    """清理并验证 worktree slug。
 
-    Rules:
-    - Max 64 characters total
-    - Each '/'-separated segment must match [a-zA-Z0-9._-]+
-    - '.' and '..' segments are rejected (path traversal)
-    - Leading/trailing '/' are rejected
+    规则：
+    - 最多 64 个字符
+    - 每个 '/' 分隔的段必须匹配 [a-zA-Z0-9._-]+
+    - 拒绝 '.' 和 '..' 段（路径遍历）
+    - 拒绝前导/尾随 '/'
 
-    Returns the slug unchanged if valid, raises ValueError otherwise.
+    如果有效则返回 slug 不变，否则引发 ValueError。
     """
     if not slug:
         raise ValueError("Worktree slug must not be empty")
@@ -37,14 +58,14 @@ def validate_worktree_slug(slug: str) -> str:
             f"Worktree slug must be {_MAX_SLUG_LENGTH} characters or fewer (got {len(slug)})"
         )
 
-    # Reject absolute paths
+    # 拒绝绝对路径
     if slug.startswith("/") or slug.startswith("\\"):
         raise ValueError(f"Worktree slug must not be an absolute path: {slug!r}")
 
     for segment in slug.split("/"):
         if segment in (".", ".."):
             raise ValueError(
-                f'Worktree slug {slug!r}: must not contain "." or ".." path segments'
+                f"Worktree slug {slug!r}: must not contain '.' or '..' path segments"
             )
         if not _VALID_SEGMENT.match(segment):
             raise ValueError(
@@ -56,12 +77,12 @@ def validate_worktree_slug(slug: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Data structures
+# 数据结构
 # ---------------------------------------------------------------------------
 
 @dataclass
 class WorktreeInfo:
-    """Metadata about a managed git worktree."""
+    """管理的 git worktree 的元数据。"""
 
     slug: str
     path: Path
@@ -72,25 +93,26 @@ class WorktreeInfo:
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# 内部辅助函数
 # ---------------------------------------------------------------------------
 
 def _flatten_slug(slug: str) -> str:
-    """Replace '/' with '+' to avoid nested directory/branch issues."""
+    """用 '+' 替换 '/' 以避免嵌套目录/分支问题。"""
     return slug.replace("/", "+")
 
 
 def _worktree_branch(slug: str) -> str:
+    """生成 worktree 分支名称。"""
     return f"worktree-{_flatten_slug(slug)}"
 
 
 async def _run_git(*args: str, cwd: Path) -> tuple[int, str, str]:
-    """Run a git command, returning (returncode, stdout, stderr)."""
+    """运行 git 命令，返回 (returncode, stdout, stderr)。"""
     proc = await asyncio.create_subprocess_exec(
         "git",
         *args,
         cwd=str(cwd),
-        stdin=asyncio.subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+        stdin=asyncio.subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": ""},
@@ -104,7 +126,7 @@ async def _run_git(*args: str, cwd: Path) -> tuple[int, str, str]:
 
 
 async def _symlink_common_dirs(repo_path: Path, worktree_path: Path) -> None:
-    """Symlink large common directories from the main repo to avoid duplication."""
+    """从主仓库符号链接大型公共目录以避免重复。"""
     for dir_name in _COMMON_SYMLINK_DIRS:
         src = repo_path / dir_name
         dst = worktree_path / dir_name
@@ -115,11 +137,11 @@ async def _symlink_common_dirs(repo_path: Path, worktree_path: Path) -> None:
         try:
             dst.symlink_to(src)
         except OSError:
-            pass  # Non-fatal: disk full, unsupported fs, etc.
+            pass  # 非致命：磁盘满、不支持的文件系统等
 
 
 async def _remove_symlinks(worktree_path: Path) -> None:
-    """Remove symlinks created by _symlink_common_dirs."""
+    """移除由 _symlink_common_dirs 创建的符号链接。"""
     for dir_name in _COMMON_SYMLINK_DIRS:
         dst = worktree_path / dir_name
         if dst.is_symlink():
@@ -134,18 +156,18 @@ async def _remove_symlinks(worktree_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 class WorktreeManager:
-    """Manage git worktrees for isolated agent execution.
+    """管理隔离代理执行的 git worktree。
 
-    Worktrees are stored under ``base_dir/<slug>/`` (with '/' replaced by
-    '+' to keep the layout flat).  A JSON metadata file tracks active
-    worktrees and their associated agent IDs so stale ones can be pruned.
+    Worktree 存储在 ``base_dir/<slug>/`` 下（'/' 替换为 '+' 以保持布局扁平）。
+    JSON 元数据文件跟踪活跃 worktree 及其关联的代理 ID，以便可以清理过期的 worktree。
     """
 
     def __init__(self, base_dir: Path | None = None) -> None:
+        """初始化 WorktreeManager。"""
         self.base_dir: Path = base_dir or Path.home() / ".illusion" / "worktrees"
 
     # ------------------------------------------------------------------
-    # Public API
+    # 公开 API
     # ------------------------------------------------------------------
 
     async def create_worktree(
@@ -155,29 +177,31 @@ class WorktreeManager:
         branch: str | None = None,
         agent_id: str | None = None,
     ) -> WorktreeInfo:
-        """Create (or resume) a git worktree for *slug*.
+        """为 *slug* 创建（或恢复）git worktree。
 
-        If the worktree directory already exists and is a valid git worktree,
-        it is resumed without re-running ``git worktree add``.
+        如果 worktree 目录已存在且是有效的 git worktree，
+        则在不重新运行 ``git worktree add`` 的情况下恢复。
 
         Args:
-            repo_path: Absolute path to the main repository.
-            slug: Human-readable identifier (validated via validate_worktree_slug).
-            branch: Branch name to check out; defaults to a generated ``worktree-<slug>`` name.
-            agent_id: Optional identifier of the agent that owns this worktree.
+            repo_path: 主仓库的绝对路径。
+            slug: 人类可读标识符（通过 validate_worktree_slug 验证）。
+            branch: 要检出的分支名称；默认为生成的 ``worktree-<slug>`` 名称。
+            agent_id: 拥有此 worktree 的代理的可选标识符。
 
         Returns:
-            WorktreeInfo describing the worktree.
+            描述 worktree 的 WorktreeInfo。
         """
+        # 验证 slug
         validate_worktree_slug(slug)
         repo_path = repo_path.resolve()
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
+        # 扁平化 slug 并构建路径
         flat_slug = _flatten_slug(slug)
         worktree_path = self.base_dir / flat_slug
         worktree_branch = branch or _worktree_branch(slug)
 
-        # Fast resume: check whether the worktree is already registered
+        # 快速恢复：检查 worktree 是否已注册
         if worktree_path.exists():
             code, _, _ = await _run_git(
                 "rev-parse", "--git-dir", cwd=worktree_path
@@ -192,7 +216,7 @@ class WorktreeManager:
                     agent_id=agent_id,
                 )
 
-        # New worktree: -B resets an orphan branch left by a prior remove
+        # 新 worktree：-B 重置之前移除留下的孤儿分支
         code, _, stderr = await _run_git(
             "worktree", "add", "-B", worktree_branch, str(worktree_path), "HEAD",
             cwd=repo_path,
@@ -200,6 +224,7 @@ class WorktreeManager:
         if code != 0:
             raise RuntimeError(f"git worktree add failed: {stderr}")
 
+        # 符号链接公共目录
         await _symlink_common_dirs(repo_path, worktree_path)
 
         return WorktreeInfo(
@@ -212,12 +237,12 @@ class WorktreeManager:
         )
 
     async def remove_worktree(self, slug: str) -> bool:
-        """Remove a worktree by slug.
+        """按 slug 移除 worktree。
 
-        Cleans up symlinks first, then runs ``git worktree remove --force``.
+        首先清理符号链接，然后运行 ``git worktree remove --force``。
 
         Returns:
-            True if the worktree was removed; False if it did not exist.
+            如果 worktree 被移除返回 True；如果不存在则返回 False。
         """
         validate_worktree_slug(slug)
         flat_slug = _flatten_slug(slug)
@@ -226,15 +251,15 @@ class WorktreeManager:
         if not worktree_path.exists():
             return False
 
-        # Remove symlinks before git removes the directory
+        # 在 git 移除目录之前先移除符号链接
         await _remove_symlinks(worktree_path)
 
-        # Determine repo root from the worktree's git metadata
+        # 从 worktree 的 git 元数据确定仓库根目录
         code, git_common, _ = await _run_git(
             "rev-parse", "--git-common-dir", cwd=worktree_path
         )
         if code == 0 and git_common:
-            # git_common points to .git inside the main repo
+            # git_common 指向主仓库内的 .git
             repo_path = Path(git_common).resolve().parent
             if repo_path.exists():
                 await _run_git(
@@ -243,8 +268,8 @@ class WorktreeManager:
                 )
                 return True
 
-        # Fallback: try to remove via absolute path from any working directory
-        # If repo_path detection failed, attempt removal with cwd=base_dir
+        # 回退：尝试从任何工作目录通过绝对路径移除
+        # 如果 repo_path 检测失败，尝试使用 cwd=base_dir 移除
         code, _, _ = await _run_git(
             "worktree", "remove", "--force", str(worktree_path),
             cwd=self.base_dir,
@@ -252,7 +277,7 @@ class WorktreeManager:
         return code == 0
 
     async def list_worktrees(self) -> list[WorktreeInfo]:
-        """Return WorktreeInfo for every known worktree under base_dir."""
+        """返回 base_dir 下每个已知 worktree 的 WorktreeInfo。"""
         if not self.base_dir.exists():
             return []
 
@@ -264,13 +289,13 @@ class WorktreeManager:
             if code != 0:
                 continue
 
-            # Recover branch name from HEAD
+            # 从 HEAD 恢复分支名称
             rc, branch_out, _ = await _run_git(
                 "rev-parse", "--abbrev-ref", "HEAD", cwd=child
             )
             branch = branch_out if rc == 0 else "unknown"
 
-            # Recover original repo path from git-common-dir
+            # 从 git-common-dir 恢复原始仓库路径
             rc2, common_dir, _ = await _run_git(
                 "rev-parse", "--git-common-dir", cwd=child
             )
@@ -279,7 +304,7 @@ class WorktreeManager:
             else:
                 original_path = child
 
-            # Slug is the directory name (flat form); restore '/' from '+'
+            # Slug 是目录名（扁平形式）；从 '+' 恢复 '/'
             slug = child.name.replace("+", "/")
             results.append(
                 WorktreeInfo(
@@ -294,14 +319,14 @@ class WorktreeManager:
         return results
 
     async def cleanup_stale(self, active_agent_ids: set[str] | None = None) -> list[str]:
-        """Remove worktrees that have no active agent.
+        """移除没有活跃代理的 worktree。
 
         Args:
-            active_agent_ids: Set of agent IDs still running. If None,
-                *all* worktrees with an agent_id are considered stale.
+            active_agent_ids: 仍在运行的代理 ID 集合。如果为 None，
+                *所有* 有 agent_id 的 worktree 都被视为过期。
 
         Returns:
-            List of slugs that were removed.
+            已移除的 slugs 列表。
         """
         worktrees = await self.list_worktrees()
         removed: list[str] = []

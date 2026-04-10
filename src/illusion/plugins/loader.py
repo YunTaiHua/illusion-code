@@ -1,4 +1,17 @@
-"""Plugin discovery and loading."""
+"""
+插件发现和加载模块
+==================
+
+本模块实现插件的发现和加载功能。
+
+主要功能：
+    - 发现用户和项目插件目录
+    - 加载插件清单和配置
+    - 解析插件技能、命令、钩子和 MCP 服务器
+
+使用示例：
+    >>> from illusion.plugins.loader import load_plugins, get_user_plugins_dir
+"""
 
 from __future__ import annotations
 
@@ -16,21 +29,45 @@ logger = logging.getLogger(__name__)
 
 
 def get_user_plugins_dir() -> Path:
-    """Return the user plugin directory."""
+    """获取用户插件目录
+    
+    返回用户级别的插件目录，如果不存在则创建。
+    
+    Returns:
+        Path: 用户插件目录路径
+    """
     path = get_config_dir() / "plugins"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_project_plugins_dir(cwd: str | Path) -> Path:
-    """Return the project plugin directory."""
+    """获取项目插件目录
+    
+    返回项目级别的插件目录。
+    
+    Args:
+        cwd: 工作目录
+    
+    Returns:
+        Path: 项目插件目录路径
+    """
     path = Path(cwd).resolve() / ".illusion" / "plugins"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _find_manifest(plugin_dir: Path) -> Path | None:
-    """Find plugin.json in standard or .claude-plugin/ locations."""
+    """查找插件清单文件
+    
+    在标准位置或 .claude-plugin/ 目录下查找 plugin.json。
+    
+    Args:
+        plugin_dir: 插件目录
+    
+    Returns:
+        Path | None: 找到的清单文件路径，不存在则返回 None
+    """
     for candidate in [
         plugin_dir / "plugin.json",
         plugin_dir / ".claude-plugin" / "plugin.json",
@@ -41,7 +78,16 @@ def _find_manifest(plugin_dir: Path) -> Path | None:
 
 
 def discover_plugin_paths(cwd: str | Path) -> list[Path]:
-    """Find plugin directories from user and project locations."""
+    """发现插件目录
+    
+    从用户和项目位置查找所有插件目录。
+    
+    Args:
+        cwd: 工作目录
+    
+    Returns:
+        list[Path]: 插件目录路径列表
+    """
     roots = [get_user_plugins_dir(), get_project_plugins_dir(cwd)]
     paths: list[Path] = []
     for root in roots:
@@ -54,7 +100,15 @@ def discover_plugin_paths(cwd: str | Path) -> list[Path]:
 
 
 def load_plugins(settings, cwd: str | Path) -> list[LoadedPlugin]:
-    """Load plugins from disk."""
+    """从磁盘加载所有插件
+    
+    Args:
+        settings: 设置对象
+        cwd: 工作目录
+    
+    Returns:
+        list[LoadedPlugin]: 已加载的插件列表
+    """
     plugins: list[LoadedPlugin] = []
     for path in discover_plugin_paths(cwd):
         plugin = load_plugin(path, settings.enabled_plugins)
@@ -64,7 +118,15 @@ def load_plugins(settings, cwd: str | Path) -> list[LoadedPlugin]:
 
 
 def load_plugin(path: Path, enabled_plugins: dict[str, bool]) -> LoadedPlugin | None:
-    """Load one plugin directory."""
+    """加载单个插件目录
+    
+    Args:
+        path: 插件目录路径
+        enabled_plugins: 启用的插件配置
+    
+    Returns:
+        LoadedPlugin | None: 已加载的插件，未找到清单则返回 None
+    """
     manifest_path = _find_manifest(path)
     if manifest_path is None:
         return None
@@ -75,20 +137,20 @@ def load_plugin(path: Path, enabled_plugins: dict[str, bool]) -> LoadedPlugin | 
         return None
     enabled = enabled_plugins.get(manifest.name, manifest.enabled_by_default)
 
-    # Discover skills from multiple locations
+    # 从多个位置发现技能
     skills = _load_plugin_skills(path / manifest.skills_dir)
 
-    # Discover commands from plugin commands/ directory
+    # 从 plugin commands/ 目录发现命令
     commands_dir = path / "commands"
     if commands_dir.exists():
         skills.extend(_load_plugin_skills(commands_dir))
 
-    # Discover agents from plugin agents/ directory
+    # 从 plugin agents/ 目录发现智能体
     agents_dir = path / "agents"
     if agents_dir.exists():
         skills.extend(_load_plugin_skills(agents_dir))
 
-    # Discover hooks from hooks/ dir or root hooks.json
+    # 从 hooks/ 目录或根 hooks.json 发现钩子
     hooks = _load_plugin_hooks(path / manifest.hooks_file)
     hooks_dir_file = path / "hooks" / "hooks.json"
     if not hooks and hooks_dir_file.exists():
@@ -111,13 +173,13 @@ def load_plugin(path: Path, enabled_plugins: dict[str, bool]) -> LoadedPlugin | 
 
 
 def _load_plugin_skills(path: Path) -> list[SkillDefinition]:
-    """Load skill definitions from markdown files in a directory.
-
+    """从目录中的 markdown 文件加载技能定义
+    
     Args:
-        path: Directory containing ``.md`` skill files.
-
+        path: 包含 .md 技能文件的目录
+    
     Returns:
-        List of parsed ``SkillDefinition`` objects, or empty list if path doesn't exist.
+        list[SkillDefinition]: 解析后的技能定义列表，如果路径不存在则返回空列表
     """
     if not path.exists():
         return []
@@ -138,13 +200,13 @@ def _load_plugin_skills(path: Path) -> list[SkillDefinition]:
 
 
 def _load_plugin_hooks(path: Path) -> dict[str, list]:
-    """Load hooks from a flat hooks.json file.
-
+    """从平面 hooks.json 文件加载钩子
+    
     Args:
-        path: Path to a hooks JSON file.
-
+        path: hooks JSON 文件路径
+    
     Returns:
-        Dictionary mapping event names to lists of hook definition objects.
+        dict[str, list]: 事件名称到钩子定义对象列表的字典
     """
     if not path.exists():
         return {}
@@ -173,7 +235,15 @@ def _load_plugin_hooks(path: Path) -> dict[str, list]:
 
 
 def _load_plugin_hooks_structured(path: Path, plugin_root: Path) -> dict[str, list]:
-    """Load hooks from structured hooks.json format."""
+    """从结构化 hooks.json 格式加载钩子
+    
+    Args:
+        path: hooks.json 文件路径
+        plugin_root: 插件根目录
+    
+    Returns:
+        dict[str, list]: 解析后的钩子字典
+    """
     if not path.exists():
         return {}
     try:
@@ -192,7 +262,7 @@ def _load_plugin_hooks_structured(path: Path, plugin_root: Path) -> dict[str, li
             hook_list = entry.get("hooks", [])
             matcher = entry.get("matcher", "")
             for hook in hook_list:
-                # Replace ${CLAUDE_PLUGIN_ROOT} with actual path
+                # 将 ${CLAUDE_PLUGIN_ROOT} 替换为实际路径
                 cmd = hook.get("command", "")
                 cmd = cmd.replace("${CLAUDE_PLUGIN_ROOT}", str(plugin_root))
                 parsed[event].append({
@@ -205,13 +275,13 @@ def _load_plugin_hooks_structured(path: Path, plugin_root: Path) -> dict[str, li
 
 
 def _load_plugin_mcp(path: Path) -> dict[str, object]:
-    """Load MCP server configuration from a JSON file.
-
+    """从 JSON 文件加载 MCP 服务器配置
+    
     Args:
-        path: Path to an MCP config file (e.g. ``.mcp.json``).
-
+        path: MCP 配置文件路径（例如 .mcp.json）
+    
     Returns:
-        Dictionary mapping server names to their configuration objects.
+        dict[str, object]: 服务器名称到配置对象的字典
     """
     if not path.exists():
         return {}

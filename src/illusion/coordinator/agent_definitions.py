@@ -1,4 +1,34 @@
-"""Agent definition loading system for IllusionCode."""
+"""
+代理定义加载系统模块
+==================
+
+本模块提供 IllusionCode 代理定义加载和管理功能。
+
+主要功能：
+    - 内置代理定义
+    - 从 markdown 文件加载代理定义
+    - YAML frontmatter 解析
+
+类说明：
+    - AgentDefinition: 完整的代理定义数据模型
+
+常量说明：
+    - AGENT_COLORS: 有效的代理颜色名称
+    - EFFORT_LEVELS: 有效的 Effort 级别
+    - PERMISSION_MODES: 有效的权限模式
+    - MEMORY_SCOPES: 有效的记忆范围
+    - ISOLATION_MODES: 有效的隔离模式
+
+函数说明：
+    - get_builtin_agent_definitions: 获取内置代理定义
+    - get_all_agent_definitions: 获取所有代理定义
+    - get_agent_definition: 获取指定名称的代理定义
+    - load_agents_dir: 从目录加载代理定义
+
+使用示例：
+    >>> from illusion.coordinator import get_builtin_agent_definitions
+    >>> agents = get_builtin_agent_definitions()
+"""
 
 from __future__ import annotations
 
@@ -17,38 +47,38 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Valid color names for agents (matches AgentColorName in TS).
+#: 有效的颜色名称 (对应 TS 中的 AgentColorName)
 AGENT_COLORS: frozenset[str] = frozenset(
     {
-        "red",
-        "green",
-        "blue",
-        "yellow",
-        "purple",
-        "orange",
-        "cyan",
-        "magenta",
-        "white",
-        "gray",
+        "red",  # 红色
+        "green",  # 绿色
+        "blue",  # 蓝色
+        "yellow",  # 黄色
+        "purple",  # 紫色
+        "orange",  # 橙色
+        "cyan",  # 青色
+        "magenta",  # 品红
+        "white",  # 白色
+        "gray",  # 灰色
     }
 )
 
-#: Valid effort level strings (maps to EFFORT_LEVELS in TS).
+#: 有效的 Effort 级别 (对应 TS 中的 EFFORT_LEVELS)
 EFFORT_LEVELS: tuple[str, ...] = ("low", "medium", "high")
 
-#: Valid permission mode strings (maps to PERMISSION_MODES in TS).
+#: 有效的权限模式 (对应 TS 中的 PERMISSION_MODES)
 PERMISSION_MODES: tuple[str, ...] = (
-    "default",
-    "acceptEdits",
-    "bypassPermissions",
-    "plan",
-    "dontAsk",
+    "default",  # 默认
+    "acceptEdits",  # 接受编辑
+    "bypassPermissions",  # 绕过权限
+    "plan",  # 计划模式
+    "dontAsk",  # 不询问
 )
 
-#: Valid memory scope strings (maps to AgentMemoryScope in TS).
+#: 有效的记忆范围 (对应 TS 中的 AgentMemoryScope)
 MEMORY_SCOPES: tuple[str, ...] = ("user", "project", "local")
 
-#: Valid isolation mode strings.
+#: 有效的隔离模式
 ISOLATION_MODES: tuple[str, ...] = ("worktree", "remote")
 
 
@@ -58,13 +88,13 @@ ISOLATION_MODES: tuple[str, ...] = ("worktree", "remote")
 
 
 class AgentDefinition(BaseModel):
-    """Full agent definition with all configuration fields.
-
-    Field mapping to TypeScript ``BaseAgentDefinition``:
+    """完整的代理定义，包含所有配置字段
+    
+    字段映射到 TypeScript ``BaseAgentDefinition``:
     - ``name``          → ``agentType``
     - ``description``   → ``whenToUse``
-    - ``system_prompt`` → ``getSystemPrompt()`` return value
-    - ``tools``         → ``tools`` (None means all tools / ``['*']``)
+    - ``system_prompt`` → ``getSystemPrompt()`` 返回值
+    - ``tools``         → ``tools`` (None 表示所有工具 / ``['*']`` 等效)
     - ``disallowed_tools`` → ``disallowedTools``
     - ``skills``        → ``skills``
     - ``mcp_servers``   → ``mcpServers``
@@ -86,58 +116,59 @@ class AgentDefinition(BaseModel):
     """
 
     # --- required ---
-    name: str
-    description: str
+    name: str  # 代理类型标识
+    description: str  # 使用时机描述
 
     # --- prompt / tools ---
-    system_prompt: str | None = None
-    tools: list[str] | None = None  # None means all tools allowed; ['*'] is equivalent
-    disallowed_tools: list[str] | None = None
+    system_prompt: str | None = None  # 系统提示词
+    tools: list[str] | None = None  # None 表示所有工具允许; ['*'] 等效
+    disallowed_tools: list[str] | None = None  # 禁止的工具列表
 
     # --- model & effort ---
-    model: str | None = None  # model override; None means inherit default
-    effort: str | int | None = None  # "low" | "medium" | "high" or positive int
+    model: str | None = None  # 模型覆盖; None 表示继承默认值
+    effort: str | int | None = None  # "low" | "medium" | "high" 或正整数
 
     # --- permissions ---
-    permission_mode: str | None = None  # one of PERMISSION_MODES
+    permission_mode: str | None = None  # PERMISSION_MODES 之一
 
     # --- agent loop control ---
-    max_turns: int | None = None  # maximum agentic turns before stopping; must be > 0
+    max_turns: int | None = None  # 代理停止前的最大代理轮次数; 必须 > 0
 
     # --- skills & mcp ---
-    skills: list[str] = Field(default_factory=list)
-    mcp_servers: list[Any] | None = None  # str refs or {name: config} dicts
-    required_mcp_servers: list[str] | None = None  # server name patterns that must be present
+    skills: list[str] = Field(default_factory=list)  # 技能列表
+    mcp_servers: list[Any] | None = None  # str 引用或 {name: config} 字典
+    required_mcp_servers: list[str] | None = None  # 必须存在的服务器名模式
 
     # --- hooks ---
-    hooks: dict[str, Any] | None = None  # session-scoped hooks registered when agent starts
+    hooks: dict[str, Any] | None = None  # 代理启动时注册的作用域 hooks
 
     # --- ui ---
-    color: str | None = None  # one of AGENT_COLORS
+    color: str | None = None  # AGENT_COLORS 之一
 
     # --- lifecycle ---
-    background: bool = False  # always run as background task when spawned
-    initial_prompt: str | None = None  # prepended to the first user turn
-    memory: str | None = None  # one of MEMORY_SCOPES
-    isolation: str | None = None  # one of ISOLATION_MODES
+    background: bool = False  # 生成时始终作为后台任务运行
+    initial_prompt: str | None = None  # 附加到第一个用户回合
+    memory: str | None = None  # MEMORY_SCOPES 之一
+    isolation: str | None = None  # ISOLATION_MODES 之一
 
     # --- metadata ---
-    filename: str | None = None  # original filename without .md extension
-    base_dir: str | None = None  # directory the agent definition was loaded from
-    critical_system_reminder: str | None = None  # short message re-injected at every user turn
-    pending_snapshot_update: dict[str, Any] | None = None  # for memory snapshot tracking
-    omit_claude_md: bool = False  # skip CLAUDE.md injection for this agent
+    filename: str | None = None  # 不含 .md 扩展名的原始文件名
+    base_dir: str | None = None  # 加载代理定义的目录
+    critical_system_reminder: str | None = None  # 短消息，在每个用户回合重新注入
+    pending_snapshot_update: dict[str, Any] | None = None  # 记忆快照跟踪
+    omit_claude_md: bool = False  # 跳过此代理的 CLAUDE.md 注入
 
     # --- Python-specific ---
-    permissions: list[str] = Field(default_factory=list)  # extra permission rules
-    subagent_type: str = "general-purpose"  # routing key used by the harness
-    source: Literal["builtin", "user", "plugin"] = "builtin"
+    permissions: list[str] = Field(default_factory=list)  # 额外的权限规则
+    subagent_type: str = "general-purpose"  # 线束使用的路由键
+    source: Literal["builtin", "user", "plugin"] = "builtin"  # 来源
 
 
 # ---------------------------------------------------------------------------
 # System-prompt constants (translated from TS built-in agent files)
 # ---------------------------------------------------------------------------
 
+# 共享代理前缀
 _SHARED_AGENT_PREFIX = (
     "You are an agent for Claude Code, Anthropic's official CLI for Claude. "
     "Given the user's message, you should use the tools available to complete the task. "
@@ -157,12 +188,14 @@ Guidelines:
 - NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one.
 - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested."""
 
+# 通用代理系统提示词
 _GENERAL_PURPOSE_SYSTEM_PROMPT = (
     f"{_SHARED_AGENT_PREFIX} When you complete the task, respond with a concise report covering "
     "what was done and any key findings — the caller will relay this to the user, so it only needs "
     f"the essentials.\n\n{_SHARED_AGENT_GUIDELINES}"
 )
 
+# 探索代理系统提示词
 _EXPLORE_SYSTEM_PROMPT = """You are a file search specialist for Claude Code, Anthropic's official CLI for Claude. You excel at thoroughly navigating and exploring codebases.
 
 === CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===
@@ -197,6 +230,7 @@ NOTE: You are meant to be a fast agent that returns output as quickly as possibl
 
 Complete the user's search request efficiently and report your findings clearly."""
 
+# 计划代理系统提示词
 _PLAN_SYSTEM_PROMPT = """You are a software architect and planning specialist for Claude Code. Your role is to explore the codebase and design implementation plans.
 
 === CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===
@@ -248,6 +282,7 @@ List 3-5 files most critical for implementing this plan:
 
 REMEMBER: You can ONLY explore and plan. You CANNOT and MUST NOT write, edit, or modify any files. You do NOT have access to file editing tools."""
 
+# 验证代理系统提示词
 _VERIFICATION_SYSTEM_PROMPT = """You are a verification specialist. Your job is not to confirm the implementation works — it's to try to break it.
 
 You have two documented failure patterns. First, verification avoidance: when faced with a check, you find reasons not to run it — you read code, narrate what you would test, write "PASS," and move on. Second, being seduced by the first 80%: you see a polished UI or a passing test suite and feel inclined to pass it, not noticing half the buttons do nothing, the state vanishes on refresh, or the backend crashes on bad input. The first 80% is the easy part. Your entire value is in finding the last 20%. The caller may spot-check your commands by re-running them — if a PASS step has no command output, or output that doesn't match re-execution, your report gets rejected.
@@ -352,14 +387,16 @@ PARTIAL is for environmental limitations only (no test framework, tool unavailab
 
 Use the literal string `VERDICT: ` followed by exactly one of `PASS`, `FAIL`, `PARTIAL`. No markdown bold, no punctuation, no variation.
 - **FAIL**: include what failed, exact error output, reproduction steps.
-- **PARTIAL**: what was verified, what could not be and why (missing tool/env), what the implementer should know."""
+- **PARTIAL**: what was verified, what could not and why (missing tool/env), what the implementer should know."""
 
+# 验证关键提醒
 _VERIFICATION_CRITICAL_REMINDER = (
     "CRITICAL: This is a VERIFICATION-ONLY task. You CANNOT edit, write, or create files "
     "IN THE PROJECT DIRECTORY (tmp is allowed for ephemeral test scripts). "
     "You MUST end with VERDICT: PASS, VERDICT: FAIL, or VERDICT: PARTIAL."
 )
 
+# 工作代理系统提示词
 _WORKER_SYSTEM_PROMPT = (
     "You are an implementation-focused worker agent. Execute the assigned task precisely "
     "and efficiently. Write clean, well-structured code that follows the conventions already "
@@ -367,6 +404,7 @@ _WORKER_SYSTEM_PROMPT = (
     "your changes and report the commit hash."
 )
 
+# 状态行设置代理系统提示词
 _STATUSLINE_SYSTEM_PROMPT = """You are a status line setup agent for Claude Code. Your job is to create or update the statusLine command in the user's Claude Code settings.
 
 When asked to convert the user's shell PS1 configuration, follow these steps:
@@ -449,6 +487,7 @@ Guidelines:
   Also ensure that the user is informed that they can ask Claude to continue to make changes to the status line.
 """
 
+# Claude代码指南代理系统提示词
 _CLAUDE_CODE_GUIDE_SYSTEM_PROMPT = """You are the Claude guide agent. Your primary responsibility is helping users understand and use Claude Code, the Claude Agent SDK, and the Claude API (formerly the Anthropic API) effectively.
 
 **Your expertise spans three domains:**
@@ -507,34 +546,35 @@ Complete the user's request by providing accurate, documentation-based guidance.
 # Built-in agent definitions
 # ---------------------------------------------------------------------------
 
+# 内置代理定义列表
 _BUILTIN_AGENTS: list[AgentDefinition] = [
     AgentDefinition(
-        name="general-purpose",
+        name="general-purpose",  # 通用代理
         description=(
             "General-purpose agent for researching complex questions, searching for code, "
             "and executing multi-step tasks. When you are searching for a keyword or file "
             "and are not confident that you will find the right match in the first few tries "
             "use this agent to perform the search for you."
         ),
-        tools=["*"],  # all tools
-        system_prompt=_GENERAL_PURPOSE_SYSTEM_PROMPT,
-        subagent_type="general-purpose",
-        source="builtin",
-        base_dir="built-in",
+        tools=["*"],  # 所有工具
+        system_prompt=_GENERAL_PURPOSE_SYSTEM_PROMPT,  # 系统提示词
+        subagent_type="general-purpose",  # 代理类型
+        source="builtin",  # 来源
+        base_dir="built-in",  # 基础目录
     ),
     AgentDefinition(
-        name="statusline-setup",
-        description="Use this agent to configure the user's Claude Code status line setting.",
-        tools=["Read", "Edit"],
-        system_prompt=_STATUSLINE_SYSTEM_PROMPT,
-        model="sonnet",
-        color="orange",
-        subagent_type="statusline-setup",
-        source="builtin",
-        base_dir="built-in",
+        name="statusline-setup",  # 状态行设置
+        description="Use this agent to configure the user's Claude Code status line setting.",  # 使用说明
+        tools=["Read", "Edit"],  # 允许的工具
+        system_prompt=_STATUSLINE_SYSTEM_PROMPT,  # 系��提示词
+        model="sonnet",  # 模型
+        color="orange",  # 颜色
+        subagent_type="statusline-setup",  # 代理类型
+        source="builtin",  # 来源
+        base_dir="built-in",  # 基础目录
     ),
     AgentDefinition(
-        name="claude-code-guide",
+        name="claude-code-guide",  # Claude代码指南
         description=(
             'Use this agent when the user asks questions ("Can Claude...", "Does Claude...", '
             '"How do I...") about: (1) Claude Code (the CLI tool) - features, hooks, slash '
@@ -542,18 +582,18 @@ _BUILTIN_AGENTS: list[AgentDefinition] = [
             "(2) Claude Agent SDK - building custom agents; (3) Claude API (formerly Anthropic "
             "API) - API usage, tool use, Anthropic SDK usage. **IMPORTANT:** Before spawning a "
             "new agent, check if there is already a running or recently completed claude-code-guide "
-            "agent that you can continue via SendMessage."
+            "agent that you can continue via SendMessage."  # 使用说明
         ),
-        tools=["Glob", "Grep", "Read", "WebFetch", "WebSearch"],
-        system_prompt=_CLAUDE_CODE_GUIDE_SYSTEM_PROMPT,
-        model="haiku",
-        permission_mode="dontAsk",
-        subagent_type="claude-code-guide",
-        source="builtin",
-        base_dir="built-in",
+        tools=["Glob", "Grep", "Read", "WebFetch", "WebSearch"],  # 允许的工具
+        system_prompt=_CLAUDE_CODE_GUIDE_SYSTEM_PROMPT,  # 系统提示词
+        model="haiku",  # 模型
+        permission_mode="dontAsk",  # 权限模式
+        subagent_type="claude-code-guide",  # 代理类型
+        source="builtin",  # 来源
+        base_dir="built-in",  # 基础目录
     ),
     AgentDefinition(
-        name="Explore",
+        name="Explore",  # 探索代理
         description=(
             "Fast agent specialized for exploring codebases. Use this when you need to "
             "quickly find files by patterns (eg. \"src/components/**/*.tsx\"), search code "
@@ -561,67 +601,71 @@ _BUILTIN_AGENTS: list[AgentDefinition] = [
             "(eg. \"how do API endpoints work?\"). When calling this agent, specify the "
             "desired thoroughness level: \"quick\" for basic searches, \"medium\" for "
             "moderate exploration, or \"very thorough\" for comprehensive analysis across "
-            "multiple locations and naming conventions."
+            "multiple locations and naming conventions."  # 使用说明
         ),
-        disallowed_tools=["agent", "exit_plan_mode", "file_edit", "file_write", "notebook_edit"],
-        system_prompt=_EXPLORE_SYSTEM_PROMPT,
-        model="haiku",
-        omit_claude_md=True,
-        subagent_type="Explore",
-        source="builtin",
-        base_dir="built-in",
+        disallowed_tools=["agent", "exit_plan_mode", "file_edit", "file_write", "notebook_edit"],  # 禁止的工具
+        system_prompt=_EXPLORE_SYSTEM_PROMPT,  # 系统提示词
+        model="haiku",  # 模型
+        omit_claude_md=True,  # 跳过CLAUDE.md
+        subagent_type="Explore",  # 代理类型
+        source="builtin",  # 来源
+        base_dir="built-in",  # 基础目录
     ),
     AgentDefinition(
-        name="Plan",
+        name="Plan",  # 计划代理
         description=(
             "Software architect agent for designing implementation plans. Use this when you "
             "need to plan the implementation strategy for a task. Returns step-by-step plans, "
-            "identifies critical files, and considers architectural trade-offs."
+            "identifies critical files, and considers architectural trade-offs."  # 使用说明
         ),
-        disallowed_tools=["agent", "exit_plan_mode", "file_edit", "file_write", "notebook_edit"],
-        system_prompt=_PLAN_SYSTEM_PROMPT,
-        model="inherit",
-        omit_claude_md=True,
-        subagent_type="Plan",
-        source="builtin",
-        base_dir="built-in",
+        disallowed_tools=["agent", "exit_plan_mode", "file_edit", "file_write", "notebook_edit"],  # 禁止的工具
+        system_prompt=_PLAN_SYSTEM_PROMPT,  # 系统提示词
+        model="inherit",  # 模型
+        omit_claude_md=True,  # 跳过CLAUDE.md
+        subagent_type="Plan",  # 代理类型
+        source="builtin",  # 来源
+        base_dir="built-in",  # 基础目录
     ),
     AgentDefinition(
-        name="worker",
+        name="worker",  # 工作代理
         description=(
             "Implementation-focused worker agent. Use this for concrete coding tasks: "
-            "writing features, fixing bugs, refactoring code, and running tests."
+            "writing features, fixing bugs, refactoring code, and running tests."  # 使用说明
         ),
-        tools=None,  # all tools
-        system_prompt=_WORKER_SYSTEM_PROMPT,
-        subagent_type="worker",
-        source="builtin",
-        base_dir="built-in",
+        tools=None,  # 所有工具
+        system_prompt=_WORKER_SYSTEM_PROMPT,  # 系统提示词
+        subagent_type="worker",  # 代理类型
+        source="builtin",  # 来源
+        base_dir="built-in",  # 基础目录
     ),
     AgentDefinition(
-        name="verification",
+        name="verification",  # 验证代理
         description=(
             "Use this agent to verify that implementation work is correct before reporting "
             "completion. Invoke after non-trivial tasks (3+ file edits, backend/API changes, "
             "infrastructure changes). Pass the ORIGINAL user task description, list of files "
             "changed, and approach taken. The agent runs builds, tests, linters, and checks "
-            "to produce a PASS/FAIL/PARTIAL verdict with evidence."
+            "to produce a PASS/FAIL/PARTIAL verdict with evidence."  # 使用说明
         ),
-        disallowed_tools=["agent", "exit_plan_mode", "file_edit", "file_write", "notebook_edit"],
-        system_prompt=_VERIFICATION_SYSTEM_PROMPT,
-        critical_system_reminder=_VERIFICATION_CRITICAL_REMINDER,
-        color="red",
-        background=True,
-        model="inherit",
-        subagent_type="verification",
-        source="builtin",
-        base_dir="built-in",
+        disallowed_tools=["agent", "exit_plan_mode", "file_edit", "file_write", "notebook_edit"],  # 禁止的工具
+        system_prompt=_VERIFICATION_SYSTEM_PROMPT,  # 系统提示词
+        critical_system_reminder=_VERIFICATION_CRITICAL_REMINDER,  # 关键提醒
+        color="red",  # 颜色
+        background=True,  # 后台运行
+        model="inherit",  # 模型
+        subagent_type="verification",  # 代理类型
+        source="builtin",  # 来源
+        base_dir="built-in",  # 基础目录
     ),
 ]
 
 
 def get_builtin_agent_definitions() -> list[AgentDefinition]:
-    """Return the built-in agent definitions."""
+    """获取内置代理定义列表
+    
+    Returns:
+        list[AgentDefinition]: 内置代理定义列表
+    """
     return list(_BUILTIN_AGENTS)
 
 
@@ -631,261 +675,287 @@ def get_builtin_agent_definitions() -> list[AgentDefinition]:
 
 
 def _parse_agent_frontmatter(content: str) -> tuple[dict[str, Any], str]:
-    """Parse YAML frontmatter from a markdown file.
-
-    Returns a (frontmatter_dict, body) tuple. Uses ``yaml.safe_load`` for
-    proper YAML parsing (supports nested structures for hooks, mcpServers, etc.).
+    """从markdown文件解析YAML frontmatter
+    
+    返回 (frontmatter_dict, body) 元组。使用 ``yaml.safe_load`` 进行
+    正确的YAML解析 (支持 hooks, mcpServers 等嵌套结构)。
+    
+    Args:
+        content: 文件完整内容
+    
+    Returns:
+        tuple[dict[str, Any], str]: (frontmatter字典, body文本)
     """
     frontmatter: dict[str, Any] = {}
     body = content
 
-    lines = content.splitlines()
-    if not lines or lines[0].strip() != "---":
+    lines = content.splitlines()  # 分割行
+    if not lines or lines[0].strip() != "---":  # 无frontmatter
         return frontmatter, body
 
-    end_index: int | None = None
-    for i, line in enumerate(lines[1:], start=1):
-        if line.strip() == "---":
+    end_index: int | None = None  # 结束索引
+    for i, line in enumerate(lines[1:], start=1):  # 遍历内容行
+        if line.strip() == "---":  # 找到结束标记
             end_index = i
             break
 
-    if end_index is None:
+    if end_index is None:  # 未找到结束标记
         return frontmatter, body
 
-    fm_text = "\n".join(lines[1:end_index])
+    fm_text = "\n".join(lines[1:end_index])  # frontmatter文本
     try:
-        parsed = yaml.safe_load(fm_text)
-        if isinstance(parsed, dict):
+        parsed = yaml.safe_load(fm_text)  # 解析YAML
+        if isinstance(parsed, dict):  # 是字典
             frontmatter = parsed
-    except yaml.YAMLError:
-        # Fall back to simple key:value parsing
+    except yaml.YAMLError:  # 解析失败
+        # 回退到简单的 key:value 解析
         for fm_line in lines[1:end_index]:
             if ":" in fm_line:
-                key, _, value = fm_line.partition(":")
-                frontmatter[key.strip()] = value.strip().strip("'\"")
+                key, _, value = fm_line.partition(":")  # 分割
+                frontmatter[key.strip()] = value.strip().strip("'\"")  # 添加
 
-    # Body is everything after the closing ---
-    body = "\n".join(lines[end_index + 1 :]).strip()
+    # Body是 --- 之后的所有内容
+    body = "\n".join(lines[end_index + 1 :]).strip()  # 合并
     return frontmatter, body
 
 
 def _parse_str_list(raw: Any) -> list[str] | None:
-    """Parse a comma-separated string or list into a list of strings."""
-    if raw is None:
+    """将逗号分隔的字符串或列表解析为字符串列表
+    
+    Args:
+        raw: 原始值
+    
+    Returns:
+        list[str] | None: 解析后的列表
+    """
+    if raw is None:  # 空值
         return None
-    if isinstance(raw, list):
+    if isinstance(raw, list):  # 列表
         return [str(item).strip() for item in raw if str(item).strip()]
-    if isinstance(raw, str):
-        items = [t.strip() for t in raw.split(",") if t.strip()]
+    if isinstance(raw, str):  # 字符串
+        items = [t.strip() for t in raw.split(",") if t.strip()]  # 分割
         return items if items else None
     return None
 
 
 def _parse_positive_int(raw: Any) -> int | None:
-    """Parse a positive integer from frontmatter, returning None if invalid."""
-    if raw is None:
+    """从frontmatter解析正整数，无效时返回None
+    
+    Args:
+        raw: 原始值
+    
+    Returns:
+        int | None: 解析后的整数
+    """
+    if raw is None:  # 空值
         return None
     try:
-        val = int(raw)
-        return val if val > 0 else None
-    except (TypeError, ValueError):
+        val = int(raw)  # 转换为整数
+        return val if val > 0 else None  # 正数
+    except (TypeError, ValueError):  # 转换失败
         return None
 
 
 def load_agents_dir(directory: Path) -> list[AgentDefinition]:
-    """Load agent definitions from .md files in *directory*.
-
-    Each file should contain YAML frontmatter with at least ``name`` and
-    ``description`` fields. The markdown body becomes the ``system_prompt``.
-
-    Supported frontmatter fields (all optional unless noted):
-
-    Required:
-    * ``name`` — agent type identifier
-    * ``description`` — when-to-use description shown to the spawning agent
-
-    Optional:
-    * ``tools`` — comma-separated or YAML list of allowed tool names
-    * ``disallowedTools`` / ``disallowed_tools`` — comma-separated or list of disallowed tools
-    * ``model`` — model override (e.g. "haiku", "inherit")
-    * ``effort`` — "low", "medium", "high", or a positive integer
-    * ``permissionMode`` / ``permission_mode`` — one of PERMISSION_MODES
-    * ``maxTurns`` / ``max_turns`` — positive integer turn limit
-    * ``skills`` — comma-separated or list of skill names
-    * ``mcpServers`` / ``mcp_servers`` — list of MCP server references or inline configs
-    * ``hooks`` — YAML dict of session-scoped hooks
-    * ``color`` — one of AGENT_COLORS
-    * ``background`` — true/false; run as background task
-    * ``initialPrompt`` / ``initial_prompt`` — string prepended to first user turn
-    * ``memory`` — one of MEMORY_SCOPES
-    * ``isolation`` — one of ISOLATION_MODES
-    * ``omitClaudeMd`` / ``omit_claude_md`` — true/false; skip CLAUDE.md injection
-    * ``criticalSystemReminder`` / ``critical_system_reminder`` — re-injected message
-    * ``requiredMcpServers`` / ``required_mcp_servers`` — list of required server patterns
-    * ``permissions`` — comma-separated extra permission rules (Python-specific)
-    * ``subagent_type`` — routing key (Python-specific, defaults to name)
+    """从目录中的 .md 文件加载代理定义
+    
+    每个文件应包含YAML frontmatter，至少有 ``name`` 和
+    ``description`` 字段。markdown body 成为 ``system_prompt``。
+    
+    支持的 frontmatter 字段 (全部可选，除非注明):
+    
+    必需:
+    * ``name`` — 代理类型标识
+    * ``description`` — 显示给生成代理的使用时机描述
+    
+    可选:
+    * ``tools`` — 逗号分隔或YAML列表的工具名
+    * ``disallowedTools`` / ``disallowed_tools`` — 逗号分隔或列表的禁止工具
+    * ``model`` — 模型覆盖 (如 "haiku", "inherit")
+    * ``effort`` — "low", "medium", "high", 或正整数
+    * ``permissionMode`` / ``permission_mode`` — PERMISSION_MODES 之一
+    * ``maxTurns`` / ``max_turns`` — 正整数回合限制
+    * ``skills`` — 逗号分隔或技能名列表
+    * ``mcpServers`` / ``mcp_servers`` — MCP服务器引用或内联配置的列表
+    * ``hooks`` — YAML字典的作用域hooks
+    * ``color`` — AGENT_COLORS 之一
+    * ``background`` — true/false; 作为后台任务运行
+    * ``initialPrompt`` / ``initial_prompt` - 附加到第一个用户回合的字符串
+    * ``memory`` — MEMORY_SCOPES 之一
+    * ``isolation`` — ISOLATION_MODES 之一
+    * ``omitClaudeMd`` / ``omit_claude_md`` — true/false; 跳过CLAUDE.md注入
+    * ``criticalSystemReminder`` / ``critical_system_reminder`` — 重新注入的消息
+    * ``requiredMcpServers`` / ``required_mcp_servers`` — 必需服务器模式列表
+    * ``permissions`` — 逗号分隔的额外权限规则
+    * ``subagent_type`` — 路由键 (Python特定，默认为name)
+    
+    Args:
+        directory: 代理定义目录
+    
+    Returns:
+        list[AgentDefinition]: 加载的代理定义列表
     """
-    agents: list[AgentDefinition] = []
+    agents: list[AgentDefinition] = []  # 代理列表
 
-    if not directory.is_dir():
+    if not directory.is_dir():  # 非目录
         return agents
 
-    for path in sorted(directory.glob("*.md")):
+    for path in sorted(directory.glob("*.md")):  # 遍历md文件
         try:
-            content = path.read_text(encoding="utf-8")
-            frontmatter, body = _parse_agent_frontmatter(content)
+            content = path.read_text(encoding="utf-8")  # 读取内容
+            frontmatter, body = _parse_agent_frontmatter(content)  # 解析frontmatter
 
-            name = str(frontmatter.get("name", "")).strip() or path.stem
-            description = str(frontmatter.get("description", "")).strip()
-            if not description:
-                description = f"Agent: {name}"
+            name = str(frontmatter.get("name", "")).strip() or path.stem  # 名称
+            description = str(frontmatter.get("description", "")).strip()  # 描述
+            if not description:  # 无描述
+                description = f"Agent: {name}"  # 默认描述
 
-            # Unescape literal \n in descriptions from YAML
+            # 从YAML反转义 literal \n
             description = description.replace("\\n", "\n")
 
             # --- tools ---
-            tools = _parse_str_list(frontmatter.get("tools"))
+            tools = _parse_str_list(frontmatter.get("tools"))  # 工具
 
             # --- disallowed tools ---
             disallowed_raw = frontmatter.get(
-                "disallowedTools", frontmatter.get("disallowed_tools")
+                "disallowedTools", frontmatter.get("disallowed_tools")  # 尝试两个键名
             )
-            disallowed_tools = _parse_str_list(disallowed_raw)
+            disallowed_tools = _parse_str_list(disallowed_raw)  # 解析
 
             # --- model ---
-            model_raw = frontmatter.get("model")
+            model_raw = frontmatter.get("model")  # 模型
             model: str | None = None
-            if isinstance(model_raw, str) and model_raw.strip():
+            if isinstance(model_raw, str) and model_raw.strip():  # 字符串
                 trimmed = model_raw.strip()
-                model = "inherit" if trimmed.lower() == "inherit" else trimmed
+                model = "inherit" if trimmed.lower() == "inherit" else trimmed  # inherit转换
 
             # --- effort ---
-            effort_raw = frontmatter.get("effort")
+            effort_raw = frontmatter.get("effort")  # effort
             effort: str | int | None = None
-            if effort_raw is not None:
-                if isinstance(effort_raw, int):
-                    effort = effort_raw if effort_raw > 0 else None
-                elif isinstance(effort_raw, str) and effort_raw in EFFORT_LEVELS:
+            if effort_raw is not None:  # 有值
+                if isinstance(effort_raw, int):  # 整数
+                    effort = effort_raw if effort_raw > 0 else None  # 正数
+                elif isinstance(effort_raw, str) and effort_raw in EFFORT_LEVELS:  # 有效字符串
                     effort = effort_raw
                 else:
-                    logger.debug("Agent %s: invalid effort %r", name, effort_raw)
+                    logger.debug("Agent %s: invalid effort %r", name, effort_raw)  # 无效
 
             # --- permissionMode ---
-            perm_raw = frontmatter.get("permissionMode", frontmatter.get("permission_mode"))
+            perm_raw = frontmatter.get("permissionMode", frontmatter.get("permission_mode"))  # 尝试两个键名
             permission_mode: str | None = None
-            if isinstance(perm_raw, str) and perm_raw in PERMISSION_MODES:
+            if isinstance(perm_raw, str) and perm_raw in PERMISSION_MODES:  # 有效值
                 permission_mode = perm_raw
-            elif perm_raw is not None:
+            elif perm_raw is not None:  # 有值但无效
                 logger.debug("Agent %s: invalid permissionMode %r", name, perm_raw)
 
             # --- maxTurns ---
-            max_turns_raw = frontmatter.get("maxTurns", frontmatter.get("max_turns"))
-            max_turns = _parse_positive_int(max_turns_raw)
-            if max_turns_raw is not None and max_turns is None:
+            max_turns_raw = frontmatter.get("maxTurns", frontmatter.get("max_turns"))  # 尝试两个键名
+            max_turns = _parse_positive_int(max_turns_raw)  # 解析
+            if max_turns_raw is not None and max_turns is None:  # 有值但解析失败
                 logger.debug("Agent %s: invalid maxTurns %r", name, max_turns_raw)
 
             # --- skills ---
-            skills_raw = frontmatter.get("skills")
-            skills = _parse_str_list(skills_raw) or []
+            skills_raw = frontmatter.get("skills")  # 技能
+            skills = _parse_str_list(skills_raw) or []  # 解析
 
             # --- mcpServers ---
-            mcp_raw = frontmatter.get("mcpServers", frontmatter.get("mcp_servers"))
+            mcp_raw = frontmatter.get("mcpServers", frontmatter.get("mcp_servers"))  # MCP服务器
             mcp_servers: list[Any] | None = None
-            if isinstance(mcp_raw, list):
-                mcp_servers = mcp_raw if mcp_raw else None
+            if isinstance(mcp_raw, list):  # 列表
+                mcp_servers = mcp_raw if mcp_raw else None  # 空列表转None
 
             # --- hooks ---
-            hooks_raw = frontmatter.get("hooks")
+            hooks_raw = frontmatter.get("hooks")  # hooks
             hooks: dict[str, Any] | None = None
-            if isinstance(hooks_raw, dict):
+            if isinstance(hooks_raw, dict):  # 字典
                 hooks = hooks_raw
 
             # --- color ---
-            color_raw = frontmatter.get("color")
+            color_raw = frontmatter.get("color")  # 颜色
             color: str | None = None
-            if isinstance(color_raw, str) and color_raw in AGENT_COLORS:
+            if isinstance(color_raw, str) and color_raw in AGENT_COLORS:  # 有效值
                 color = color_raw
 
             # --- background ---
-            bg_raw = frontmatter.get("background")
-            background = bg_raw is True or bg_raw == "true"
+            bg_raw = frontmatter.get("background")  # 后台
+            background = bg_raw is True or bg_raw == "true"  # 布尔转换
 
             # --- initialPrompt ---
-            ip_raw = frontmatter.get("initialPrompt", frontmatter.get("initial_prompt"))
+            ip_raw = frontmatter.get("initialPrompt", frontmatter.get("initial_prompt"))  # 初始提示词
             initial_prompt: str | None = None
-            if isinstance(ip_raw, str) and ip_raw.strip():
+            if isinstance(ip_raw, str) and ip_raw.strip():  # 非空字符串
                 initial_prompt = ip_raw
 
             # --- memory ---
-            memory_raw = frontmatter.get("memory")
+            memory_raw = frontmatter.get("memory")  # 记忆
             memory: str | None = None
-            if isinstance(memory_raw, str) and memory_raw in MEMORY_SCOPES:
+            if isinstance(memory_raw, str) and memory_raw in MEMORY_SCOPES:  # 有效值
                 memory = memory_raw
-            elif memory_raw is not None:
+            elif memory_raw is not None:  # 有值但无效
                 logger.debug("Agent %s: invalid memory %r", name, memory_raw)
 
             # --- isolation ---
-            iso_raw = frontmatter.get("isolation")
+            iso_raw = frontmatter.get("isolation")  # 隔离
             isolation: str | None = None
-            if isinstance(iso_raw, str) and iso_raw in ISOLATION_MODES:
+            if isinstance(iso_raw, str) and iso_raw in ISOLATION_MODES:  # 有效值
                 isolation = iso_raw
-            elif iso_raw is not None:
+            elif iso_raw is not None:  # 有值但无效
                 logger.debug("Agent %s: invalid isolation %r", name, iso_raw)
 
             # --- omitClaudeMd ---
-            ocm_raw = frontmatter.get("omitClaudeMd", frontmatter.get("omit_claude_md"))
-            omit_claude_md = ocm_raw is True or ocm_raw == "true"
+            ocm_raw = frontmatter.get("omitClaudeMd", frontmatter.get("omit_claude_md"))  # 跳过CLAUDE.md
+            omit_claude_md = ocm_raw is True or ocm_raw == "true"  # 布尔转换
 
             # --- criticalSystemReminder ---
             csr_raw = frontmatter.get(
-                "criticalSystemReminder", frontmatter.get("critical_system_reminder")
+                "criticalSystemReminder", frontmatter.get("critical_system_reminder")  # 关键提醒
             )
             critical_system_reminder: str | None = None
-            if isinstance(csr_raw, str) and csr_raw.strip():
+            if isinstance(csr_raw, str) and csr_raw.strip():  # 非空字符串
                 critical_system_reminder = csr_raw
 
             # --- requiredMcpServers ---
             rms_raw = frontmatter.get(
-                "requiredMcpServers", frontmatter.get("required_mcp_servers")
+                "requiredMcpServers", frontmatter.get("required_mcp_servers")  # 必需MCP服务器
             )
-            required_mcp_servers = _parse_str_list(rms_raw)
+            required_mcp_servers = _parse_str_list(rms_raw)  # 解析
 
             # --- permissions (Python-specific) ---
-            permissions: list[str] = []
-            raw_perms = frontmatter.get("permissions", "")
-            if raw_perms:
-                permissions = [p.strip() for p in str(raw_perms).split(",") if p.strip()]
+            permissions: list[str] = []  # 权限
+            raw_perms = frontmatter.get("permissions", "")  # 权限规则
+            if raw_perms:  # 有值
+                permissions = [p.strip() for p in str(raw_perms).split(",") if p.strip()]  # 解析
 
             agents.append(
                 AgentDefinition(
-                    name=name,
-                    description=description,
-                    system_prompt=body or None,
-                    tools=tools,
-                    disallowed_tools=disallowed_tools,
-                    model=model,
-                    effort=effort,
-                    permission_mode=permission_mode,
-                    max_turns=max_turns,
-                    skills=skills,
-                    mcp_servers=mcp_servers,
-                    hooks=hooks,
-                    color=color,
-                    background=background,
-                    initial_prompt=initial_prompt,
-                    memory=memory,
-                    isolation=isolation,
-                    omit_claude_md=omit_claude_md,
-                    critical_system_reminder=critical_system_reminder,
-                    required_mcp_servers=required_mcp_servers,
-                    permissions=permissions,
-                    filename=path.stem,
-                    base_dir=str(directory),
-                    subagent_type=str(frontmatter.get("subagent_type", name)),
-                    source="user",
+                    name=name,  # 名称
+                    description=description,  # 描述
+                    system_prompt=body or None,  # 系统提示词
+                    tools=tools,  # 工具
+                    disallowed_tools=disallowed_tools,  # 禁止工具
+                    model=model,  # 模型
+                    effort=effort,  # effort
+                    permission_mode=permission_mode,  # 权限模式
+                    max_turns=max_turns,  # 最大回合
+                    skills=skills,  # 技能
+                    mcp_servers=mcp_servers,  # MCP服务器
+                    hooks=hooks,  # hooks
+                    color=color,  # 颜色
+                    background=background,  # 后台
+                    initial_prompt=initial_prompt,  # 初始提示词
+                    memory=memory,  # 记忆
+                    isolation=isolation,  # 隔离
+                    omit_claude_md=omit_claude_md,  # 跳过CLAUDE.md
+                    critical_system_reminder=critical_system_reminder,  # 关键提醒
+                    required_mcp_servers=required_mcp_servers,  # 必需MCP服务器
+                    permissions=permissions,  # 权限
+                    filename=path.stem,  # 文件名
+                    base_dir=str(directory),  # 基础目录
+                    subagent_type=str(frontmatter.get("subagent_type", name)),  # 代理类型
+                    source="user",  # 来源
                 )
             )
-        except Exception:
+        except Exception:  # 解析失败
             logger.debug("Failed to parse agent from %s", path, exc_info=True)
             continue
 
@@ -898,47 +968,53 @@ def load_agents_dir(directory: Path) -> list[AgentDefinition]:
 
 
 def _get_user_agents_dir() -> Path:
-    """Return the user agent definitions directory."""
+    """获取用户代理定义目录
+    
+    Returns:
+        Path: 用户代理目录路径 (~/.illusion/agents/)
+    """
     return get_config_dir() / "agents"
 
 
 def get_all_agent_definitions() -> list[AgentDefinition]:
-    """Return all agent definitions: built-in + user + plugin.
-
-    Merge order (last writer wins for same ``name``):
-    1. Built-in agents
-    2. User agents (~/.illusion/agents/)
-    3. Plugin agents (loaded from active plugins)
-
-    User definitions override built-ins with the same name; plugin definitions
-    override user definitions with the same name.
+    """获取所有代理定义: 内置 + 用户 + 插件
+    
+    合并顺序 (相同名称后写入者胜出):
+    1. 内置代理 (最低优先级)
+    2. 用户代理 (~/.illusion/agents/)
+    3. 插件代理 (从活动的插件加载)
+    
+    用户定义覆盖同名内置代理; 插件定义覆盖用户定义。
+    
+    Returns:
+        list[AgentDefinition]: 所有代理定义列表
     """
-    agent_map: dict[str, AgentDefinition] = {}
+    agent_map: dict[str, AgentDefinition] = {}  # 代理映射
 
-    # 1. Built-ins (lowest priority)
+    # 1. 内置代理 (最低优先级)
     for agent in get_builtin_agent_definitions():
         agent_map[agent.name] = agent
 
-    # 2. User-defined agents
+    # 2. 用户自定义代理
     user_agents = load_agents_dir(_get_user_agents_dir())
     for agent in user_agents:
         agent_map[agent.name] = agent
 
-    # 3. Plugin agents — loaded lazily to avoid import cycles
+    # 3. 插件代理 — 延迟加载以避免导入循环
     try:
         from illusion.plugins.loader import load_plugins  # noqa: PLC0415
         from illusion.config.settings import load_settings  # noqa: PLC0415
 
-        settings = load_settings()
+        settings = load_settings()  # 加载设置
         import os  # noqa: PLC0415
 
-        cwd = os.getcwd()
-        for plugin in load_plugins(settings, cwd):
-            if not plugin.enabled:
+        cwd = os.getcwd()  # 当前目录
+        for plugin in load_plugins(settings, cwd):  # 加载插件
+            if not plugin.enabled:  # 未启用
                 continue
-            for agent_def in getattr(plugin, "agents", []):
-                if isinstance(agent_def, AgentDefinition):
-                    agent_map[agent_def.name] = agent_def
+            for agent_def in getattr(plugin, "agents", []):  # 遍历代理定义
+                if isinstance(agent_def, AgentDefinition):  # 是代理定义
+                    agent_map[agent_def.name] = agent_def  # 添加
     except Exception:
         pass
 
@@ -946,23 +1022,37 @@ def get_all_agent_definitions() -> list[AgentDefinition]:
 
 
 def get_agent_definition(name: str) -> AgentDefinition | None:
-    """Return the agent definition for *name*, or ``None`` if not found."""
-    for agent in get_all_agent_definitions():
-        if agent.name == name:
+    """获取指定名称的代理定义
+    
+    Args:
+        name: 代理名称
+    
+    Returns:
+        AgentDefinition | None: 代理定义，若不存在返回None
+    """
+    for agent in get_all_agent_definitions():  # 遍历所有代理
+        if agent.name == name:  # 匹配
             return agent
     return None
 
 
 def has_required_mcp_servers(agent: AgentDefinition, available_servers: list[str]) -> bool:
-    """Return True if the agent's required MCP servers are all available.
-
-    Each pattern in ``required_mcp_servers`` must match (case-insensitive
-    substring) at least one server in ``available_servers``.
+    """检查代理的必需MCP服务器是否全部可用
+    
+    ``required_mcp_servers`` 中的每个模式必须匹配 (不区分大小写)
+    ``available_servers`` 中至少一个服务器的子字符串。
+    
+    Args:
+        agent: 代理定义
+        available_servers: 可用的MCP服务器列表
+    
+    Returns:
+        bool: 所有必需MCP服务器是否可用
     """
-    if not agent.required_mcp_servers:
+    if not agent.required_mcp_servers:  # 无必需服务器
         return True
     return all(
-        any(pattern.lower() in server.lower() for server in available_servers)
+        any(pattern.lower() in server.lower() for server in available_servers)  # 模式匹配
         for pattern in agent.required_mcp_servers
     )
 
@@ -971,5 +1061,13 @@ def filter_agents_by_mcp_requirements(
     agents: list[AgentDefinition],
     available_servers: list[str],
 ) -> list[AgentDefinition]:
-    """Return only agents whose required MCP servers are available."""
+    """只返回必需MCP服务器可用的代理
+    
+    Args:
+        agents: 代理定义列表
+        available_servers: 可用的MCP服务器列表
+    
+    Returns:
+        list[AgentDefinition]: 过滤后的代理列表
+    """
     return [a for a in agents if has_required_mcp_servers(a, available_servers)]

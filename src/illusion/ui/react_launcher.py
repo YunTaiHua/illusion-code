@@ -1,4 +1,28 @@
-"""Launch the default React terminal frontend."""
+"""
+React Launcher React 启动器模块
+=========================
+
+本模块实现默认的 React 终端前端启动器。
+
+主要功能：
+    - 解析前端目录路径
+    - 构建后端启动命令
+    - 启动 React 终端 UI
+
+函数说明：
+    - get_frontend_dir: 获取前端目录路径
+    - build_backend_command: 构建后端启动命令
+    - launch_react_tui: 启动 React 终端 UI
+
+使用示例：
+    >>> from illusion.ui.react_launcher import launch_react_tui, get_frontend_dir
+    >>> 
+    >>> # 启动 React TUI
+    >>> exit_code = await launch_react_tui(prompt="帮我写一个程序")
+    >>> 
+    >>> # 获取前端目录
+    >>> frontend_dir = get_frontend_dir()
+"""
 
 from __future__ import annotations
 
@@ -11,7 +35,11 @@ from pathlib import Path
 
 
 def _resolve_theme() -> str:
-    """Read the theme name from settings, defaulting to 'default'."""
+    """从设置中读取主题名称，默认为 'default'。
+
+    Returns:
+        str: 主题名称
+    """
     try:
         from illusion.config.settings import load_settings
         return load_settings().theme or "default"
@@ -20,29 +48,36 @@ def _resolve_theme() -> str:
 
 
 def _resolve_npm() -> str:
-    """Resolve the npm executable (npm.cmd on Windows)."""
+    """解析 npm 可执行文件路径（在 Windows 上为 npm.cmd）。
+
+    Returns:
+        str: npm 可执行文件路径
+    """
     return shutil.which("npm") or "npm"
 
 
 def get_frontend_dir() -> Path:
-    """Return the React terminal frontend directory.
+    """返回 React 终端前端目录。
 
-    Checks in order:
-    1. Bundled inside the installed package (pip install)
-    2. Development repo layout (source checkout)
+    按以下顺序检查：
+    1. 已安装包内的打包文件（pip install）
+    2. 开发仓库布局（source checkout）
+
+    Returns:
+        Path: 前端目录路径
     """
-    # 1. Bundled inside package: illusion/_frontend/
+    # 1. 已安装包内的打包文件：illusion/_frontend/
     pkg_frontend = Path(__file__).resolve().parent.parent / "_frontend"
     if (pkg_frontend / "package.json").exists():
         return pkg_frontend
 
-    # 2. Development repo: <repo>/frontend/terminal/
+    # 2. 开发仓库：<repo>/frontend/terminal/
     repo_root = Path(__file__).resolve().parents[3]
     dev_frontend = repo_root / "frontend" / "terminal"
     if (dev_frontend / "package.json").exists():
         return dev_frontend
 
-    # Fallback to package path (will error with clear message)
+    # 回退到包路径（将显示清晰的错误消息）
     return pkg_frontend
 
 
@@ -56,12 +91,25 @@ def build_backend_command(
     api_key: str | None = None,
     api_format: str | None = None,
 ) -> list[str]:
-    """Return the command used by the React frontend to spawn the backend host."""
+    """返回 React 前端用于生成后端主机的命令。
+
+    Args:
+        cwd: 工作目录
+        model: 模型名称
+        max_turns: 最大对话轮次
+        base_url: API 基础 URL
+        system_prompt: 系统提示词
+        api_key: API 密钥
+        api_format: API 格式
+
+    Returns:
+        list[str]: 后端启动命令列表
+    """
     command = [sys.executable, "-m", "illusion", "--backend-only"]
     if cwd:
         command.extend(["--cwd", cwd])
     if model:
-        command.extend(["--model", model])
+        command.extend(["--mode", model])
     if max_turns is not None:
         command.extend(["--max-turns", str(max_turns)])
     if base_url:
@@ -86,14 +134,30 @@ async def launch_react_tui(
     api_key: str | None = None,
     api_format: str | None = None,
 ) -> int:
-    """Launch the React terminal frontend as the default UI."""
+    """启动 React 终端前端作为默认 UI。
+
+    Args:
+        prompt: 初始提示词
+        cwd: 工作目录
+        model: 模型名称
+        max_turns: 最大对话轮次
+        base_url: API 基础 URL
+        system_prompt: 系统提示词
+        api_key: API 密钥
+        api_format: API 格式
+
+    Returns:
+        int: 退出代码
+    """
     frontend_dir = get_frontend_dir()
     package_json = frontend_dir / "package.json"
     if not package_json.exists():
         raise RuntimeError(f"React terminal frontend is missing: {package_json}")
 
+    # 解析 npm 路径
     npm = _resolve_npm()
 
+    # 检查并安装依赖
     if not (frontend_dir / "node_modules").exists():
         install = await asyncio.create_subprocess_exec(
             npm,
@@ -105,6 +169,7 @@ async def launch_react_tui(
         if await install.wait() != 0:
             raise RuntimeError("Failed to install React terminal frontend dependencies")
 
+    # 设置环境变量
     env = os.environ.copy()
     env["ILLUSION_FRONTEND_CONFIG"] = json.dumps(
         {
@@ -121,6 +186,7 @@ async def launch_react_tui(
             "theme": _resolve_theme(),
         }
     )
+    # 启动前端进程
     process = await asyncio.create_subprocess_exec(
         npm,
         "exec",

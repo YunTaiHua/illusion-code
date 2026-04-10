@@ -1,4 +1,20 @@
-"""Tool for entering plan permission mode."""
+"""
+进入计划模式工具模块
+====================
+
+本模块提供进入计划权限模式的工具。
+
+主要功能：
+    - 切换设置权限模式为计划模式
+    - 允许在编写代码前探索代码库并设计实现方案
+
+类说明：
+    - EnterPlanModeToolInput: 工具输入模型（无操作）
+    - EnterPlanModeTool: 进入计划模式工具
+
+使用示例：
+    >>> # 工具自动由系统调用，用户批准后进入计划模式
+"""
 
 from __future__ import annotations
 
@@ -10,11 +26,28 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class EnterPlanModeToolInput(BaseModel):
-    """No-op input model."""
+    """无操作输入模型
+    
+    此工具不需要任何输入参数。
+    """
 
 
 class EnterPlanModeTool(BaseTool):
-    """Switch settings permission mode to plan."""
+    """切换设置权限模式为计划模式
+    
+    此工具用于在开始非平凡的实现任务之前主动使用。
+    获得用户对方法的批准可以防止浪费精力并确保一致性。
+    此工具将您转换到计划模式，在那里您可以探索代码库并设计实现方案以供用户批准。
+
+    何时使用此工具：
+    - 新功能实现时
+    - 有多种有效方法时
+    - 需要修改代码时
+    - 需要架构决策时
+    - 可能涉及多个文件时
+    - 需求不清晰时
+    - 用户偏好很重要时
+    """
 
     name = "enter_plan_mode"
     description = """Use this tool proactively when you're about to start a non-trivial implementation task. Getting user sign-off on your approach before writing code prevents wasted effort and ensures alignment. This tool transitions you into plan mode where you can explore the codebase and design an implementation approach for user approval.
@@ -105,7 +138,9 @@ User: "What files handle routing?"
     input_model = EnterPlanModeToolInput
 
     async def execute(self, arguments: EnterPlanModeToolInput, context: ToolExecutionContext) -> ToolResult:
+        # 删除未使用的参数
         del arguments, context
+        # 加载设置并将权限模式切换为计划模式
         settings = load_settings()
         settings.permission.mode = PermissionMode.PLAN
         save_settings(settings)

@@ -1,4 +1,27 @@
-"""Skill loading from bundled and user directories."""
+"""
+Skill 加载模块 — 从内置和用户目录加载 Skills
+=========================================
+
+本模块提供从内置目录和用户配置目录加载 Skills 的功能。
+
+主要功能：
+    - 获取用户 skills 目录
+    - 加载 skill 注册表
+    - 加载用户 skills
+    - 解析 skill markdown 文件
+
+类说明：
+    - get_user_skills_dir: 获取用户 skills 目录
+    - load_skill_registry: 加载内置和用户定义的 skills
+    - load_user_skills: 从用户配置目录加载 markdown skills
+
+使用示例：
+    >>> from illusion.skills.loader import get_user_skills_dir, load_skill_registry
+    >>> # 获取用户 skills 目录
+    >>> skills_dir = get_user_skills_dir()
+    >>> # 加载 skill 注册表
+    >>> registry = load_skill_registry(cwd="/path/to/project")
+"""
 
 from __future__ import annotations
 
@@ -12,19 +35,22 @@ from illusion.skills.types import SkillDefinition
 
 
 def get_user_skills_dir() -> Path:
-    """Return the user skills directory."""
+    """返回用户 skills 目录。"""
     path = get_config_dir() / "skills"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def load_skill_registry(cwd: str | Path | None = None) -> SkillRegistry:
-    """Load bundled and user-defined skills."""
+    """加载内置和用户定义的 skills。"""
     registry = SkillRegistry()
+    # 注册内置 skills
     for skill in get_bundled_skills():
         registry.register(skill)
+    # 注册用户 skills
     for skill in load_user_skills():
         registry.register(skill)
+    # 如果提供了工作目录，加载插件 skills
     if cwd is not None:
         from illusion.plugins.loader import load_plugins
 
@@ -38,7 +64,7 @@ def load_skill_registry(cwd: str | Path | None = None) -> SkillRegistry:
 
 
 def load_user_skills() -> list[SkillDefinition]:
-    """Load markdown skills from the user config directory."""
+    """从用户配置目录加载 markdown skills。"""
     skills: list[SkillDefinition] = []
     for path in sorted(get_user_skills_dir().glob("*.md")):
         content = path.read_text(encoding="utf-8")
@@ -56,17 +82,17 @@ def load_user_skills() -> list[SkillDefinition]:
 
 
 def _parse_skill_markdown(default_name: str, content: str) -> tuple[str, str]:
-    """Parse name and description from a skill markdown file with YAML frontmatter support."""
+    """解析 skill markdown 文件的名称和描述，支持 YAML frontmatter。"""
     name = default_name
     description = ""
 
     lines = content.splitlines()
 
-    # Try YAML frontmatter first (--- ... ---)
+    # 先尝试 YAML frontmatter（--- ... ---）
     if lines and lines[0].strip() == "---":
         for i, line in enumerate(lines[1:], 1):
             if line.strip() == "---":
-                # Parse frontmatter fields
+                # 解析 frontmatter 字段
                 for fm_line in lines[1:i]:
                     fm_stripped = fm_line.strip()
                     if fm_stripped.startswith("name:"):
@@ -79,7 +105,7 @@ def _parse_skill_markdown(default_name: str, content: str) -> tuple[str, str]:
                             description = val
                 break
 
-    # Fallback: extract from headings and first paragraph
+    # 回退：从标题和第一段提取
     if not description:
         for line in lines:
             stripped = line.strip()

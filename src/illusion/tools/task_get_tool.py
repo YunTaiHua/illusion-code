@@ -1,4 +1,16 @@
-"""Tool for retrieving task details."""
+"""
+任务详情获取工具
+================
+
+本模块提供获取任务详细信息的功能，用于查看任务状态和依赖关系。
+
+主要组件：
+    - TaskGetTool: 获取任务详情的工具
+
+使用示例：
+    >>> from illusion.tools import TaskGetTool
+    >>> tool = TaskGetTool()
+"""
 
 from __future__ import annotations
 
@@ -9,13 +21,20 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class TaskGetToolInput(BaseModel):
-    """Arguments for task lookup."""
+    """任务查找参数。
+
+    属性：
+        task_id: 任务标识符
+    """
 
     task_id: str = Field(description="Task identifier")
 
 
 class TaskGetTool(BaseTool):
-    """Return detailed task state."""
+    """返回详细的任务状态。
+
+    用于获取任务的完整描述和上下文。
+    """
 
     name = "task_get"
     description = """Use this tool to retrieve a task by its ID from the task list.
@@ -47,11 +66,12 @@ Returns full task details:
 
     async def execute(self, arguments: TaskGetToolInput, context: ToolExecutionContext) -> ToolResult:
         del context
+        # 获取任务
         task = get_task_manager().get_task(arguments.task_id)
         if task is None:
             return ToolResult(output=f"No task found with ID: {arguments.task_id}", is_error=True)
 
-        # Build structured output matching reference format
+        # 构建与参考格式匹配的结构化输出
         parts = [
             f"id: {task.id}",
             f"subject: {task.subject or task.description}",

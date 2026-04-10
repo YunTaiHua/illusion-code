@@ -1,4 +1,32 @@
-"""Background task manager."""
+"""
+后台任务管理器模块
+=================
+
+本模块管理后台 shell 和 agent 子进程任务。
+
+主要功能：
+    - 创建待处理任务
+    - 创建 Shell 任务
+    - 创建 Agent 任务
+    - 更新任务
+    - 停止任务
+    - 读写任务输出
+
+类说明：
+    - BackgroundTaskManager: 后台任务管理器类
+    - create_pending_task: 创建待处理任务
+    - create_shell_task: 创建 Shell 任务
+    - create_agent_task: 创建 Agent 任务
+    - update_task: 更新任务
+    - stop_task: 停止任务
+
+使用示例：
+    >>> from illusion.tasks.manager import BackgroundTaskManager, get_task_manager
+    >>> # 获取任务管理器
+    >>> manager = get_task_manager()
+    >>> # 创建 Shell 任务
+    >>> record = await manager.create_shell_task(command="ls -la", description="列出文件", cwd=".")
+"""
 
 from __future__ import annotations
 
@@ -16,7 +44,7 @@ from illusion.utils.shell import create_shell_subprocess
 
 
 class BackgroundTaskManager:
-    """Manage shell and agent subprocess tasks."""
+    """管理 shell 和 agent 子进程任务。"""
 
     def __init__(self) -> None:
         self._tasks: dict[str, TaskRecord] = {}
@@ -33,7 +61,7 @@ class BackgroundTaskManager:
         description: str,
         active_form: str | None = None,
     ) -> TaskRecord:
-        """Create a pending task for tracking (not a background process)."""
+        """创建用于跟踪的待处理任务（非后台进程）。"""
         task_id = _task_id("in_process_teammate")
         output_path = get_tasks_dir() / f"{task_id}.log"
         record = TaskRecord(
@@ -60,7 +88,7 @@ class BackgroundTaskManager:
         cwd: str | Path,
         task_type: TaskType = "local_bash",
     ) -> TaskRecord:
-        """Start a background shell command."""
+        """启动后台 shell 命令。"""
         task_id = _task_id(task_type)
         output_path = get_tasks_dir() / f"{task_id}.log"
         record = TaskRecord(
@@ -92,7 +120,7 @@ class BackgroundTaskManager:
         api_key: str | None = None,
         command: str | None = None,
     ) -> TaskRecord:
-        """Start a local agent task as a subprocess."""
+        """作为子进程启动本地 agent 任务。"""
         if command is None:
             effective_api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
             if not effective_api_key:
@@ -118,11 +146,11 @@ class BackgroundTaskManager:
         return updated
 
     def get_task(self, task_id: str) -> TaskRecord | None:
-        """Return one task record."""
+        """返回一个任务记录。"""
         return self._tasks.get(task_id)
 
     def list_tasks(self, *, status: TaskStatus | None = None) -> list[TaskRecord]:
-        """Return all tasks, optionally filtered by status."""
+        """返回所有任务，可选按状态过滤。"""
         tasks = list(self._tasks.values())
         if status is not None:
             tasks = [task for task in tasks if task.status == status]
@@ -143,10 +171,10 @@ class BackgroundTaskManager:
         add_blocks: list[str] | None = None,
         add_blocked_by: list[str] | None = None,
     ) -> TaskRecord:
-        """Update mutable task metadata used for coordination and UI display."""
+        """更新用于协调和 UI 显示的可变任务元数据。"""
         task = self._require_task(task_id)
 
-        # Handle deletion
+        # 处理删除
         if status == "deleted":
             self._tasks.pop(task_id, None)
             return task
@@ -158,7 +186,7 @@ class BackgroundTaskManager:
         if active_form is not None:
             task.active_form = active_form
         if status is not None:
-            # Map task-list statuses to task-manager statuses
+            # 映射任务列表状态到任务管理器状态
             status_map = {
                 "pending": "pending",
                 "in_progress": "running",
@@ -192,7 +220,7 @@ class BackgroundTaskManager:
         return task
 
     async def stop_task(self, task_id: str) -> TaskRecord:
-        """Terminate a running task."""
+        """终止运行中的任务。"""
         task = self._require_task(task_id)
         process = self._processes.get(task_id)
         if process is None:
@@ -212,7 +240,7 @@ class BackgroundTaskManager:
         return task
 
     async def write_to_task(self, task_id: str, data: str) -> None:
-        """Write one line to task stdin, auto-resuming local agents when needed."""
+        """向任务 stdin 写入一行，需要时自动恢复本地 agent。"""
         task = self._require_task(task_id)
         async with self._input_locks[task_id]:
             process = await self._ensure_writable_process(task)
@@ -227,7 +255,7 @@ class BackgroundTaskManager:
                 await process.stdin.drain()
 
     def read_task_output(self, task_id: str, *, max_bytes: int = 12000) -> str:
-        """Return the tail of a task's output file."""
+        """返回任务输出文件的尾部。"""
         task = self._require_task(task_id)
         content = task.output_file.read_text(encoding="utf-8", errors="replace")
         if len(content) > max_bytes:
@@ -240,6 +268,7 @@ class BackgroundTaskManager:
         process: asyncio.subprocess.Process,
         generation: int,
     ) -> None:
+        """监视子进程直到完成。"""
         reader = asyncio.create_task(self._copy_output(task_id, process))
         return_code = await process.wait()
         await reader
@@ -257,6 +286,7 @@ class BackgroundTaskManager:
         self._waiters.pop(task_id, None)
 
     async def _copy_output(self, task_id: str, process: asyncio.subprocess.Process) -> None:
+        """将进程输出复制到任务输出文件。"""
         if process.stdout is None:
             return
         while True:
@@ -268,12 +298,14 @@ class BackgroundTaskManager:
                     handle.write(chunk)
 
     def _require_task(self, task_id: str) -> TaskRecord:
+        """返回任务记录，不存在则抛出异常。"""
         task = self._tasks.get(task_id)
         if task is None:
             raise ValueError(f"No task found with ID: {task_id}")
         return task
 
     async def _start_process(self, task_id: str) -> asyncio.subprocess.Process:
+        """启动任务进程。"""
         task = self._require_task(task_id)
         if task.command is None:
             raise ValueError(f"Task {task_id} does not have a command to run")
@@ -297,6 +329,7 @@ class BackgroundTaskManager:
         self,
         task: TaskRecord,
     ) -> asyncio.subprocess.Process:
+        """确保任务可写入，必要时重启。"""
         process = self._processes.get(task.id)
         if process is not None and process.stdin is not None and process.returncode is None:
             return process
@@ -305,6 +338,7 @@ class BackgroundTaskManager:
         return await self._restart_agent_task(task)
 
     async def _restart_agent_task(self, task: TaskRecord) -> asyncio.subprocess.Process:
+        """重启 agent 任务。"""
         if task.command is None:
             raise ValueError(f"Task {task.id} does not have a restart command")
 
@@ -321,12 +355,13 @@ class BackgroundTaskManager:
         return await self._start_process(task.id)
 
 
+# 默认任务管理器单例
 _DEFAULT_MANAGER: BackgroundTaskManager | None = None
 _DEFAULT_MANAGER_KEY: str | None = None
 
 
 def get_task_manager() -> BackgroundTaskManager:
-    """Return the singleton task manager."""
+    """返回单例任务管理器。"""
     global _DEFAULT_MANAGER, _DEFAULT_MANAGER_KEY
     current_key = str(get_tasks_dir().resolve())
     if _DEFAULT_MANAGER is None or _DEFAULT_MANAGER_KEY != current_key:
@@ -336,6 +371,7 @@ def get_task_manager() -> BackgroundTaskManager:
 
 
 def _task_id(task_type: TaskType) -> str:
+    """生成任务 ID 前缀。"""
     prefixes = {
         "local_bash": "b",
         "local_agent": "a",

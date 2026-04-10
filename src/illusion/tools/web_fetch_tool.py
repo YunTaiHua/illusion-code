@@ -1,4 +1,16 @@
-"""Fetch and summarize remote web pages."""
+"""
+网页抓取和摘要工具
+==================
+
+本模块提供获取和摘要远程网页内容的功能。
+
+主要组件：
+    - WebFetchTool: 抓取并摘要网页的工具
+
+使用示例：
+    >>> from illusion.tools import WebFetchTool
+    >>> tool = WebFetchTool()
+"""
 
 from __future__ import annotations
 
@@ -11,14 +23,22 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class WebFetchToolInput(BaseModel):
-    """Arguments for fetching one web page."""
+    """网页抓取参数。
+
+    属性：
+        url: 要抓取的 HTTP 或 HTTPS URL
+        max_chars: 最大返回字符数（500-50000）
+    """
 
     url: str = Field(description="HTTP or HTTPS URL to fetch")
     max_chars: int = Field(default=12000, ge=500, le=50000)
 
 
 class WebFetchTool(BaseTool):
-    """Fetch one web page and return a compact text summary."""
+    """抓取一个网页并返回紧凑的文本摘要。
+
+    用于获取和分析网络内容。
+    """
 
     name = "web_fetch"
     description = """- Fetches content from a specified URL and processes it using an AI model
@@ -43,17 +63,21 @@ Usage notes:
     async def execute(self, arguments: WebFetchToolInput, context: ToolExecutionContext) -> ToolResult:
         del context
         try:
+            # 发起 HTTP 请求
             async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as client:
                 response = await client.get(arguments.url, headers={"User-Agent": "IllusionCode/0.1"})
                 response.raise_for_status()
         except httpx.HTTPError as exc:
             return ToolResult(output=f"web_fetch failed: {exc}", is_error=True)
 
+        # 处理响应内容
         content_type = response.headers.get("content-type", "")
         body = response.text
+        # 如果是 HTML，转换为纯文本
         if "html" in content_type:
             body = _html_to_text(body)
         body = body.strip()
+        # 截断过长的内容
         if len(body) > arguments.max_chars:
             body = body[: arguments.max_chars].rstrip() + "\n...[truncated]"
         return ToolResult(
@@ -71,7 +95,12 @@ Usage notes:
 
 
 def _html_to_text(html: str) -> str:
+    """将 HTML 转换为纯文本。"""
+    # 移除 script 和 style 标签
     text = re.sub(r"(?is)<(script|style).*?>.*?</\\1>", " ", html)
+    # 移除所有 HTML 标签
     text = re.sub(r"(?s)<[^>]+>", " ", text)
+    # 替换 HTML 实体
     text = text.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    # 规范化空白
     return re.sub(r"[ \t\r\f\v]+", " ", text).replace(" \n", "\n").strip()

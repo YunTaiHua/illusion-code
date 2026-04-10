@@ -1,12 +1,27 @@
 """
-LLM Provider Registry — single source of truth for provider metadata.
+LLM 提供商注册表模块
+===================
 
-Adding a new provider:
-  1. Add a ProviderSpec to PROVIDERS below.
-  Done. Detection, display, and config all derive from here.
+本模块作为 LLM 提供商元数据的单一事实来源。
 
-Order matters — it controls match priority. Gateways and cloud providers first,
-standard providers by keyword, local/special providers last.
+添加新提供商：
+    1. 在下面的 PROVIDERS 中添加 ProviderSpec。
+    完成。检测、显示和配置都由此派生。
+
+顺序很重要 - 它控制匹配优先级。网关和云提供商优先，
+标准提供商按关键字，本地/特殊提供商最后。
+
+类型说明：
+    - ProviderSpec: 提供商元数据数据类
+
+函数说明：
+    - find_by_name: 按名称查找提供商
+    - detect_provider_from_registry: 检测最佳匹配的 ProviderSpec
+
+使用示例：
+    >>> from illusion.api.registry import PROVIDERS, detect_provider_from_registry
+    >>> spec = detect_provider_from_registry("claude-3-sonnet", None, None)
+    >>> print(f"检测到的提供商: {spec.name}")
 """
 
 from __future__ import annotations
@@ -16,44 +31,45 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ProviderSpec:
-    """One LLM provider's metadata.
-
-    backend_type:
-      "anthropic"    — Anthropic SDK (default for claude-* models)
-      "openai_compat" — OpenAI-compatible REST API
-      "copilot"      — GitHub Copilot OAuth flow
+    """LLM 提供商元数据
+    
+    Attributes:
+        name: 规范名称，如 "dashscope"
+        keywords: 模型名称关键字元组，用于检测（小写）
+        env_key: 主要 API 密钥环境变量
+        display_name: 状态/诊断中显示的名称
+        backend_type: 后端类型（"anthropic"、"openai_compat"、"copilot"）
+        default_base_url: 该提供商的备用基础 URL
+        detect_by_key_prefix: 匹配 api_key 前缀，如 "sk-or-"
+        detect_by_base_keyword: 匹配 base_url 中的子字符串
+        is_gateway: 是否为网关（OpenRouter、AiHubMix 等）
+        is_local: 是否为本地部署（vLLM、Ollama）
+        is_oauth: 是否使用 OAuth 而非 API 密钥
     """
-
-    # Identity
-    name: str  # canonical name, e.g. "dashscope"
-    keywords: tuple[str, ...]  # model-name substrings for detection (lowercase)
-    env_key: str  # primary API key environment variable
-    display_name: str = ""  # shown in status / diagnostics
-
-    # Routing
-    backend_type: str = "openai_compat"  # "anthropic" | "openai_compat" | "copilot"
-    default_base_url: str = ""  # fallback base URL for this provider
-
-    # Auto-detection signals
-    detect_by_key_prefix: str = ""  # match api_key prefix, e.g. "sk-or-"
-    detect_by_base_keyword: str = ""  # match substring in base_url
-
-    # Classification flags
-    is_gateway: bool = False  # routes any model (OpenRouter, AiHubMix, …)
-    is_local: bool = False  # local deployment (vLLM, Ollama)
-    is_oauth: bool = False  # uses OAuth instead of API key
+    name: str
+    keywords: tuple[str, ...]
+    env_key: str
+    display_name: str
+    backend_type: str
+    default_base_url: str
+    detect_by_key_prefix: str
+    detect_by_base_keyword: str
+    is_gateway: bool
+    is_local: bool
+    is_oauth: bool
 
     @property
     def label(self) -> str:
+        """返回显示标签"""
         return self.display_name or self.name.title()
 
 
 # ---------------------------------------------------------------------------
-# PROVIDERS registry — order = detection priority.
+# PROVIDERS 注册表 — 顺序 = 检测优先级。
 # ---------------------------------------------------------------------------
 
 PROVIDERS: tuple[ProviderSpec, ...] = (
-    # === GitHub Copilot (OAuth, detected by api_format="copilot") ============
+    # === GitHub Copilot (OAuth，通过 api_format="copilot" 检测) ============
     ProviderSpec(
         name="github_copilot",
         keywords=("copilot",),
@@ -67,8 +83,8 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=True,
     ),
-    # === Gateways (detected by api_key prefix / base_url keyword) ============
-    # OpenRouter: global gateway, keys start with "sk-or-"
+    # === 网关（通过 api_key 前缀 / base_url 关键字检测） ============
+    # OpenRouter：全局网关，密钥以 "sk-or-" 开头
     ProviderSpec(
         name="openrouter",
         keywords=("openrouter",),
@@ -82,7 +98,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # AiHubMix: OpenAI-compatible gateway
+    # AiHubMix：OpenAI 兼容网关
     ProviderSpec(
         name="aihubmix",
         keywords=("aihubmix",),
@@ -96,7 +112,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # SiliconFlow (硅基流动): OpenAI-compatible gateway
+    # SiliconFlow（硅基流动）：OpenAI 兼容网关
     ProviderSpec(
         name="siliconflow",
         keywords=("siliconflow",),
@@ -110,7 +126,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # VolcEngine (火山引擎 / Ark): OpenAI-compatible gateway
+    # VolcEngine（火山引擎 / Ark）：OpenAI 兼容网关
     ProviderSpec(
         name="volcengine",
         keywords=("volcengine", "volces", "ark"),
@@ -124,8 +140,8 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # === Standard cloud providers (matched by model-name keyword) ============
-    # Anthropic: native SDK for claude-* models
+    # === 标准云提供商（按模型名称关键字匹配） ============
+    # Anthropic：claude-* 模型的原生 SDK
     ProviderSpec(
         name="anthropic",
         keywords=("anthropic", "claude"),
@@ -139,7 +155,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # OpenAI: gpt-* models
+    # OpenAI：gpt-* 模型
     ProviderSpec(
         name="openai",
         keywords=("openai", "gpt", "o1", "o3", "o4"),
@@ -181,7 +197,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # DashScope (Qwen / 阿里云)
+    # DashScope（Qwen / 阿里云）
     ProviderSpec(
         name="dashscope",
         keywords=("qwen", "dashscope"),
@@ -265,7 +281,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # StepFun (阶跃星辰)
+    # StepFun（阶跃星辰）
     ProviderSpec(
         name="stepfun",
         keywords=("step-", "stepfun"),
@@ -293,7 +309,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # === Cloud platform providers (detected by base_url) ====================
+    # === 云平台提供商（通过 base_url 检测） ====================
     # AWS Bedrock
     ProviderSpec(
         name="bedrock",
@@ -322,7 +338,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=False,
         is_oauth=False,
     ),
-    # === Local deployments (matched by keyword or base_url) =================
+    # === 本地部署（按关键字或 base_url 匹配） =================
     # Ollama
     ProviderSpec(
         name="ollama",
@@ -337,7 +353,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_local=True,
         is_oauth=False,
     ),
-    # vLLM / any OpenAI-compatible local server
+    # vLLM / 任意 OpenAI 兼容本地服务器
     ProviderSpec(
         name="vllm",
         keywords=("vllm",),
@@ -355,12 +371,19 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
 
 
 # ---------------------------------------------------------------------------
-# Lookup helpers
+# 查找辅助函数
 # ---------------------------------------------------------------------------
 
 
 def find_by_name(name: str) -> ProviderSpec | None:
-    """Find a provider spec by canonical name, e.g. "dashscope"."""
+    """按规范名称查找提供商规格，如 "dashscope"。
+    
+    Args:
+        name: 提供商名称
+    
+    Returns:
+        ProviderSpec | None: 提供商规格，如果未找到则返回 None
+    """
     for spec in PROVIDERS:
         if spec.name == name:
             return spec
@@ -368,20 +391,28 @@ def find_by_name(name: str) -> ProviderSpec | None:
 
 
 def _match_by_model(model: str) -> ProviderSpec | None:
-    """Match a standard/gateway provider by model-name keyword (case-insensitive)."""
+    """按模型名称关键字匹配标准/网关提供商（不区分大小写）。
+    
+    Args:
+        model: 模型名称
+    
+    Returns:
+        ProviderSpec | None: 提供商规格，如果未找到则返回 None
+    """
     model_lower = model.lower()
     model_normalized = model_lower.replace("-", "_")
     model_prefix = model_lower.split("/", 1)[0] if "/" in model_lower else ""
     normalized_prefix = model_prefix.replace("-", "_")
 
+    # 过滤非本地非 OAuth 的规格
     std_specs = [s for s in PROVIDERS if not s.is_local and not s.is_oauth]
 
-    # Prefer an explicit provider-prefix match (e.g. "deepseek/..." → deepseek spec)
+    # 优先显式提供商前缀匹配（如 "deepseek/..." → deepseek 规格）
     for spec in std_specs:
         if model_prefix and normalized_prefix == spec.name:
             return spec
 
-    # Fall back to keyword scan
+    # 回退到关键字扫描
     for spec in std_specs:
         if any(
             kw in model_lower or kw.replace("-", "_") in model_normalized
@@ -396,27 +427,35 @@ def detect_provider_from_registry(
     api_key: str | None = None,
     base_url: str | None = None,
 ) -> ProviderSpec | None:
-    """Detect the best-matching ProviderSpec for the given inputs.
-
-    Detection priority:
-      1. api_key prefix  (e.g. "sk-or-" → OpenRouter)
-      2. base_url keyword (e.g. "aihubmix" in URL → AiHubMix)
-      3. model name keyword (e.g. "qwen" → DashScope)
+    """检测给定输入的最佳匹配 ProviderSpec。
+    
+    检测优先级：
+        1. api_key 前缀（如 "sk-or-" → OpenRouter）
+        2. base_url 关键字（如 URL 中的 "aihubmix" → AiHubMix）
+        3. 模型名称关键字（如 "qwen" → DashScope）
+    
+    Args:
+        model: 模型名称
+        api_key: API 密钥（可选）
+        base_url: 基础 URL（可选）
+    
+    Returns:
+        ProviderSpec | None: 最佳匹配的提供商规格
     """
-    # 1. api_key prefix
+    # 1. api_key 前缀
     if api_key:
         for spec in PROVIDERS:
             if spec.detect_by_key_prefix and api_key.startswith(spec.detect_by_key_prefix):
                 return spec
 
-    # 2. base_url keyword
+    # 2. base_url 关键字
     if base_url:
         base_lower = base_url.lower()
         for spec in PROVIDERS:
             if spec.detect_by_base_keyword and spec.detect_by_base_keyword in base_lower:
                 return spec
 
-    # 3. model keyword
+    # 3. 模型关键字
     if model:
         return _match_by_model(model)
 

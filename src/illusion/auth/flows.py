@@ -1,7 +1,22 @@
-"""Authentication flows for various provider types.
+"""
+认证流程模块
+============
 
-Each flow is a self-contained class with a single ``run()`` method that
-performs the interactive authentication and returns the obtained credential.
+本模块提供各种提供商类型的认证流程。
+
+每个流程都是一个自包含的类，具有单一的 run() 方法，
+执行交互式认证并返回获取的凭据。
+
+类说明：
+    - AuthFlow: 认证流程抽象基类
+    - ApiKeyFlow: API 密钥认证流程
+    - DeviceCodeFlow: GitHub OAuth 设备代码流程
+    - BrowserFlow: 浏览器认证流程
+
+使用示例：
+    >>> from illusion.auth.flows import ApiKeyFlow
+    >>> flow = ApiKeyFlow(provider="anthropic", prompt_text="Enter API key")
+    >>> key = flow.run()
 """
 
 from __future__ import annotations
@@ -13,30 +28,47 @@ import sys
 from abc import ABC, abstractmethod
 from typing import Any
 
+# 模块级日志记录器
 log = logging.getLogger(__name__)
 
 
 class AuthFlow(ABC):
-    """Abstract base for all auth flows."""
+    """认证流程抽象基类
+    
+    所有认证流程的基类，定义统一的接口。
+    """
 
     @abstractmethod
     def run(self) -> str:
-        """Execute the flow and return the obtained credential value."""
+        """执行流程并返回获取的凭据值"""
 
 
 # ---------------------------------------------------------------------------
-# ApiKeyFlow — directly prompt for and store an API key
+# ApiKeyFlow — 直接提示用户输入并存储 API 密钥
 # ---------------------------------------------------------------------------
 
 
 class ApiKeyFlow(AuthFlow):
-    """Prompt the user for an API key and persist it via :mod:`illusion.auth.storage`."""
+    """提示用户输入 API 密钥并通过 :mod:`illusion.auth.storage` 持久化
+    
+    Attributes:
+        provider: 提供商名称
+        prompt_text: 提示文本
+    """
 
     def __init__(self, provider: str, prompt_text: str | None = None) -> None:
         self.provider = provider
         self.prompt_text = prompt_text or f"Enter your {provider} API key"
 
     def run(self) -> str:
+        """提示用户输入 API 密钥
+        
+        Returns:
+            str: 输入的 API 密钥
+        
+        Raises:
+            ValueError: API 密钥为空
+        """
         import getpass
 
         key = getpass.getpass(f"{self.prompt_text}: ").strip()
@@ -46,16 +78,21 @@ class ApiKeyFlow(AuthFlow):
 
 
 # ---------------------------------------------------------------------------
-# DeviceCodeFlow — GitHub OAuth device-code flow (refactored from copilot_auth)
+# DeviceCodeFlow — GitHub OAuth 设备代码流程（从 copilot_auth 重构）
 # ---------------------------------------------------------------------------
 
 
 class DeviceCodeFlow(AuthFlow):
-    """GitHub OAuth device-code flow.
-
-    This is a refactored version of the logic previously inlined in
-    ``cli.py`` (``auth_copilot_login``).  It can be used for any GitHub
-    OAuth app that supports the device-code grant.
+    """GitHub OAuth 设备代码流程
+    
+    这是之前内联在 cli.py（auth_copilot_login）中的逻辑的重构版本。
+    可用于任何支持 device-code grant 的 GitHub OAuth 应用。
+    
+    Attributes:
+        client_id: OAuth 客户端 ID
+        enterprise_url: 企业 URL
+        github_domain: GitHub 域名
+        progress_callback: 进度回调函数
     """
 
     def __init__(
@@ -75,12 +112,21 @@ class DeviceCodeFlow(AuthFlow):
 
     @staticmethod
     def _try_open_browser(url: str) -> bool:
-        """Attempt to open *url* in the default browser; return True if likely succeeded."""
+        """尝试在默认浏览器中打开 URL；如果成功返回 True
+        
+        Args:
+            url: 要打开的 URL
+        
+        Returns:
+            bool: 是否成功打开浏览器
+        """
         try:
             plat = platform.system()
+            # macOS
             if plat == "Darwin":
                 subprocess.Popen(["open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return True
+            # Windows
             if plat == "Windows":
                 subprocess.Popen(
                     ["start", "", url],
@@ -104,6 +150,14 @@ class DeviceCodeFlow(AuthFlow):
             return False
 
     def run(self) -> str:
+        """执行 GitHub OAuth 设备代码流程
+        
+        Returns:
+            str: 获取的 OAuth 访问令牌
+        
+        Raises:
+            RuntimeError: 流程失败
+        """
         from illusion.api.copilot_auth import poll_for_access_token, request_device_code
 
         print("Starting GitHub device flow...", flush=True)
@@ -149,15 +203,19 @@ class DeviceCodeFlow(AuthFlow):
 
 
 # ---------------------------------------------------------------------------
-# BrowserFlow — open a URL and wait for the user to complete auth
+# BrowserFlow — 打开 URL 并等待用户完成认证
 # ---------------------------------------------------------------------------
 
 
 class BrowserFlow(AuthFlow):
-    """Open a browser URL and wait for the user to complete authentication.
-
-    After the user completes the browser flow they are expected to paste
-    back a token/code — this simple implementation prompts for that value.
+    """打开浏览器 URL 并等待用户完成认证
+    
+    用户完成浏览器流程后，需要粘贴回令牌/代码 -
+    这个简单实现会提示用户输入该值。
+    
+    Attributes:
+        auth_url: 认证 URL
+        prompt_text: 提示文本
     """
 
     def __init__(self, auth_url: str, prompt_text: str = "Paste the token from your browser") -> None:
@@ -165,6 +223,14 @@ class BrowserFlow(AuthFlow):
         self.prompt_text = prompt_text
 
     def run(self) -> str:
+        """执行浏览器认证流程
+        
+        Returns:
+            str: 用户提供的令牌
+        
+        Raises:
+            ValueError: 未提供令牌
+        """
         import getpass
 
         print(f"Opening browser for authentication: {self.auth_url}", flush=True)

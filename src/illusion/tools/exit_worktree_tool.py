@@ -1,4 +1,16 @@
-"""Tool for removing git worktrees."""
+"""
+退出工作树工具
+=============
+
+本模块提供移除 git 工作树的功能，用于结束工作树会话。
+
+主要组件：
+    - ExitWorktreeTool: 退出并可选删除工作树的工具
+
+使用示例：
+    >>> from illusion.tools import ExitWorktreeTool
+    >>> tool = ExitWorktreeTool()
+"""
 
 from __future__ import annotations
 
@@ -12,7 +24,12 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class ExitWorktreeToolInput(BaseModel):
-    """Arguments for worktree removal."""
+    """工作树移除参数。
+
+    属性：
+        action: 操作类型，keep 或 remove
+        discard_changes: 是否放弃未提交的更改
+    """
 
     action: Literal["keep", "remove"] = Field(
         description='"keep" leaves the worktree directory and branch intact on disk; "remove" deletes both.',
@@ -24,7 +41,10 @@ class ExitWorktreeToolInput(BaseModel):
 
 
 class ExitWorktreeTool(BaseTool):
-    """Remove a git worktree."""
+    """移除 git 工作树。
+
+    退出由 EnterWorktree 创建的工作树会话，并将会话返回到原始工作目录。
+    """
 
     name = "exit_worktree"
     description = """Exit a worktree session created by EnterWorktree and return the session to the original working directory.
@@ -63,7 +83,7 @@ If called outside an EnterWorktree session, the tool is a **no-op**: it reports 
         arguments: ExitWorktreeToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
-        # Verify we're in a git repo
+        # 验证是否在 git 仓库中
         git_check = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
             cwd=context.cwd,
@@ -77,21 +97,22 @@ If called outside an EnterWorktree session, the tool is a **no-op**: it reports 
 
         repo_root = Path(git_check.stdout.strip())
 
-        # Find worktree path - look for .illusion/worktrees/
+        # 查找工作树路径 - 查找 .illusion/worktrees/
         worktree_base = repo_root / ".illusion" / "worktrees"
         current_cwd = context.cwd.resolve()
 
-        # Check if current CWD is inside a worktree
+        # 检查当前工作目录是否在工作树内
         if not str(current_cwd).startswith(str(worktree_base)):
             return ToolResult(output="No active worktree session found", is_error=True)
 
         worktree_path = current_cwd
 
+        # 保持操作 - 保留工作树
         if arguments.action == "keep":
             return ToolResult(output=f"Worktree kept at {worktree_path}")
 
-        # Remove action
-        # Check for uncommitted changes unless discard_changes is set
+        # 移除操作
+        # 检查未提交的更改，除非 discard_changes 为 true
         if not arguments.discard_changes:
             status_check = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -111,7 +132,7 @@ If called outside an EnterWorktree session, the tool is a **no-op**: it reports 
                     is_error=True,
                 )
 
-        # Remove the worktree
+        # 移除工作树
         cmd = ["git", "worktree", "remove"]
         if arguments.discard_changes:
             cmd.append("--force")

@@ -1,4 +1,44 @@
-"""Shared runtime assembly for headless and Textual UIs."""
+"""
+Runtime 运行时模块
+================
+
+本模块实现无 UI 和 Textual UI 共享的运行时程序集。
+
+主要功能：
+    - 运行时数据 bundle 管理
+    - API 客户端初始化和配置
+    - 工具注册和权限检查
+    - 会话状态管理
+    - 命令处理和执行
+    - 会话快照保存
+
+类说明：
+    - RuntimeBundle: 共享运行时数据bundle
+    - build_runtime: 构建运行时
+    - start_runtime: 启动运行时（执行会话开始钩子）
+    - close_runtime: 关闭运行时并清理资源
+    - handle_line: 处理用户输入行
+    - sync_app_state: 同步应用状态
+
+使用示例：
+    >>> from illusion.ui.runtime import build_runtime, handle_line, start_runtime, close_runtime
+    >>> 
+    >>> # 构建运行时
+    >>> bundle = await build_runtime(model="claude-sonnet-4-20250514")
+    >>> await start_runtime(bundle)
+    >>> 
+    >>> # 处理输入行
+    >>> await handle_line(
+    ...     bundle,
+    ...     "帮我写一个 hello world 程序",
+    ...     print_system=print_system,
+    ...     render_event=render_event,
+    ...     clear_output=clear_output,
+    ... )
+    >>> 
+    >>> # 关闭运行时
+    >>> await close_runtime(bundle)
+"""
 
 from __future__ import annotations
 
@@ -30,16 +70,34 @@ from illusion.services.session_storage import save_session_snapshot
 from illusion.tools import ToolRegistry, create_default_tool_registry
 from illusion.keybindings import load_keybindings
 
-PermissionPrompt = Callable[[str, str], Awaitable[bool]]
-AskUserPrompt = Callable[[str], Awaitable[str]]
-SystemPrinter = Callable[[str], Awaitable[None]]
-StreamRenderer = Callable[[StreamEvent], Awaitable[None]]
-ClearHandler = Callable[[], Awaitable[None]]
+# 类型别名定义
+PermissionPrompt = Callable[[str, str], Awaitable[bool]]  # 权限确认回调
+AskUserPrompt = Callable[[str], Awaitable[str]]  # 用户问答回调
+SystemPrinter = Callable[[str], Awaitable[None]]  # 系统消息打印回调
+StreamRenderer = Callable[[StreamEvent], Awaitable[None]]  # 流式事件渲染回调
+ClearHandler = Callable[[], Awaitable[None]]  # 清空输出回调
 
 
 @dataclass
 class RuntimeBundle:
-    """Shared runtime objects for one interactive session."""
+    """共享运行时数据bundle。
+
+    用于存储一次交互式会话的所有运行时对象。
+    包括 API 客户端、工具注册器、引擎、状态管理等。
+
+    Attributes:
+        api_client: 流式 API 客户端实例
+        cwd: 当前工作目录
+        mcp_manager: MCP 客户端管理器
+        tool_registry: 工具注册器
+        app_state: 应用状态存储
+        hook_executor: 钩子执行器
+        engine: 查询引擎
+        commands: 命令注册表
+        external_api_client: 是否使用外部 API 客户端
+        session_id: 会话 ID
+        settings_overrides: 设置覆盖字典
+    """
 
     api_client: SupportsStreamingMessages
     cwd: str
@@ -54,26 +112,25 @@ class RuntimeBundle:
     settings_overrides: dict[str, Any] = field(default_factory=dict)
 
     def current_settings(self):
-        """Return the effective settings for this session.
+        """返回会话的有效设置。
 
-        We persist most settings to disk (``~/.illusion/settings.json``), but
-        CLI options like ``--model``/``--api-format`` should remain in effect for
-        the lifetime of the running process. Without this overlay, issuing any
-        slash command (e.g. ``/fast``) would refresh UI state from disk and
-        "snap back" the model/provider to whatever is stored in the config file.
+        大多数设置持久化到磁盘（~/.illusion/settings.json），
+        但 CLI 选项如 --model/--api-format 在进程生命周期内保持有效。
+        没有此覆盖，发送任何斜杠命令（如 /fast）会从磁盘刷新 UI 状态，
+        并将 model/provider " snap back" 到配置文件中的值。
         """
         return load_settings().merge_cli_overrides(**self.settings_overrides)
 
     def current_plugins(self):
-        """Return currently visible plugins for the working tree."""
+        """返回当前工作树的可见插件。"""
         return load_plugins(self.current_settings(), self.cwd)
 
     def hook_summary(self) -> str:
-        """Return the current hook summary."""
+        """返回当前钩子摘要。"""
         return load_hook_registry(self.current_settings(), self.current_plugins()).summary()
 
     def plugin_summary(self) -> str:
-        """Return the current plugin summary."""
+        """返回当前插件摘要。"""
         plugins = self.current_plugins()
         if not plugins:
             return "No plugins discovered."
@@ -84,7 +141,7 @@ class RuntimeBundle:
         return "\n".join(lines)
 
     def mcp_summary(self) -> str:
-        """Return the current MCP summary."""
+        """返回当前 MCP 摘要。"""
         statuses = self.mcp_manager.list_statuses()
         if not statuses:
             return "No MCP servers configured."
@@ -113,7 +170,27 @@ async def build_runtime(
     ask_user_prompt: AskUserPrompt | None = None,
     restore_messages: list[dict] | None = None,
 ) -> RuntimeBundle:
-    """Build the shared runtime for an IllusionCode session."""
+    """构建 IllusionCode 会话的共享运行时。
+
+    初始化所有运行时对象，包括 API 客户端、插件、工具注册器、引擎等。
+
+    Args:
+        prompt: 初始用户提示词
+        model: 使用的模型名称
+        max_turns: 最大对话轮次
+        base_url: API 基础 URL
+        system_prompt: 系统提示词
+        api_key: API 密钥
+        api_format: API 格式（copilot/openai/anthropic）
+        api_client: 流式 API 客户端实例
+        permission_prompt: 权限确认回调函数
+        ask_user_prompt: 用户问答回调函数
+        restore_messages: 恢复的会话消息列表
+
+    Returns:
+        RuntimeBundle: 运行时数据 bundle
+    """
+    # 构建设置覆盖字典
     settings_overrides: dict[str, Any] = {
         "model": model,
         "max_turns": max_turns,
@@ -123,8 +200,11 @@ async def build_runtime(
         "api_format": api_format,
     }
     settings = load_settings().merge_cli_overrides(**settings_overrides)
+    # 获取当前工作目录
     cwd = str(Path.cwd())
+    # 加载插件
     plugins = load_plugins(settings, cwd)
+    # 解析 API 客户端
     if api_client:
         resolved_api_client = api_client
     elif settings.api_format == "copilot":
@@ -141,11 +221,16 @@ async def build_runtime(
             api_key=settings.resolve_api_key(),
             base_url=settings.base_url,
         )
+    # 创建 MCP 客户端管理器
     mcp_manager = McpClientManager(load_mcp_server_configs(settings, plugins))
     await mcp_manager.connect_all()
+    # 创建工具注册器
     tool_registry = create_default_tool_registry(mcp_manager)
+    # 检测提供者
     provider = detect_provider(settings)
+    # 获取桥接管理器
     bridge_manager = get_bridge_manager()
+    # 创建应用状态存储
     app_state = AppStateStore(
         AppState(
             model=settings.model,
@@ -167,6 +252,7 @@ async def build_runtime(
             phase="idle",
         )
     )
+    # 创建钩子重载器和执行器
     hook_reloader = HookReloader(get_config_file_path())
     hook_executor = HookExecutor(
         hook_reloader.current_registry() if api_client is None else load_hook_registry(settings, plugins),
@@ -176,6 +262,7 @@ async def build_runtime(
             default_model=settings.model,
         ),
     )
+    # 创建查询引擎
     engine = QueryEngine(
         api_client=resolved_api_client,
         tool_registry=tool_registry,
@@ -190,7 +277,7 @@ async def build_runtime(
         hook_executor=hook_executor,
         tool_metadata={"mcp_manager": mcp_manager, "bridge_manager": bridge_manager},
     )
-    # Restore messages from a saved session if provided
+    # 从保存的会话恢复消息（如果提供）
     if restore_messages:
         restored = [
             ConversationMessage.model_validate(m) for m in restore_messages
@@ -215,7 +302,13 @@ async def build_runtime(
 
 
 async def start_runtime(bundle: RuntimeBundle) -> None:
-    """Run session start hooks."""
+    """运行会话开始钩子。
+
+    执行 SESSION_START 钩子事件。
+
+    Args:
+        bundle: 运行时数据 bundle
+    """
     await bundle.hook_executor.execute(
         HookEvent.SESSION_START,
         {"cwd": bundle.cwd, "event": HookEvent.SESSION_START.value},
@@ -223,8 +316,16 @@ async def start_runtime(bundle: RuntimeBundle) -> None:
 
 
 async def close_runtime(bundle: RuntimeBundle) -> None:
-    """Close runtime-owned resources."""
+    """关闭运行时拥有的资源。
+
+    关闭 MCP 管理器并执行 SESSION_END 钩子。
+
+    Args:
+        bundle: 运行时数据 bundle
+    """
+    # 关闭 MCP 管理器
     await bundle.mcp_manager.close()
+    # 执行会话结束钩子
     await bundle.hook_executor.execute(
         HookEvent.SESSION_END,
         {"cwd": bundle.cwd, "event": HookEvent.SESSION_END.value},
@@ -232,6 +333,14 @@ async def close_runtime(bundle: RuntimeBundle) -> None:
 
 
 def _last_user_text(messages: list[ConversationMessage]) -> str:
+    """获取最后一条用户消息的文本。
+
+    Args:
+        messages: 会话消息列表
+
+    Returns:
+        str: 最后一条用户消息文本（如果不存在则返回空字符串）
+    """
     for msg in reversed(messages):
         if msg.role == "user" and msg.text.strip():
             return msg.text.strip()
@@ -239,13 +348,31 @@ def _last_user_text(messages: list[ConversationMessage]) -> str:
 
 
 def _truncate(text: str, limit: int) -> str:
+    """截断文本到指定长度。
+
+    Args:
+        text: 要截断的文本
+        limit: 最大长度
+
+    Returns:
+        str: 截断后的文本
+    """
     if len(text) <= limit:
         return text
     return text[:limit] + "…"
 
 
 def _format_pending_tool_results(messages: list[ConversationMessage]) -> str | None:
-    """Render a compact summary when we stop after tool execution but before the follow-up model turn."""
+    """在工具执行后停止时呈现紧凑摘要。
+
+    在模型有机会响应之前呈现待处理结果的摘要。
+
+    Args:
+        messages: 会话消息列表
+
+    Returns:
+        str | None: 摘要文本（如果没有待处理结果则返回 None）
+    """
     if not messages:
         return None
 
@@ -256,6 +383,7 @@ def _format_pending_tool_results(messages: list[ConversationMessage]) -> str | N
     if not tool_results:
         return None
 
+    # 构建工具使用 ID 到工具使用的映射
     tool_uses_by_id: dict[str, ToolUseBlock] = {}
     assistant_text = ""
     for msg in reversed(messages[:-1]):
@@ -295,7 +423,11 @@ def _format_pending_tool_results(messages: list[ConversationMessage]) -> str | N
 
 
 def sync_app_state(bundle: RuntimeBundle) -> None:
-    """Refresh UI state from current settings and dynamic keybindings."""
+    """从当前设置和动态键绑定刷新 UI 状态。
+
+    Args:
+        bundle: 运行时数据 bundle
+    """
     settings = bundle.current_settings()
     bundle.engine.set_max_turns(settings.max_turns)
     provider = detect_provider(settings)
@@ -328,12 +460,27 @@ async def handle_line(
     render_event: StreamRenderer,
     clear_output: ClearHandler,
 ) -> bool:
-    """Handle one submitted line for either headless or TUI rendering."""
+    """处理提交的一行输入（用于无头或 TUI 渲染）。
+
+    处理命令或用户消息，更新引擎，渲染事件，并保存会话快照。
+
+    Args:
+        bundle: 运行时数据 bundle
+        line: 用户输入的行
+        print_system: 系统消息打印回调
+        render_event: 流式事件渲染回调
+        clear_output: 清空输出回调
+
+    Returns:
+        bool: 是否继续会话
+    """
+    # 更新钩子注册表（如果不是外部 API 客户端）
     if not bundle.external_api_client:
         bundle.hook_executor.update_registry(
             load_hook_registry(bundle.current_settings(), bundle.current_plugins())
         )
 
+    # 解析命令
     parsed = bundle.commands.lookup(line)
     if parsed is not None:
         command, args = parsed
@@ -350,6 +497,7 @@ async def handle_line(
             ),
         )
         await _render_command_result(result, print_system, clear_output, render_event)
+        # 处理待继续标志
         if result.continue_pending:
             settings = bundle.current_settings()
             bundle.engine.set_max_turns(settings.max_turns)
@@ -368,6 +516,7 @@ async def handle_line(
                 pending = _format_pending_tool_results(bundle.engine.messages)
                 if pending:
                     await print_system(pending)
+            # 保存会话快照
             save_session_snapshot(
                 cwd=bundle.cwd,
                 model=settings.model,
@@ -379,6 +528,7 @@ async def handle_line(
         sync_app_state(bundle)
         return not result.should_exit
 
+    # 处理普通用户消息
     settings = bundle.current_settings()
     bundle.engine.set_max_turns(settings.max_turns)
     system_prompt = build_runtime_system_prompt(settings, cwd=bundle.cwd, latest_user_prompt=line)
@@ -401,6 +551,7 @@ async def handle_line(
         )
         sync_app_state(bundle)
         return True
+    # 保存会话快照
     save_session_snapshot(
         cwd=bundle.cwd,
         model=settings.model,
@@ -419,10 +570,18 @@ async def _render_command_result(
     clear_output: ClearHandler,
     render_event: StreamRenderer | None = None,
 ) -> None:
+    """渲染命令执行结果。
+
+    Args:
+        result: 命令执行结果
+        print_system: 系统消息打印回调
+        clear_output: 清空输出回调
+        render_event: 流式事件渲染回调
+    """
     if result.clear_screen:
         await clear_output()
     if result.replay_messages and render_event is not None:
-        # Replay restored conversation messages as transcript events
+        # 将恢复的会话消息重播为转录事件
         from illusion.engine.stream_events import AssistantTextDelta, AssistantTurnComplete
         from illusion.api.usage import UsageSnapshot
 

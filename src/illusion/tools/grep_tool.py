@@ -1,4 +1,35 @@
-"""Content search tool with a pure-Python fallback."""
+"""
+内容搜索工具模块
+================
+
+本模块提供基于正则表达式的文本文件搜索功能，带有纯Python后备方案。
+
+主要功能：
+    - 强大的搜索工具，基于ripgrep
+    - 支持完整正则表达式语法
+    - 支持文件过滤（glob和type参数）
+    - 支持多种输出模式（content、files_with_matches、count）
+    - 支持多行匹配
+    - 提供纯Python后备方案
+
+类说明：
+    - GrepToolInput: Grep工具输入参数
+    - GrepTool: Grep工具类
+
+函数说明：
+    - _display_base: 计算显示基础路径
+    - _format_path: 格式化路径
+    - _resolve_path: 解析路径
+    - _apply_pagination: 应用分页
+    - _rg_search: ripgrep搜索
+    - _python_grep_file: 纯Python单文件搜索
+    - _python_grep_dir: 纯Python目录搜索
+
+使用示例：
+    >>> # 搜索包含 "function" 的Python文件
+    >>> pattern = "def.*function"
+    >>> type = "py"
+"""
 
 from __future__ import annotations
 
@@ -14,7 +45,22 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class GrepToolInput(BaseModel):
-    """Arguments for the grep tool."""
+    """Grep工具的参数模型
+    
+    Attributes:
+        pattern: 要搜索的正则表达式
+        path: 要搜索的文件或目录
+        glob: 文件过滤glob（如 "*.js", "**/*.tsx"）
+        output_mode: 输出模式：content显示匹配行，files_with_matches只显示文件路径（默认），count显示匹配计数
+        context_before: 匹配前的行数
+        context_after: 匹配后的行数
+        context: 匹配周围的行数（覆盖-B/-A）
+        case_sensitive: 是否区分大小写
+        type: rg --type 过滤器（如 "js", "py", "rust"）
+        multiline: 启用多行匹配（rg -U --multiline-dotall）
+        head_limit: 最大结果数（0=无限制）
+        offset: 跳过前N个结果
+    """
 
     pattern: str = Field(description="Regular expression to search for")
     path: str | None = Field(default=None, description="File or directory to search")
@@ -34,7 +80,17 @@ class GrepToolInput(BaseModel):
 
 
 class GrepTool(BaseTool):
-    """Search text files for a regex pattern."""
+    """搜索文本文件的正则表达式模式
+    
+    使用说明：
+    - 始终使用Grep进行搜索任务。永远不要调用Bash命令中的grep或rg。Grep工具已针对正确的权限和访问进行优化
+    - 支持完整正则表达式语法（如 "log.*Error", "function\\s+\\w+"）
+    - 使用glob参数过滤文件（如 "*.js", "**/*.tsx"）或type参数（如 "js", "py", "rust"）
+    - 输出模式："content"显示匹配行，"files_with_matches"只显示文件路径（默认），"count"显示匹配计数
+    - 对于需要多轮搜索的开放性搜索使用Agent工具
+    - 模式语法：使用ripgrep（不是grep）- 字面大括号需要转义（使用 `interface\\{\\}` 在Go代码中查找 `interface{}`）
+    - 多行匹配：默认模式仅在单行内匹配。对于跨行模式如 `struct \\{[\\s\\S]*?field`，使用 `multiline: true`
+    """
 
     name = "grep"
     description = """A powerful search tool built on ripgrep
@@ -50,17 +106,37 @@ Usage:
     input_model = GrepToolInput
 
     def is_read_only(self, arguments: GrepToolInput) -> bool:
+        """返回工具是否为只读操作
+        
+        Args:
+            arguments: 工具输入参数
+        
+        Returns:
+            bool: 始终返回True，grep是只读操作
+        """
         del arguments
         return True
 
     async def execute(self, arguments: GrepToolInput, context: ToolExecutionContext) -> ToolResult:
+        """执行grep搜索
+        
+        Args:
+            arguments: 工具输入参数
+            context: 工具执行上下文
+        
+        Returns:
+            ToolResult: 搜索结果
+        """
+        # 解析搜索根目录
         root = _resolve_path(context.cwd, arguments.path) if arguments.path else context.cwd
 
+        # 检查路径是否存在
         if not root.exists():
             return ToolResult(output=f"Path does not exist: {root}", is_error=True)
 
-        # For ripgrep: build args based on output_mode
+        # 对于ripgrep：根据output_mode构建参数
         if root.is_file():
+            # 单文件搜索
             result = await _rg_search(
                 path=root,
                 pattern=arguments.pattern,
@@ -78,7 +154,7 @@ Usage:
             if result is not None:
                 return ToolResult(output=result)
 
-            # Python fallback for single file
+            # 单文件的Python后备
             return ToolResult(
                 output=_python_grep_file(
                     path=root,
@@ -91,7 +167,7 @@ Usage:
                 )
             )
 
-        # Directory search
+        # 目录搜索
         result = await _rg_search(
             path=root,
             pattern=arguments.pattern,
@@ -109,7 +185,7 @@ Usage:
         if result is not None:
             return ToolResult(output=result)
 
-        # Python fallback for directory
+        # 目录的Python后备
         return ToolResult(
             output=_python_grep_dir(
                 root=root,
@@ -125,6 +201,15 @@ Usage:
 
 
 def _display_base(path: Path, cwd: Path) -> Path:
+    """计算显示基础路径
+    
+    Args:
+        path: 目标路径
+        cwd: 当前工作目录
+    
+    Returns:
+        Path: 显示基础路径
+    """
     try:
         path.relative_to(cwd)
     except ValueError:
@@ -133,6 +218,15 @@ def _display_base(path: Path, cwd: Path) -> Path:
 
 
 def _format_path(path: Path, display_base: Path) -> str:
+    """格式化路径为相对路径
+    
+    Args:
+        path: 完整路径
+        display_base: 显示基础路径
+    
+    Returns:
+        str: 相对路径字符串
+    """
     try:
         return str(path.relative_to(display_base))
     except ValueError:
@@ -140,6 +234,15 @@ def _format_path(path: Path, display_base: Path) -> str:
 
 
 def _resolve_path(base: Path, candidate: str | None) -> Path:
+    """解析相对路径为绝对路径
+    
+    Args:
+        base: 基础路径
+        candidate: 候选路径字符串
+    
+    Returns:
+        Path: 解析后的绝对路径
+    """
     path = Path(candidate or ".").expanduser()
     if not path.is_absolute():
         path = base / path
@@ -147,7 +250,16 @@ def _resolve_path(base: Path, candidate: str | None) -> Path:
 
 
 def _apply_pagination(lines: list[str], head_limit: int, offset: int) -> list[str]:
-    """Apply offset and head_limit to a list of results."""
+    """应用偏移和限制到结果列表
+    
+    Args:
+        lines: 原始行列表
+        head_limit: 限制数量
+        offset: 偏移量
+    
+    Returns:
+        list[str]: 分页后的行列表
+    """
     sliced = lines[offset:]
     if head_limit > 0:
         sliced = sliced[:head_limit]
@@ -169,75 +281,94 @@ async def _rg_search(
     offset: int,
     cwd: Path,
 ) -> str | None:
-    """Unified ripgrep search for both files and directories.
-
-    Returns formatted output string, or None if rg is unavailable.
+    """统一的ripgrep搜索（文件和目录）
+    
+    返回格式化的输出字符串，如果rg不可用则返回None。
+    
+    Args:
+        path: 搜索路径
+        pattern: 正则表达式模式
+        output_mode: 输出模式
+        glob: 文件过滤glob
+        case_sensitive: 是否区分大小写
+        context_before: 上下文前几行
+        context_after: 上下文后几行
+        type_filter: 类型过滤器
+        multiline: 是否多行
+        head_limit: 结果限制
+        offset: 偏移量
+        cwd: 当前工作目录
+    
+    Returns:
+        str | None: 格式化输出或None
     """
     rg = shutil.which("rg")
     if not rg:
         return None
 
     is_dir = path.is_dir()
+    # 判断是否包含隐藏文件
     include_hidden = is_dir and ((path / ".git").exists() or (path / ".gitignore").exists())
 
     cmd: list[str] = [rg, "--color", "never"]
 
-    # Output mode flags
+    # 输出模式标志
     if output_mode == "files_with_matches":
-        cmd.append("-l")  # only file paths
+        cmd.append("-l")  # 只显示文件路径
     elif output_mode == "count":
-        cmd.append("-c")  # count mode
+        cmd.append("-c")  # 计数模式
     else:
-        # content mode - show line numbers and optionally context
+        # content模式 - 显示行号和可选上下文
         cmd.extend(["--no-heading", "--line-number"])
 
     if include_hidden:
         cmd.append("--hidden")
 
-    # VCS directory exclusions
+    # VCS目录排除
     for vcs_dir in (".git", ".svn", ".hg", ".bzr"):
         cmd.extend(["--glob", f"!{vcs_dir}"])
 
     if not case_sensitive:
         cmd.append("-i")
 
-    # Context lines (only in content mode)
+    # 上下文行（仅在content模式）
     if output_mode == "content":
         if context_before is not None:
             cmd.extend(["-B", str(context_before)])
         if context_after is not None:
             cmd.extend(["-A", str(context_after)])
 
-    # Multiline
+    # 多行模式
     if multiline:
         cmd.extend(["-U", "--multiline-dotall"])
 
-    # Type filter
+    # 类型过滤器
     if type_filter:
         cmd.extend(["--type", type_filter])
 
-    # Glob filter - handle space-separated patterns and brace expansion
+    # Glob过滤器 - 处理空格分隔的模式和大括号扩展
     if glob:
-        # Keep brace patterns like *.{ts,tsx} intact
+        # 保持大括号模式如 *.{ts,tsx} 完整
         parts = glob.split()
         for part in parts:
             cmd.extend(["--glob", part])
 
-    # Max columns to prevent base64/minified content from flooding output
+    # 最大列数防止base64/压缩内容淹没输出
     cmd.extend(["--max-columns", "500"])
 
-    # Pattern - use -e if pattern starts with -
+    # 模式 - 如果模式以-开头使用-e
     if pattern.startswith("-"):
         cmd.extend(["-e", pattern])
     else:
         cmd.append(pattern)
 
-    # Path to search
+    # 搜索路径
     if is_dir:
         cmd.append(".")
     else:
         cmd.append(str(path))
 
+    # 执行异步子进程
     process = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=str(path) if is_dir else str(path.parent),
@@ -247,7 +378,7 @@ async def _rg_search(
     )
 
     raw_lines: list[str] = []
-    limit = head_limit if head_limit > 0 else 10000  # safety cap for unlimited
+    limit = head_limit if head_limit > 0 else 10000  # 无限制的安全上限
     try:
         assert process.stdout is not None
         while len(raw_lines) < limit + offset:
@@ -262,19 +393,19 @@ async def _rg_search(
             process.terminate()
         await process.wait()
 
-    # rg exits 0 when matches are found, 1 when none are found
+    # rg 在找到匹配时退出0，未找到时退出1
     if process.returncode not in {0, 1}:
         return None
 
     if not raw_lines:
         return "(no matches)"
 
-    # Apply pagination
+    # 应用分页
     paged = _apply_pagination(raw_lines, head_limit, offset)
 
-    # Format output based on mode
+    # 根据模式格式化输出
     if output_mode == "files_with_matches":
-        # Convert to relative paths
+        # 转换为相对路径
         display_base = _display_base(path, cwd) if not is_dir else cwd
         rel_paths = []
         for line in paged:
@@ -295,7 +426,7 @@ async def _rg_search(
                 formatted.append(line)
         return "\n".join(formatted) if formatted else "(no matches)"
 
-    # content mode - convert paths to relative
+    # content模式 - 转换路径为相对路径
     if not is_dir:
         display_base = _display_base(path, cwd)
         prefix = _format_path(path, display_base)
@@ -314,7 +445,20 @@ def _python_grep_file(
     offset: int,
     display_base: Path,
 ) -> str:
-    """Pure Python fallback for single file grep."""
+    """纯Python单文件grep后备方案
+    
+    Args:
+        path: 文件路径
+        pattern: 正则表达式模式
+        output_mode: 输出模式
+        case_sensitive: 是否区分大小写
+        head_limit: 结果限制
+        offset: 偏移量
+        display_base: 显示基础路径
+    
+    Returns:
+        str: 格式化输出
+    """
     flags = 0 if case_sensitive else re.IGNORECASE
     compiled = re.compile(pattern, flags)
 
@@ -338,7 +482,7 @@ def _python_grep_file(
         count = sum(1 for line in text.splitlines() if compiled.search(line))
         return f"{rel_path}:{count}" if count > 0 else "(no matches)"
 
-    # content mode
+    # content模式
     matches: list[str] = []
     for line_no, line in enumerate(text.splitlines(), start=1):
         if compiled.search(line):
@@ -362,14 +506,28 @@ def _python_grep_dir(
     offset: int,
     display_base: Path,
 ) -> str:
-    """Pure Python fallback for directory grep."""
+    """纯Python目录grep后备方案
+    
+    Args:
+        root: 根目录
+        pattern: 正则表达式模式
+        glob: 文件过滤glob
+        output_mode: 输出模式
+        case_sensitive: 是否区分大小写
+        head_limit: 结果限制
+        offset: 偏移量
+        display_base: 显示基础路径
+    
+    Returns:
+        str: 格式化输出
+    """
     flags = 0 if case_sensitive else re.IGNORECASE
     compiled = re.compile(pattern, flags)
     limit = head_limit if head_limit > 0 else 10000
 
-    file_matches: list[str] = []  # for files_with_matches
-    content_matches: list[str] = []  # for content/count
-    count_matches: list[str] = []  # for count
+    file_matches: list[str] = []  # files_with_matches模式
+    content_matches: list[str] = []  # content/count模式
+    count_matches: list[str] = []  # count模式
 
     for path in root.glob(glob):
         if not path.is_file():

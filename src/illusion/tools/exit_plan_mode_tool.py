@@ -1,4 +1,16 @@
-"""Tool for leaving plan permission mode."""
+"""
+退出计划模式工具
+================
+
+本模块提供退出计划权限模式的功能，允许代理在完成计划编写后请求用户审批。
+
+主要组件：
+    - ExitPlanModeTool: 退出计划模式的工具
+
+使用示例：
+    >>> from illusion.tools import ExitPlanModeTool
+    >>> tool = ExitPlanModeTool()
+"""
 
 from __future__ import annotations
 
@@ -10,11 +22,15 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class ExitPlanModeToolInput(BaseModel):
-    """No-op input model."""
+    """无操作输入模型（工具不需要任何参数）。"""
 
 
 class ExitPlanModeTool(BaseTool):
-    """Switch settings permission mode back to default."""
+    """将设置权限模式切换回默认值。
+
+    当代理在计划模式下完成计划编写并准备好请求用户审批时，使用此工具。
+    该工具会读取代理之前写入的计划文件内容，供用户在审批时查看。
+    """
 
     name = "exit_plan_mode"
     description = """Use this tool when you are in plan mode and have finished writing your plan to the plan file and are ready for user approval.
@@ -44,7 +60,10 @@ Ensure your plan is complete and unambiguous:
 
     async def execute(self, arguments: ExitPlanModeToolInput, context: ToolExecutionContext) -> ToolResult:
         del arguments, context
+        # 加载设置
         settings = load_settings()
+        # 将权限模式设置为默认
         settings.permission.mode = PermissionMode.DEFAULT
+        # 保存设置
         save_settings(settings)
         return ToolResult(output="Permission mode set to default")

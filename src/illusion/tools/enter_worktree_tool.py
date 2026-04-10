@@ -1,4 +1,16 @@
-"""Tool for creating and entering git worktrees."""
+"""
+进入工作树工具
+=============
+
+本模块提供创建和进入 git 工作树的功能，用于隔离开发环境。
+
+主要组件：
+    - EnterWorktreeTool: 创建并进入 git 工作树的工具
+
+使用示例：
+    >>> from illusion.tools import EnterWorktreeTool
+    >>> tool = EnterWorktreeTool()
+"""
 
 from __future__ import annotations
 
@@ -13,7 +25,11 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class EnterWorktreeToolInput(BaseModel):
-    """Arguments for entering a worktree."""
+    """进入工作树参数。
+
+    属性：
+        name: 工作树名称（可选，不提供则生成随机名称）
+    """
 
     name: str | None = Field(
         default=None,
@@ -22,7 +38,10 @@ class EnterWorktreeToolInput(BaseModel):
 
 
 class EnterWorktreeTool(BaseTool):
-    """Create a git worktree."""
+    """创建 git 工作树。
+
+    仅在用户明确要求使用工作树时使用。此工具创建隔离的 git 工作树并切换当前会话到其中。
+    """
 
     name = "enter_worktree"
     description = """Use this tool ONLY when the user explicitly asks to work in a worktree. This tool creates an isolated git worktree and switches the current session into it.
@@ -59,15 +78,20 @@ class EnterWorktreeTool(BaseTool):
         arguments: EnterWorktreeToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
+        # 获取 git 仓库根目录
         top_level = _git_output(context.cwd, "rev-parse", "--show-toplevel")
         if top_level is None:
             return ToolResult(output="enter_worktree requires a git repository", is_error=True)
 
         repo_root = Path(top_level)
+        # 生成或使用指定的工作树名称
         name = arguments.name or f"wt-{uuid4().hex[:8]}"
         branch_name = name
+        # 解析工作树路径
         worktree_path = _resolve_worktree_path(repo_root, branch_name)
+        # 创建父目录
         worktree_path.parent.mkdir(parents=True, exist_ok=True)
+        # 执行 git worktree add 命令
         cmd = ["git", "worktree", "add", "-b", branch_name, str(worktree_path), "HEAD"]
         result = subprocess.run(
             cmd,
@@ -75,7 +99,7 @@ class EnterWorktreeTool(BaseTool):
             capture_output=True,
             text=True,
             check=False,
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
         )
         output = (result.stdout or result.stderr).strip() or f"Created worktree {worktree_path}"
         if result.returncode != 0:
@@ -84,13 +108,22 @@ class EnterWorktreeTool(BaseTool):
 
 
 def _git_output(cwd: Path, *args: str) -> str | None:
+    """执行 git 命令并返回输出。
+
+    参数：
+        cwd: 工作目录
+        *args: git 命令参数
+
+    返回：
+        命令输出字符串，失败返回 None
+    """
     result = subprocess.run(
         ["git", *args],
         cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
-        stdin=subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+        stdin=subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
     )
     if result.returncode != 0:
         return None
@@ -98,5 +131,14 @@ def _git_output(cwd: Path, *args: str) -> str | None:
 
 
 def _resolve_worktree_path(repo_root: Path, name: str) -> Path:
+    """解析工作树路径。
+
+    参数：
+        repo_root: 仓库根目录
+        name: 工作树名称
+
+    返回：
+        解析后的工作树路径
+    """
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-") or "worktree"
     return (repo_root / ".illusion" / "worktrees" / slug).resolve()

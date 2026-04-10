@@ -1,4 +1,16 @@
-"""Tool for creating teams."""
+"""
+团队创建工具
+============
+
+本模块提供创建内存中团队的功能，用于协调多个代理工作。
+
+主要组件：
+    - TeamCreateTool: 创建团队的工areness
+
+使用示例：
+    >>> from illusion.tools import TeamCreateTool
+    >>> tool = TeamCreateTool()
+"""
 
 from __future__ import annotations
 
@@ -9,14 +21,22 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class TeamCreateToolInput(BaseModel):
-    """Arguments for creating a team."""
+    """团队创建参数。
+
+    属性：
+        name: 团队名称
+        description: 团队描述
+    """
 
     name: str = Field(description="Team name")
     description: str = Field(default="", description="Team description")
 
 
 class TeamCreateTool(BaseTool):
-    """Create an in-memory team."""
+    """创建内存中团队。
+
+    用于协调多个代理共同处理项目。
+    """
 
     name = "team_create"
     description = """# TeamCreate
@@ -133,6 +153,7 @@ Teammates should:
     async def execute(self, arguments: TeamCreateToolInput, context: ToolExecutionContext) -> ToolResult:
         del context
         try:
+            # 创建团队
             team = get_team_registry().create_team(arguments.name, arguments.description)
         except ValueError as exc:
             return ToolResult(output=str(exc), is_error=True)

@@ -1,4 +1,16 @@
-"""Tool for spawning local agent tasks."""
+"""
+本地代理任务生成工具
+====================
+
+本模块提供创建和管理本地代理子进程的功能，用于处理复杂的多步骤任务。
+
+主要组件：
+    - AgentTool: 启动本地代理子进程的工具
+
+使用示例：
+    >>> from illusion.tools import AgentTool
+    >>> tool = AgentTool()
+"""
 
 from __future__ import annotations
 
@@ -12,11 +24,22 @@ from illusion.swarm.registry import get_backend_registry
 from illusion.swarm.types import TeammateSpawnConfig
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
+# 配置模块级日志记录器
 logger = logging.getLogger(__name__)
 
 
 class AgentToolInput(BaseModel):
-    """Arguments for local agent spawning."""
+    """本地代理任务参数。
+
+    属性：
+        description: 简短的任务描述
+        prompt: 完整的新代理提示词
+        subagent_type: 代理类型（如 'general-purpose', 'Explore', 'worker'）
+        model: 可选的模型覆盖
+        command: 可选的覆盖生成命令
+        team: 可选的要附加代理的团队
+        mode: 代理模式：local_agent, remote_agent 或 in_process_teammate
+    """
 
     description: str = Field(description="Short description of the delegated work")
     prompt: str = Field(description="Full prompt for the local agent")
@@ -34,7 +57,10 @@ class AgentToolInput(BaseModel):
 
 
 class AgentTool(BaseTool):
-    """Spawn a local agent subprocess."""
+    """启动本地代理子进程。
+
+    用于启动专门的代理（子进程）来自动处理复杂任务。每个代理类型都有特定的能力和工具。
+    """
 
     name = "agent"
     description = """Launch a new agent to handle complex, multi-step tasks autonomously.
@@ -120,6 +146,7 @@ Agent({
     input_model = AgentToolInput
 
     async def execute(self, arguments: AgentToolInput, context: ToolExecutionContext) -> ToolResult:
+        # 验证代理模式参数
         if arguments.mode not in {"local_agent", "remote_agent", "in_process_teammate"}:
             return ToolResult(
                 output="Invalid mode. Use local_agent, remote_agent, or in_process_teammate.",

@@ -1,4 +1,16 @@
-"""Tool to list MCP resources."""
+"""
+MCP 资源列表工具
+================
+
+本模块提供列出 MCP 资源的功能。
+
+主要组件：
+    - ListMcpResourcesTool: 列出 MCP 服务器上的资源
+
+使用示例：
+    >>> from illusion.tools import ListMcpResourcesTool
+    >>> tool = ListMcpResourcesTool(manager)
+"""
 
 from __future__ import annotations
 
@@ -9,11 +21,14 @@ from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
 
 
 class ListMcpResourcesToolInput(BaseModel):
-    """No-op input model for MCP resource listing."""
+    """MCP 资源列表参数。"""
 
 
 class ListMcpResourcesTool(BaseTool):
-    """List MCP resources discovered from connected servers."""
+    """列出从已连接服务器发现的 MCP 资源。
+
+    用于查看可用的 MCP 服务器资源。
+    """
 
     name = "list_mcp_resources"
     description = """List available resources from configured MCP servers.
@@ -34,6 +49,7 @@ Parameters:
 
     async def execute(self, arguments: ListMcpResourcesToolInput, context: ToolExecutionContext) -> ToolResult:
         del arguments, context
+        # 获取所有资源
         resources = self._manager.list_resources()
         if not resources:
             return ToolResult(output="(no MCP resources)")

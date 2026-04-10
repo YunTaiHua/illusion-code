@@ -1,4 +1,21 @@
-"""Hooks exports."""
+"""
+钩子模块
+========
+
+本模块提供 IllusionCode 钩子系统功能。
+
+主要组件：
+    - HookEvent: 钩子事件
+    - HookExecutionContext: 钩子执行上下文
+    - HookExecutor: 钩子执行器
+    - HookRegistry: 钩子注册表
+    - HookResult: 钩子结果
+    - AggregatedHookResult: 聚合钩子结果
+    - load_hook_registry: 加载钩子注册表
+
+使用示例：
+    >>> from illusion.hooks import HookRegistry, HookExecutor
+"""
 
 from __future__ import annotations
 

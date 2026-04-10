@@ -1,10 +1,29 @@
-"""Core engine exports."""
+"""
+核心引擎模块
+============
+
+本模块提供 IllusionCode 核心引擎的导出接口。
+
+主要组件：
+    - ConversationMessage: 对话消息模型
+    - TextBlock: 文本内容块
+    - ToolUseBlock: 工具调用块
+    - ToolResultBlock: 工具结果块
+    - QueryEngine: 查询引擎
+    - AssistantTextDelta: 助手文本增量事件
+    - AssistantTurnComplete: 助手轮次完成事件
+    - ToolExecutionStarted: 工具执行开始事件
+    - ToolExecutionCompleted: 工具执行完成事件
+
+使用示例：
+    >>> from illusion.engine import ConversationMessage, QueryEngine
+"""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # 类型检查时导入，避免循环依赖
     from illusion.engine.messages import (
         ConversationMessage,
         TextBlock,

@@ -1,4 +1,40 @@
-"""Slash command registry."""
+"""
+斜杠命令注册模块
+==============
+
+本模块提供 IllusionCode 斜杠命令的注册和管理功能。
+
+主要功能：
+    - 注册和管理斜杠命令 (/xxx)
+    - 解析命令参数
+    - 提供内置命令处理器
+
+类说明：
+    - CommandResult: 命令执行结果
+    - CommandContext: 命令执行上下文
+    - SlashCommand: 斜杠命令定义
+    - CommandRegistry: 命令注册表
+
+函数说明：
+    - create_default_command_registry: 创建默认命令注册表
+
+内置命令列表：
+    - /help, /exit, /clear, /version, /status, /context, /summary
+    - /compact, /cost, /usage, /stats, /memory, /hooks, /resume
+    - /session, /export, /share, /copy, /tag, /rewind, /files
+    - /init, /bridge, /login, /logout, /feedback, /onboarding
+    - /skills, /config, /mcp, /plugin, /reload-plugins
+    - /permissions, /plan, /fast, /effort, /passes, /turns
+    - /continue, /model, /theme, /language, /output-style
+    - /keybindings, /stop, /doctor, /diff, /branch, /commit
+    - /issue, /pr_comments, /privacy-settings, /rate-limit-options
+    - /release-notes, /upgrade, /agents, /tasks
+
+使用示例：
+    >>> from illusion.commands import create_default_command_registry
+    >>> registry = create_default_command_registry()
+    >>> result = registry.lookup("/version")
+"""
 
 from __future__ import annotations
 
@@ -58,145 +94,246 @@ if TYPE_CHECKING:
 
 @dataclass
 class CommandResult:
-    """Result returned by a slash command."""
+    """斜杠命令执行结果
+    
+    Attributes:
+        message: 返回给用户的消息
+        should_exit: 是否应该退出程序
+        clear_screen: 是否应该清除屏幕
+        replay_messages: 要在TUI中重放的消息列表
+        continue_pending: 是否继续待处理的工具循环
+        continue_turns: 继续的回合数
+    """
 
-    message: str | None = None
-    should_exit: bool = False
-    clear_screen: bool = False
-    replay_messages: list | None = None  # ConversationMessage list to replay in TUI
-    continue_pending: bool = False
-    continue_turns: int | None = None
+    message: str | None = None  # 返回消息
+    should_exit: bool = False  # 退出标志
+    clear_screen: bool = False  # 清屏标志
+    replay_messages: list | None = None  # ConversationMessage列表用于TUI重放
+    continue_pending: bool = False  # 继续待处理标志
+    continue_turns: int | None = None  # 继续回合数
 
 
 @dataclass
 class CommandContext:
-    """Context available to command handlers."""
+    """命令处理器可用的上下文
+    
+    Attributes:
+        engine: 查询引擎实例
+        hooks_summary: hooks摘要
+        mcp_summary: MCP摘要
+        plugin_summary: 插件摘要
+        cwd: 当前工作目录
+        tool_registry: 工具注册表
+        app_state: 应用状态存储
+    """
 
-    engine: QueryEngine
-    hooks_summary: str = ""
-    mcp_summary: str = ""
-    plugin_summary: str = ""
-    cwd: str = "."
-    tool_registry: ToolRegistry | None = None
-    app_state: AppStateStore | None = None
+    engine: QueryEngine  # 查询引擎
+    hooks_summary: str = ""  # hooks摘要
+    mcp_summary: str = ""  # MCP摘要
+    plugin_summary: str = ""  # 插件摘要
+    cwd: str = "."  # 当前工作目录
+    tool_registry: ToolRegistry | None = None  # 工具注册表
+    app_state: AppStateStore | None = None  # 应用状态
 
 
+# 命令处理器类型别名
 CommandHandler = Callable[[str, CommandContext], Awaitable[CommandResult]]
 
 
 @dataclass
 class SlashCommand:
-    """Definition of a slash command."""
+    """斜杠命令定义
+    
+    Attributes:
+        name: 命令名称 (不含前导/)
+        description: 命令描述
+        handler: 命令处理器函数
+    """
 
-    name: str
-    description: str
-    handler: CommandHandler
+    name: str  # 命令名称
+    description: str  # 命令描述
+    handler: CommandHandler  # 处理器函数
 
 
 class CommandRegistry:
-    """Map slash commands to handlers."""
+    """斜杠命令到处理器的映射容器
+    
+    Attributes:
+        _commands: 命令名到SlashCommand的映射
+    """
 
     def __init__(self) -> None:
-        self._commands: dict[str, SlashCommand] = {}
+        self._commands: dict[str, SlashCommand] = {}  # 命令映射初始化
 
     def register(self, command: SlashCommand) -> None:
-        """Register a command."""
-        self._commands[command.name] = command
+        """注册命令
+        
+        Args:
+            command: 要注册的SlashCommand
+        """
+        self._commands[command.name] = command  # 添加到映射
 
     def lookup(self, raw_input: str) -> tuple[SlashCommand, str] | None:
-        """Parse a slash command and return its handler plus raw args."""
-        if not raw_input.startswith("/"):
+        """解析斜杠命令并返回其处理器和原始参数
+        
+        Args:
+            raw_input: 原始输入字符串
+        
+        Returns:
+            tuple[SlashCommand, str] | None: (命令对象, 参数) 或 None
+        """
+        if not raw_input.startswith("/"):  # 不是斜杠命令
             return None
-        name, _, args = raw_input[1:].partition(" ")
-        command = self._commands.get(name)
-        if command is None:
+        name, _, args = raw_input[1:].partition(" ")  # 分割名称和参数
+        command = self._commands.get(name)  # 查找命令
+        if command is None:  # 未找到
             return None
-        return command, args.strip()
+        return command, args.strip()  # 返回命令和参数
 
     def help_text(self) -> str:
-        """Return a formatted summary of all registered commands."""
-        lines = ["Available commands:"]
-        for command in sorted(self._commands.values(), key=lambda item: item.name):
-            lines.append(f"/{command.name:<12} {command.description}")
+        """返回所有已注册命令的格式化摘要
+        
+        Returns:
+            str: 格式化的命令帮助文本
+        """
+        lines = ["Available commands:"]  # 标题
+        for command in sorted(self._commands.values(), key=lambda item: item.name):  # 遍历命令
+            lines.append(f"/{command.name:<12} {command.description}")  # 格式化输出
         return "\n".join(lines)
 
     def list_commands(self) -> list[SlashCommand]:
-        """Return commands in registration order."""
+        """按照注册顺序返回命令列表
+        
+        Returns:
+            list[SlashCommand]: 命令列表
+        """
         return list(self._commands.values())
 
 
 def _run_git_command(cwd: str, *args: str) -> tuple[bool, str]:
+    """执行git命令并返回结果
+    
+    Args:
+        cwd: 工作目录
+        args: git子命令和参数
+    
+    Returns:
+        tuple[bool, str]: (是否成功, 输出内容)
+    """
     try:
         completed = subprocess.run(
-            ["git", *args],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=False,
-            stdin=subprocess.DEVNULL,  # Prevent handle inheritance deadlock on Windows
+            ["git", *args],  # git命令
+            cwd=cwd,  # 工作目录
+            capture_output=True,  # 捕获输出
+            text=True,  # 文本模式
+            check=False,  # 不检查返回码
+            stdin=subprocess.DEVNULL,  # 防止Windows句柄继承死锁
         )
-    except FileNotFoundError:
+    except FileNotFoundError:  # git未安装
         return False, "git is not installed."
-    output = (completed.stdout or completed.stderr).strip()
-    if completed.returncode != 0:
+    output = (completed.stdout or completed.stderr).strip()  # 合并输出
+    if completed.returncode != 0:  # 失败
         return False, output or f"git {' '.join(args)} failed"
-    return True, output
+    return True, output  # 成功
 
 
 def _copy_to_clipboard(text: str) -> tuple[bool, str]:
+    """复制文本到剪贴板
+    
+    尝试多种复制方式: pyperclip, pbcopy, wl-copy, xclip, xsel
+    
+    Args:
+        text: 要复制的文本
+    
+    Returns:
+        tuple[bool, str]: (是否成功, 目标位置)
+    """
     try:
-        pyperclip.copy(text)
+        pyperclip.copy(text)  # 尝试pyperclip
         return True, "clipboard"
     except Exception:
-        for command in (["pbcopy"], ["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard"]):
+        for command in (["pbcopy"], ["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard"]):  # 尝试系统命令
             try:
                 subprocess.run(command, input=text, text=True, check=True, capture_output=True)
                 return True, "clipboard"
             except Exception:
                 continue
-    fallback = get_data_dir() / "last_copy.txt"
+    fallback = get_data_dir() / "last_copy.txt"  # 后备方案：文件
     fallback.write_text(text, encoding="utf-8")
     return False, str(fallback)
 
 
 def _last_message_text(messages: list[ConversationMessage]) -> str:
-    for message in reversed(messages):
-        if message.text.strip():
+    """获取最后一条有内容的用户消息
+    
+    Args:
+        messages: 消息列表
+    
+    Returns:
+        str: 消息文本，空字符串若无
+    """
+    for message in reversed(messages):  # 反向遍历
+        if message.text.strip():  # 有内容
             return message.text.strip()
     return ""
 
 
 def _rewind_turns(messages: list[ConversationMessage], turns: int) -> list[ConversationMessage]:
-    updated = list(messages)
-    for _ in range(max(0, turns)):
-        if not updated:
+    """回退指定数量的对话回合
+    
+    回退到上一个非空的user消息
+    
+    Args:
+        messages: 消息列表
+        turns: 回退回合数
+    
+    Returns:
+        list[ConversationMessage]: 回退后的消息列表
+    """
+    updated = list(messages)  # 复制列表
+    for _ in range(max(0, turns)):  # 指定次数
+        if not updated:  # 空列表
             break
         while updated:
-            popped = updated.pop()
-            if popped.role == "user" and popped.text.strip():
+            popped = updated.pop()  # 弹出
+            if popped.role == "user" and popped.text.strip():  # 找到用户消息
                 break
     return updated
 
 
 def _coerce_setting_value(settings: Settings, key: str, raw: str):
-    field = Settings.model_fields.get(key)
-    if field is None:
+    """将字符串值强制转换为设置字段的正确类型
+    
+    Args:
+        settings: 设置对象
+        key: 字段名
+        raw: 原始字符串值
+    
+    Returns:
+        转换后的值
+    
+    Raises:
+        KeyError: 字段不存在
+        ValueError: 值无效
+    """
+    field = Settings.model_fields.get(key)  # 获取字段定义
+    if field is None:  # 不存在
         raise KeyError(key)
-    annotation = field.annotation
-    if annotation is bool:
+    annotation = field.annotation  # 类型注解
+    if annotation is bool:  # 布尔类型
         lowered = raw.lower()
-        if lowered in {"1", "true", "yes", "on"}:
+        if lowered in {"1", "true", "yes", "on"}:  # 真值
             return True
-        if lowered in {"0", "false", "no", "off"}:
+        if lowered in {"0", "false", "no", "off"}:  # 假值
             return False
         raise ValueError(f"Invalid boolean value for {key}: {raw}")
-    if annotation is int:
+    if annotation is int:  # 整数类型
         return int(raw)
-    if annotation is str:
+    if annotation is str:  # 字符串类型
         return raw
-    if annotation is Literal or getattr(annotation, "__origin__", None) is Literal:
+    if annotation is Literal or getattr(annotation, "__origin__", None) is Literal:  # 字面量类型
         allowed = get_args(annotation)
-        if raw not in allowed:
+        if raw not in allowed:  # 不在允许值中
             raise ValueError(f"Invalid value for {key}: {raw}")
         return raw
     return raw

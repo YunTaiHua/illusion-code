@@ -1,4 +1,25 @@
-"""OpenAI Codex subscription client backed by chatgpt.com Codex Responses."""
+"""
+OpenAI Codex 订阅客户端模块
+==========================
+
+本模块提供基于 chatgpt.com Codex Responses 的 OpenAI Codex 订阅客户端。
+
+主要功能：
+    - 使用 OAuth 令牌进行认证
+    - 流式文本增量生成
+    - 支持工具调用
+    - 自动重试 transient 错误
+
+类说明：
+    - CodexApiClient: Codex API 客户端类
+
+使用示例：
+    >>> from illusion.api.codex_client import CodexApiClient
+    >>> client = CodexApiClient(auth_token="gho_...")
+    >>> request = ApiMessageRequest(model="gpt-4o", messages=[])
+    >>> async for event in client.stream_message(request):
+    >>>     print(event)
+"""
 
 from __future__ import annotations
 
@@ -20,33 +41,23 @@ from illusion.api.errors import AuthenticationFailure, IllusionCodeApiError, Rat
 from illusion.api.usage import UsageSnapshot
 from illusion.engine.messages import ConversationMessage, TextBlock, ToolResultBlock, ToolUseBlock
 
-DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api"
-JWT_CLAIM_PATH = "https://api.openai.com/auth"
-MAX_RETRIES = 3
-BASE_DELAY_SECONDS = 1.0
-MAX_DELAY_SECONDS = 30.0
-
-
-def _extract_account_id(token: str) -> str:
-    parts = token.split(".")
-    if len(parts) != 3:
-        raise AuthenticationFailure("Codex access token is not a valid JWT.")
-    try:
-        payload = json.loads(
-            base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)).decode("utf-8")
-        )
-    except Exception as exc:
-        raise AuthenticationFailure("Could not decode Codex access token payload.") from exc
-    auth_claim = payload.get(JWT_CLAIM_PATH)
-    if not isinstance(auth_claim, dict):
-        raise AuthenticationFailure("Codex access token is missing account metadata.")
-    account_id = auth_claim.get("chatgpt_account_id")
-    if not isinstance(account_id, str) or not account_id:
-        raise AuthenticationFailure("Codex access token is missing chatgpt_account_id.")
-    return account_id
+# 常量定义
+DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api"  # 默认 Codex 基础 URL
+JWT_CLAIM_PATH = "https://api.openai.com/auth"  # JWT 声明路径
+MAX_RETRIES = 3  # 最大重试次数
+BASE_DELAY_SECONDS = 1.0  # 基础延迟（秒）
+MAX_DELAY_SECONDS = 30.0  # 最大延迟（秒）
 
 
 def _resolve_codex_url(base_url: str | None) -> str:
+    """解析并返回 Codex API URL
+    
+    Args:
+        base_url: 可选的基础 URL
+    
+    Returns:
+        str: 完整的 Codex API URL
+    """
     trimmed = (base_url or "").strip()
     if trimmed and "chatgpt.com/backend-api" not in trimmed:
         trimmed = ""
@@ -59,6 +70,15 @@ def _resolve_codex_url(base_url: str | None) -> str:
 
 
 def _build_codex_headers(token: str, *, session_id: str | None = None) -> dict[str, str]:
+    """构建 Codex API 请求头
+    
+    Args:
+        token: Codex 访问令牌
+        session_id: 可选的会话 ID
+    
+    Returns:
+        dict[str, str]: 请求头字典
+    """
     account_id = _extract_account_id(token)
     headers = {
         "Authorization": f"Bearer {token}",
@@ -75,6 +95,14 @@ def _build_codex_headers(token: str, *, session_id: str | None = None) -> dict[s
 
 
 def _convert_messages_to_codex(messages: list[ConversationMessage]) -> list[dict[str, Any]]:
+    """将消息转换为 Codex 格式
+    
+    Args:
+        messages: ConversationMessage 列表
+    
+    Returns:
+        list[dict[str, Any]]: Codex 格式的消息列表
+    """
     result: list[dict[str, Any]] = []
     for msg in messages:
         if msg.role == "user":
@@ -113,6 +141,14 @@ def _convert_messages_to_codex(messages: list[ConversationMessage]) -> list[dict
 
 
 def _convert_tools_to_codex(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """将工具转换为 Codex 格式
+    
+    Args:
+        tools: 工具定义列表
+    
+    Returns:
+        list[dict[str, Any]]: Codex 格式的工具列表
+    """
     return [
         {
             "type": "function",
@@ -125,6 +161,14 @@ def _convert_tools_to_codex(tools: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 
 def _usage_from_response(response: dict[str, Any]) -> UsageSnapshot:
+    """从响应中提取使用量信息
+    
+    Args:
+        response: API 响应字典
+    
+    Returns:
+        UsageSnapshot: 使用量快照
+    """
     usage = response.get("usage")
     if not isinstance(usage, dict):
         return UsageSnapshot()
@@ -135,6 +179,15 @@ def _usage_from_response(response: dict[str, Any]) -> UsageSnapshot:
 
 
 def _stop_reason_from_response(response: dict[str, Any], *, has_tool_calls: bool) -> str | None:
+    """从响应中提取停止原因
+    
+    Args:
+        response: API 响应字典
+        has_tool_calls: 是否有工具调用
+    
+    Returns:
+        str | None: 停止原因
+    """
     status = response.get("status")
     if has_tool_calls and status == "completed":
         return "tool_use"
@@ -148,6 +201,15 @@ def _stop_reason_from_response(response: dict[str, Any], *, has_tool_calls: bool
 
 
 def _format_error_message(status_code: int, payload: str) -> str:
+    """格式化错误消息
+    
+    Args:
+        status_code: HTTP 状态码
+        payload: 响应负载
+    
+    Returns:
+        str: 格式化的错误消息
+    """
     try:
         parsed = json.loads(payload)
     except json.JSONDecodeError:
@@ -168,6 +230,15 @@ def _format_error_message(status_code: int, payload: str) -> str:
 
 
 def _translate_status_error(status_code: int, message: str) -> IllusionCodeApiError:
+    """转换状态码错误为统一异常类型
+    
+    Args:
+        status_code: HTTP 状态码
+        message: 错误消息
+    
+    Returns:
+        IllusionCodeApiError: 统一异常类型
+    """
     if status_code in {401, 403}:
         return AuthenticationFailure(message)
     if status_code == 429:
@@ -176,7 +247,13 @@ def _translate_status_error(status_code: int, message: str) -> IllusionCodeApiEr
 
 
 class CodexApiClient:
-    """Client for ChatGPT/Codex subscription-backed Codex Responses."""
+    """ChatGPT/Codex 订阅支持的 Codex Responses 客户端
+    
+    Attributes:
+        _auth_token: 认证令牌
+        _base_url: 基础 URL
+        _url: 解析后的 API URL
+    """
 
     def __init__(self, auth_token: str, *, base_url: str | None = None) -> None:
         self._auth_token = auth_token
@@ -184,6 +261,14 @@ class CodexApiClient:
         self._url = _resolve_codex_url(base_url)
 
     async def stream_message(self, request: ApiMessageRequest) -> AsyncIterator[ApiStreamEvent]:
+        """流式生成文本增量
+        
+        Args:
+            request: API 消息请求
+        
+        Yields:
+            ApiStreamEvent: 流式事件
+        """
         last_error: Exception | None = None
         for attempt in range(MAX_RETRIES + 1):
             try:
