@@ -165,15 +165,6 @@ class ReactBackendHost:
                 if request.type == "stop":
                     await self._stop_active_line()
                     continue
-                # 提交行且为 /stop
-                if request.type == "submit_line":
-                    if (request.line or "").strip() == "/stop":
-                        await self._stop_active_line()
-                        continue
-                # 选择命令且为 stop
-                if request.type == "select_command" and (request.command or "").strip().lstrip("/").lower() == "stop":
-                    await self._stop_active_line()
-                    continue
                 # 权限响应
                 if request.type == "permission_response":
                     if request.request_id in self._permission_requests:

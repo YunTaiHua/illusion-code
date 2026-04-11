@@ -211,3 +211,30 @@ async def test_backend_host_loads_workspace_always_allow_tools(tmp_path, monkeyp
     finally:
         await close_runtime(host._bundle)
     assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_backend_host_does_not_treat_stop_text_as_special_command(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+
+    host = ReactBackendHost(BackendHostConfig(api_client=StaticApiClient("handled as normal text")))
+    host._bundle = await build_runtime(api_client=StaticApiClient("handled as normal text"))
+    events = []
+
+    async def _emit(event):
+        events.append(event)
+
+    host._emit = _emit  # type: ignore[method-assign]
+    await start_runtime(host._bundle)
+    try:
+        should_continue = await host._process_line("/stop")
+    finally:
+        await close_runtime(host._bundle)
+
+    assert should_continue is True
+    assert any(
+        event.type == "assistant_complete" and event.message == "handled as normal text"
+        for event in events
+    )

@@ -597,3 +597,9 @@ async def test_git_commands_report_repository_state(tmp_path: Path, monkeypatch)
     commit_command, commit_args = registry.lookup("/commit initial commit")
     commit_result = await commit_command.handler(commit_args, context)
     assert "commit" in commit_result.message.lower()
+
+
+def test_stop_command_removed_from_registry() -> None:
+    registry = create_default_command_registry()
+    lookup = registry.lookup("/stop")
+    assert lookup is None

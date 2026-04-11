@@ -26,7 +26,7 @@
     - /skills, /config, /mcp, /plugin, /reload-plugins
     - /permissions, /plan, /fast, /effort, /passes, /turns
     - /continue, /model, /theme, /language, /output-style
-    - /keybindings, /stop, /doctor, /diff, /branch, /commit
+    - /keybindings, /doctor, /diff, /branch, /commit
     - /issue, /pr_comments, /privacy-settings, /rate-limit-options
     - /release-notes, /upgrade, /agents, /tasks
 
@@ -1316,10 +1316,6 @@ def create_default_command_registry() -> CommandRegistry:
         lines.extend(f"{key} -> {command}" for key, command in sorted(bindings.items()))
         return CommandResult(message="\n".join(lines))
 
-    async def _stop_handler(_: str, context: CommandContext) -> CommandResult:
-        del context
-        return CommandResult(message="Use /stop in React UI or press Ctrl+X to stop current execution.")
-
     async def _doctor_handler(_: str, context: CommandContext) -> CommandResult:
         settings = load_settings()
         memory_dir = get_project_memory_dir(context.cwd)
@@ -1540,7 +1536,6 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("language", "Show or update UI language", _language_handler))
     registry.register(SlashCommand("output-style", "Show or update output style", _output_style_handler))
     registry.register(SlashCommand("keybindings", "Show resolved keybindings", _keybindings_handler))
-    registry.register(SlashCommand("stop", "Stop current running UI task", _stop_handler))
     registry.register(SlashCommand("doctor", "Show environment diagnostics", _doctor_handler))
     registry.register(SlashCommand("diff", "Show git diff output", _diff_handler))
     registry.register(SlashCommand("branch", "Show git branch information", _branch_handler))

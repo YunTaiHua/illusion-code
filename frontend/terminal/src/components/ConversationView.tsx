@@ -4,28 +4,28 @@ import {Box, Text} from 'ink';
 import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
+import {renderAssistantText} from '../utils/thinking.js';
 import {WelcomeBanner} from './WelcomeBanner.js';
 
-const MAX_VISIBLE_ITEMS = 80;
 const MAX_RESULT_LINES = 8;
 const MAX_SUMMARY_LENGTH = 120;
 
-export function ConversationView({
+export const ConversationView = React.memo(function ConversationView({
 	items,
 	assistantBuffer,
 	showWelcome,
 	language,
+	showThinking,
 }: {
 	items: TranscriptItem[];
 	assistantBuffer: string;
 	showWelcome: boolean;
 	language: UiLanguage;
+	showThinking: boolean;
 }): React.JSX.Element {
 	const {theme} = useTheme();
-	const visible = items
-		.slice(-MAX_VISIBLE_ITEMS)
-		.filter((item) => !isEmptyItem(item));
-	const grouped = groupToolItems(visible);
+	const grouped = groupToolItems(items.filter((item) => !isEmptyItem(item)));
+	const renderedAssistantBuffer = renderAssistantText(assistantBuffer, showThinking);
 
 	return (
 		<Box flexDirection="column" flexGrow={1}>
@@ -36,18 +36,18 @@ export function ConversationView({
 				if (entry.type === 'tool_group') {
 					return <ToolGroupRow key={index} toolItem={entry.toolItem} resultItem={entry.resultItem} theme={theme} prevRole={prevRole} />;
 				}
-				return <MessageRow key={index} item={entry.item} theme={theme} language={language} prevRole={prevRole} />;
+				return <MessageRow key={index} item={entry.item} theme={theme} prevRole={prevRole} showThinking={showThinking} />;
 			})}
 
-			{assistantBuffer ? (
+			{renderedAssistantBuffer ? (
 				<Box flexDirection="row" marginTop={1}>
 					<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
-					<Text>{assistantBuffer}</Text>
+					<Text>{renderedAssistantBuffer}</Text>
 				</Box>
 			) : null}
 		</Box>
 	);
-}
+});
 
 function isEmptyItem(item: TranscriptItem): boolean {
 	if (item.role === 'assistant' && (!item.text || item.text.trim() === '')) {
@@ -182,14 +182,16 @@ function ToolResultBlock({
 function MessageRow({
 	item,
 	theme,
-	language,
 	prevRole,
+	showThinking,
 }: {
 	item: TranscriptItem;
 	theme: ReturnType<typeof useTheme>['theme'];
-	language: UiLanguage;
 	prevRole?: string;
+	showThinking: boolean;
 }): React.JSX.Element {
+	const assistantText = item.role === 'assistant' ? renderAssistantText(item.text, showThinking) : item.text;
+
 	switch (item.role) {
 		case 'user': {
 			// 用户消息前添加分隔线，增强对话轮次区分度
@@ -210,11 +212,14 @@ function MessageRow({
 		}
 
 		case 'assistant':
+			if (!assistantText) {
+				return <></>;
+			}
 			return (
 				<Box marginTop={1} flexDirection="column">
 					<Text>
 						<Text color={theme.colors.illusion}>{theme.icons.assistant} </Text>
-						<Text>{item.text}</Text>
+						<Text>{assistantText}</Text>
 					</Text>
 				</Box>
 			);
