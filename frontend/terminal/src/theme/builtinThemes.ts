@@ -16,6 +16,9 @@ export type ThemeConfig = {
 		text: string;
 		subtle: string;
 		highlight: string;
+		promptBorder: string;
+		suggestion: string;
+		permission: string;
 	};
 	icons: {
 		spinner: string[];
@@ -34,6 +37,9 @@ export type ThemeConfig = {
 		cross: string;
 		chevron: string;
 		dot: string;
+		pointer: string;
+		middleDot: string;
+		resultPrefix: string;
 	};
 };
 
@@ -49,21 +55,24 @@ export const defaultTheme: ThemeConfig = {
 		success: 'green',
 		warning: 'yellow',
 		error: 'red',
-		info: 'blue',
+		info: '#7dcfff',
 		illusion: '#d4a574',
 		illusionShimmer: '#e8c49a',
 		text: 'white',
 		subtle: 'gray',
 		highlight: 'cyan',
+		promptBorder: 'gray',
+		suggestion: '#7aa2f7',
+		permission: '#bb9af7',
 	},
 	icons: {
-		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
+		spinner: ['✻', '✶', '✢'],
 		tool: '●',
 		assistant: '●',
-		user: '▸',
-		system: '*',
-		success: '✔',
-		error: '✖',
+		user: '❯',
+		system: '⚠',
+		success: '✓',
+		error: '✗',
 		pending: '○',
 		inProgress: '◐',
 		completed: '●',
@@ -73,6 +82,9 @@ export const defaultTheme: ThemeConfig = {
 		cross: '✗',
 		chevron: '›',
 		dot: '●',
+		pointer: '❯',
+		middleDot: '·',
+		resultPrefix: '⎿',
 	},
 };
 
@@ -94,15 +106,18 @@ export const darkTheme: ThemeConfig = {
 		text: '#c0caf5',
 		subtle: '#565f89',
 		highlight: '#7aa2f7',
+		promptBorder: '#565f89',
+		suggestion: '#7aa2f7',
+		permission: '#bb9af7',
 	},
 	icons: {
-		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
-		tool: '◆',
-		assistant: '◆',
-		user: '▸',
-		system: '*',
-		success: '✔',
-		error: '✖',
+		spinner: ['✻', '✶', '✢'],
+		tool: '●',
+		assistant: '●',
+		user: '❯',
+		system: '⚠',
+		success: '✓',
+		error: '✗',
 		pending: '○',
 		inProgress: '◐',
 		completed: '●',
@@ -112,6 +127,9 @@ export const darkTheme: ThemeConfig = {
 		cross: '✗',
 		chevron: '›',
 		dot: '●',
+		pointer: '❯',
+		middleDot: '·',
+		resultPrefix: '⎿',
 	},
 };
 
@@ -133,6 +151,9 @@ export const minimalTheme: ThemeConfig = {
 		text: 'white',
 		subtle: 'gray',
 		highlight: 'white',
+		promptBorder: 'gray',
+		suggestion: 'gray',
+		permission: 'gray',
 	},
 	icons: {
 		spinner: ['-', '\\', '|', '/'],
@@ -151,6 +172,9 @@ export const minimalTheme: ThemeConfig = {
 		cross: '-',
 		chevron: '>',
 		dot: '*',
+		pointer: '>',
+		middleDot: '.',
+		resultPrefix: '|',
 	},
 };
 
@@ -172,13 +196,16 @@ export const cyberpunkTheme: ThemeConfig = {
 		text: '#00fff9',
 		subtle: '#444444',
 		highlight: '#ffe600',
+		promptBorder: '#444444',
+		suggestion: '#00fff9',
+		permission: '#ffe600',
 	},
 	icons: {
 		spinner: ['◐', '◓', '◑', '◒'],
 		tool: '◈',
 		assistant: '◈',
 		user: '▸',
-		system: '*',
+		system: '⚡',
 		success: '✦',
 		error: '✖',
 		pending: '○',
@@ -190,6 +217,9 @@ export const cyberpunkTheme: ThemeConfig = {
 		cross: '✗',
 		chevron: '›',
 		dot: '●',
+		pointer: '▸',
+		middleDot: '·',
+		resultPrefix: '⎿',
 	},
 };
 
@@ -211,15 +241,18 @@ export const solarizedTheme: ThemeConfig = {
 		text: '#839496',
 		subtle: '#586e75',
 		highlight: '#268bd2',
+		promptBorder: '#586e75',
+		suggestion: '#268bd2',
+		permission: '#2aa198',
 	},
 	icons: {
-		spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
+		spinner: ['✻', '✶', '✢'],
 		tool: '●',
 		assistant: '●',
-		user: '▸',
-		system: '*',
-		success: '✔',
-		error: '✖',
+		user: '❯',
+		system: '⚠',
+		success: '✓',
+		error: '✗',
 		pending: '○',
 		inProgress: '◐',
 		completed: '●',
@@ -229,6 +262,9 @@ export const solarizedTheme: ThemeConfig = {
 		cross: '✗',
 		chevron: '›',
 		dot: '●',
+		pointer: '❯',
+		middleDot: '·',
+		resultPrefix: '⎿',
 	},
 };
 
