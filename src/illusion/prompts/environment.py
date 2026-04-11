@@ -21,6 +21,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -120,6 +121,9 @@ def detect_git_info(cwd: str) -> tuple[bool, str | None]:
     Returns:
         tuple[bool, str | None]: (是否为 Git 仓库, 分支名称)
     """
+    run_kwargs: dict = {}
+    if sys.platform == "win32":
+        run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--is-inside-work-tree"],
@@ -128,6 +132,7 @@ def detect_git_info(cwd: str) -> tuple[bool, str | None]:
             cwd=cwd,
             timeout=5,
             stdin=subprocess.DEVNULL,
+            **run_kwargs,
         )
         is_git = result.returncode == 0 and result.stdout.strip() == "true"
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -144,6 +149,7 @@ def detect_git_info(cwd: str) -> tuple[bool, str | None]:
             cwd=cwd,
             timeout=5,
             stdin=subprocess.DEVNULL,
+            **run_kwargs,
         )
         branch = result.stdout.strip() if result.returncode == 0 else None
     except (FileNotFoundError, subprocess.TimeoutExpired):

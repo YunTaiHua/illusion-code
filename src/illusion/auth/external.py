@@ -29,6 +29,7 @@ import base64
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -363,12 +364,16 @@ def get_claude_code_version() -> str:
         return _claude_code_version_cache
     for command in ("claude", "claude-code"):
         try:
+            run_kwargs: dict = {}
+            if sys.platform == "win32":
+                run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             result = subprocess.run(
                 [command, "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5,
                 check=False,
+                **run_kwargs,
             )
         except Exception:
             continue

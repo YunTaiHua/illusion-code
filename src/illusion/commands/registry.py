@@ -42,6 +42,7 @@ import importlib.metadata
 import json
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
@@ -221,13 +222,17 @@ def _run_git_command(cwd: str, *args: str) -> tuple[bool, str]:
         tuple[bool, str]: (是否成功, 输出内容)
     """
     try:
+        run_kwargs: dict = {}
+        if sys.platform == "win32":
+            run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         completed = subprocess.run(
-            ["git", *args],  # git命令
-            cwd=cwd,  # 工作目录
-            capture_output=True,  # 捕获输出
-            text=True,  # 文本模式
-            check=False,  # 不检查返回码
-            stdin=subprocess.DEVNULL,  # 防止Windows句柄继承死锁
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            **run_kwargs,
         )
     except FileNotFoundError:  # git未安装
         return False, "git is not installed."
@@ -249,12 +254,15 @@ def _copy_to_clipboard(text: str) -> tuple[bool, str]:
         tuple[bool, str]: (是否成功, 目标位置)
     """
     try:
-        pyperclip.copy(text)  # 尝试pyperclip
+        pyperclip.copy(text)
         return True, "clipboard"
     except Exception:
-        for command in (["pbcopy"], ["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard"]):  # 尝试系统命令
+        clip_kwargs: dict = {}
+        if sys.platform == "win32":
+            clip_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        for command in (["pbcopy"], ["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard"]):
             try:
-                subprocess.run(command, input=text, text=True, check=True, capture_output=True)
+                subprocess.run(command, input=text, text=True, check=True, capture_output=True, **clip_kwargs)
                 return True, "clipboard"
             except Exception:
                 continue
