@@ -3,17 +3,25 @@ import {Box, Text} from 'ink';
 
 import {useTheme} from '../theme/ThemeContext.js';
 
+// prettier-ignore
+const LOGO = [
+	'████╗██╗  ██╗  ██╗ ██╗███████╗████╗  ████╗  ███╗  ██╗',
+	'╚██╔╝██║  ██║  ██║ ██║██╔════╝╚██╔╝██║   ██║████╗ ██║',
+	' ██║ ██║  ██║  ██║ ██║███████╗ ██║ ██║   ██║██║██╗██║',
+	' ██║ ██║  ██║  ██║ ██║╚════██║ ██║ ██║   ██║██║╚████║',
+	'████╗████╗████╗ ████╔╝███████║████╗  ████╔╝ ██║ ╚═██║',
+	'╚═══╝╚═══╝╚═══╝ ╚═══╝ ╚══════╝╚═══╝  ╚═══╝  ╚═╝   ╚═╝',
+];
+
 export function WelcomeBanner({language}: {language?: string}): React.JSX.Element {
 	const {theme} = useTheme();
 
 	return (
 		<Box flexDirection="column" marginBottom={1}>
 			<Box flexDirection="column">
-				<Text color={theme.colors.illusion}>{' ██ ██      ██      ██    ██ ████████ ██      ██      ██      ██'}</Text>
-				<Text color={theme.colors.illusion}>{' ██ ██      ██      ██    ██ ██      ██      ██      ██      ██'}</Text>
-				<Text color={theme.colors.illusion}>{' ██ ██      ██      ██    ██ ██████  ██      ██      ██      ██'}</Text>
-				<Text color={theme.colors.illusion}>{' ██ ██      ██      ██    ██ ██      ██      ██      ██      ██'}</Text>
-				<Text color={theme.colors.illusion}>{' ██ ███████ ███████  ██████  ████████ ███████ ███████ ███████ ██'}</Text>
+				{LOGO.map((line, i) => (
+					<Text key={i} color={theme.colors.primary} bold>{line}</Text>
+				))}
 			</Box>
 			<Box marginTop={1}>
 				<Text color={theme.colors.illusion} bold>{'  Illusion Code · AI Coding Assistant'}</Text>
