@@ -17,6 +17,8 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -284,13 +286,17 @@ class PowerShellTool(BaseTool):
             args = ["-NoLogo", "-NoProfile", "-Command", arguments.command]
 
         # 创建子进程
+        kwargs: dict = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         process = await asyncio.create_subprocess_exec(
             powershell,
             *args,
             cwd=str(cwd.resolve()),
-            stdin=asyncio.subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **kwargs,
         )
 
         # 执行命令并归一化结果

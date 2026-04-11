@@ -23,6 +23,8 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -108,14 +110,18 @@ def _worktree_branch(slug: str) -> str:
 
 async def _run_git(*args: str, cwd: Path) -> tuple[int, str, str]:
     """运行 git 命令，返回 (returncode, stdout, stderr)。"""
+    kwargs: dict = {}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     proc = await asyncio.create_subprocess_exec(
         "git",
         *args,
         cwd=str(cwd),
-        stdin=asyncio.subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": ""},
+        **kwargs,
     )
     stdout_bytes, stderr_bytes = await proc.communicate()
     return (

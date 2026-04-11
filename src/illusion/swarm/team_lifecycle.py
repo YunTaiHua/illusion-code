@@ -38,6 +38,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -772,13 +773,17 @@ async def _destroy_worktree(worktree_path: str) -> None:
 
     if main_repo_path:
         try:
+            run_kwargs: dict = {}
+            if sys.platform == "win32":
+                run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             result = subprocess.run(
                 ["git", "worktree", "remove", "--force", worktree_path],
                 cwd=main_repo_path,
                 capture_output=True,
                 text=True,
                 timeout=30,
-                stdin=subprocess.DEVNULL,  # 防止 git 在某些环境中等待输入
+                stdin=subprocess.DEVNULL,
+                **run_kwargs,
             )
             if result.returncode == 0:
                 return

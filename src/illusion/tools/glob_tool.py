@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -165,12 +167,16 @@ async def _glob(root: Path, pattern: str, *, limit: int) -> list[str]:
         cmd.extend(["--glob", pattern, "."])
 
         # 创建异步子进程执行ripgrep
+        kwargs: dict = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         process = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(root),
-            stdin=asyncio.subprocess.DEVNULL,  # 防止Windows上的句柄继承死锁
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **kwargs,
         )
 
         lines: list[str] = []

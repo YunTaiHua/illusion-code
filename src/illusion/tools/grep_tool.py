@@ -36,6 +36,8 @@ from __future__ import annotations
 import asyncio
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -369,12 +371,16 @@ async def _rg_search(
         cmd.append(str(path))
 
     # 执行异步子进程
+    kwargs: dict = {}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     process = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=str(path) if is_dir else str(path.parent),
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        **kwargs,
     )
 
     raw_lines: list[str] = []

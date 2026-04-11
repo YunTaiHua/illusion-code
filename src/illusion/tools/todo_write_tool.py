@@ -21,25 +21,33 @@ TODO写入工具模块
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from pydantic import BaseModel, Field
 
 from illusion.tools.base import BaseTool, ToolExecutionContext, ToolResult
+
+
+class TodoItem(BaseModel):
+    """TODO项数据模型
+    
+    Attributes:
+        content: 任务描述（祈使形式）
+        status: 任务状态（pending/in_progress/completed）
+        activeForm: 执行时显示的进行时形式
+    """
+
+    content: str = Field(min_length=1)
+    status: str = Field(pattern=r"^(pending|in_progress|completed)$")
+    activeForm: str = Field(min_length=1)
 
 
 class TodoWriteToolInput(BaseModel):
     """TODO写入工具的参数模型
     
     Attributes:
-        item: TODO项文本
-        checked: 是否已勾选
-        path: TODO文件路径
+        todos: TODO项列表，每项包含content/status/activeForm
     """
 
-    item: str = Field(description="TODO item text")
-    checked: bool = Field(default=False)
-    path: str = Field(default="TODO.md")
+    todos: list[TodoItem] = Field(description="List of todo items to update")
 
 
 class TodoWriteTool(BaseTool):
@@ -184,14 +192,8 @@ When in doubt, use this tool. Being proactive with task management demonstrates 
         Returns:
             ToolResult: 执行结果
         """
-        # 构建TODO文件路径
-        path = Path(context.cwd) / arguments.path
-        # 确定勾选标记
-        prefix = "- [x]" if arguments.checked else "- [ ]"
-        # 读取现有内容或创建默认标题
-        existing = path.read_text(encoding="utf-8") if path.exists() else "# TODO\n"
-        # 追加新条目
-        updated = existing.rstrip() + f"\n{prefix} {arguments.item}\n"
-        # 写入文件
-        path.write_text(updated, encoding="utf-8")
-        return ToolResult(output=f"Updated {path}")
+        todos_data = [item.model_dump() for item in arguments.todos]
+        all_done = all(item.status == "completed" for item in arguments.todos)
+        if all_done and len(arguments.todos) >= 1:
+            todos_data = []
+        return ToolResult(output="Todos updated", metadata={"todos": todos_data})
