@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import os
+from difflib import unified_diff
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -64,7 +65,7 @@ class FileEditTool(BaseTool):
 
 Usage:
 - You must use your `Read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
-- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + arrow. Everything after that is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
+- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + arrow. Everything after that arrow is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
 - The edit will FAIL if `old_string` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replace_all` to change every instance of `old_string`.
@@ -77,6 +78,15 @@ Usage:
         arguments: FileEditToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
+        """执行文件编辑操作，替换指定文本并返回差异信息
+        
+        Args:
+            arguments: 文件编辑参数
+            context: 工具执行上下文
+        
+        Returns:
+            ToolResult: 包含编辑结果和差异文本的执行结果
+        """
         # 解析文件路径
         path = _resolve_path(context.cwd, arguments.path)
 
@@ -98,7 +108,9 @@ Usage:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(arguments.new_str, encoding="utf-8")
             mark_file_read(str(path))
-            return ToolResult(output=f"Created {path}")
+            # 生成新文件内容预览
+            preview = _generate_create_preview(str(path), arguments.new_str)
+            return ToolResult(output=f"Created {path}\n{preview}")
 
         # 读后编辑强制检查
         if not has_file_been_read(str(path)):
@@ -132,7 +144,8 @@ Usage:
         # 空文件上的空 old_str = 写入新内容
         if not arguments.old_str and not original.strip():
             path.write_text(arguments.new_str, encoding="utf-8")
-            return ToolResult(output=f"Updated {path}")
+            diff_text = _generate_diff(str(path), original, arguments.new_str)
+            return ToolResult(output=f"Updated {path}\n{diff_text}")
 
         # 检查 old_str 是否存在于文件中
         if arguments.old_str not in original:
@@ -163,7 +176,55 @@ Usage:
             updated = original.replace(arguments.old_str, arguments.new_str, 1)
 
         path.write_text(updated, encoding="utf-8")
-        return ToolResult(output=f"Updated {path}")
+        # 生成差异文本
+        diff_text = _generate_diff(str(path), original, updated)
+        return ToolResult(output=f"Updated {path}\n{diff_text}")
+
+
+def _generate_diff(file_path: str, original: str, updated: str, context_lines: int = 3) -> str:
+    """生成统一差异格式的文本
+
+    Args:
+        file_path: 文件路径
+        original: 原始内容
+        updated: 更新后内容
+        context_lines: 上下文行数
+
+    Returns:
+        str: 差异文本
+    """
+    original_lines = original.splitlines(keepends=True)
+    updated_lines = updated.splitlines(keepends=True)
+    diff_lines = list(unified_diff(
+        original_lines,
+        updated_lines,
+        fromfile=f"a/{file_path}",
+        tofile=f"b/{file_path}",
+        n=context_lines,
+    ))
+    if not diff_lines:
+        return ""
+    return "".join(diff_lines).rstrip()
+
+
+def _generate_create_preview(file_path: str, content: str, max_lines: int = 10) -> str:
+    """生成新文件创建的内容预览
+
+    Args:
+        file_path: 文件路径
+        content: 文件内容
+        max_lines: 最大预览行数
+
+    Returns:
+        str: 预览文本
+    """
+    lines = content.splitlines()
+    total = len(lines)
+    if total <= max_lines:
+        return content
+    preview_lines = lines[:max_lines]
+    remaining = total - max_lines
+    return "\n".join(preview_lines) + f"\n... +{remaining} lines"
 
 
 def _resolve_path(base: Path, candidate: str) -> Path:
