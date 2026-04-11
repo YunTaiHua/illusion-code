@@ -8,10 +8,10 @@ import type {
 	FrontendConfig,
 	McpServerSnapshot,
 	SelectRequestPayload,
-	SelectOptionPayload,
 	SwarmNotificationSnapshot,
 	SwarmTeammateSnapshot,
 	TaskSnapshot,
+	TodoItemSnapshot,
 	TranscriptItem,
 } from '../types.js';
 
@@ -31,7 +31,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 	const [selectRequest, setSelectRequest] = useState<SelectRequestPayload | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [ready, setReady] = useState(false);
-	const [todoMarkdown, setTodoMarkdown] = useState('');
+	const [todoItems, setTodoItems] = useState<TodoItemSnapshot[]>([]);
 	const [swarmTeammates, setSwarmTeammates] = useState<SwarmTeammateSnapshot[]>([]);
 	const [swarmNotifications, setSwarmNotifications] = useState<SwarmNotificationSnapshot[]>([]);
 	const childRef = useRef<ChildProcessWithoutNullStreams | null>(null);
@@ -77,6 +77,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			stdio: ['pipe', 'pipe', 'inherit'],
 			env: process.env,
 			detached: true,
+			windowsHide: true,
 		});
 		childRef.current = child;
 
@@ -233,8 +234,8 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			return;
 		}
 		if (event.type === 'todo_update') {
-			if (event.todo_markdown != null) {
-				setTodoMarkdown(event.todo_markdown);
+			if (event.todo_items != null) {
+				setTodoItems(event.todo_items);
 			}
 			return;
 		}
@@ -271,7 +272,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			selectRequest,
 			busy,
 			ready,
-			todoMarkdown,
+			todoItems,
 			swarmTeammates,
 			swarmNotifications,
 			setModal,
@@ -279,6 +280,6 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			setBusy,
 			sendRequest,
 		}),
-		[assistantBuffer, bridgeSessions, busy, commands, mcpServers, modal, ready, selectRequest, status, swarmNotifications, swarmTeammates, tasks, todoMarkdown, transcript]
+		[assistantBuffer, bridgeSessions, busy, commands, mcpServers, modal, ready, selectRequest, status, swarmNotifications, swarmTeammates, tasks, todoItems, transcript]
 	);
 }

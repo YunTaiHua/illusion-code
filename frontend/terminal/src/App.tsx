@@ -111,9 +111,9 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			const preferred = ['/stop', '/language'];
 			const boosted = preferred.filter((cmd) => matches.includes(cmd));
 			const rest = matches.filter((cmd) => !preferred.includes(cmd));
-			return [...boosted, ...rest].slice(0, 20);
+			return [...boosted, ...rest];
 		}
-		return matches.slice(0, 20);
+		return matches;
 	}, [session.commands, input]);
 
 	const canShowPicker = input.startsWith('/') && commandHints.length > 0;
@@ -229,17 +229,17 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	};
 
 	useInput((chunk, key) => {
-		if ((key.backspace || key.delete) && input === '/') {
-			setInput('');
-			return;
-		}
-
-		// Ctrl+C → exit
+		// Ctrl+C → 如果正在执行任务则停止，否则退出
 		if (key.ctrl && chunk === 'c') {
+			if (session.busy) {
+				session.sendRequest({type: 'stop'});
+				return;
+			}
 			session.sendRequest({type: 'shutdown'});
 			exit();
 			return;
 		}
+		// Ctrl+X → 停止当前任务（与busy时的Ctrl+C等效）
 		if (key.ctrl && chunk.toLowerCase() === 'x') {
 			session.sendRequest({type: 'stop'});
 			return;
@@ -329,7 +329,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 
 		// --- Question modal (also appears while busy) ---
 		if (session.modal?.kind === 'question') {
-			return; // Let TextInput in ModalHost handle input
+			return;
 		}
 
 		// --- Ignore input while busy ---
@@ -484,12 +484,12 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 
 			{/* Command picker */}
 			{showPicker ? (
-				<CommandPicker hints={commandHints} selectedIndex={pickerIndex} />
+				<CommandPicker hints={commandHints} selectedIndex={pickerIndex} totalCommands={session.commands.length} />
 			) : null}
 
 			{/* Todo panel */}
-			{session.ready && session.todoMarkdown ? (
-				<TodoPanel markdown={session.todoMarkdown} />
+			{session.ready && session.todoItems.length > 0 ? (
+				<TodoPanel items={session.todoItems} />
 			) : null}
 
 			{/* Swarm panel */}
@@ -516,6 +516,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					toolName={session.busy ? currentToolName : undefined}
 					suppressSubmit={showPicker}
 					language={language}
+					todoItems={session.todoItems}
 				/>
 			)}
 
@@ -523,15 +524,21 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			{session.ready && !session.modal && !session.busy && !selectModal && !pendingPermissionAck ? (
 				<Box>
 					<Text dimColor>
-						<Text>enter</Text> {t(language, 'send')}
-						<Text>{'  ·  '}</Text>
-						<Text>/</Text> {t(language, 'commands')}
-						<Text>{'  ·  '}</Text>
-						<Text>{'↑↓'}</Text> {t(language, 'history')}
-						<Text>{'  ·  '}</Text>
-						<Text>ctrl+x</Text> /stop
-						<Text>{'  ·  '}</Text>
-						<Text>ctrl+c</Text> {t(language, 'exit')}
+						<Text color={theme.colors.muted}>enter</Text> {t(language, 'send')}
+						<Text> {theme.icons.middleDot} </Text>
+						<Text color={theme.colors.muted}>/</Text> {t(language, 'commands')}
+						<Text> {theme.icons.middleDot} </Text>
+						<Text color={theme.colors.muted}>↑↓</Text> {t(language, 'history')}
+						<Text> {theme.icons.middleDot} </Text>
+						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exit')}
+					</Text>
+				</Box>
+			) : session.ready && session.busy && !session.modal && !selectModal ? (
+				<Box>
+					<Text dimColor>
+						<Text color={theme.colors.muted}>ctrl+c</Text> /stop
+						<Text> {theme.icons.middleDot} </Text>
+						<Text color={theme.colors.muted}>ctrl+x</Text> /stop
 					</Text>
 				</Box>
 			) : null}

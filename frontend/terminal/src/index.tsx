@@ -11,10 +11,8 @@ const restoreCursor = (): void => {
 	process.stdout.write('\x1B[?25h');
 };
 process.on('exit', restoreCursor);
-process.on('SIGINT', () => {
-	restoreCursor();
-	process.exit(130);
-});
+// SIGINT 由 App 组件中的 useInput 处理，不再强制退出
+// 仅在无法恢复时作为安全网退出
 process.on('SIGTERM', () => {
 	restoreCursor();
 	process.exit(143);

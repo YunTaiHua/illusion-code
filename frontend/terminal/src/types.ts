@@ -53,8 +53,9 @@ export type SelectRequestPayload = {
 };
 
 export type TodoItemSnapshot = {
-	text: string;
-	checked: boolean;
+	content: string;
+	status: 'pending' | 'in_progress' | 'completed';
+	activeForm: string;
 };
 
 export type SwarmTeammateSnapshot = {
