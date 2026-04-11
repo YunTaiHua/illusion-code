@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -83,7 +84,9 @@ If called outside an EnterWorktree session, the tool is a **no-op**: it reports 
         arguments: ExitWorktreeToolInput,
         context: ToolExecutionContext,
     ) -> ToolResult:
-        # 验证是否在 git 仓库中
+        run_kwargs: dict = {}
+        if sys.platform == "win32":
+            run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         git_check = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
             cwd=context.cwd,
@@ -91,6 +94,7 @@ If called outside an EnterWorktree session, the tool is a **no-op**: it reports 
             text=True,
             check=False,
             stdin=subprocess.DEVNULL,
+            **run_kwargs,
         )
         if git_check.returncode != 0:
             return ToolResult(output="Not in a git repository", is_error=True)
@@ -121,6 +125,7 @@ If called outside an EnterWorktree session, the tool is a **no-op**: it reports 
                 text=True,
                 check=False,
                 stdin=subprocess.DEVNULL,
+                **run_kwargs,
             )
             if status_check.stdout.strip():
                 return ToolResult(
@@ -145,6 +150,7 @@ If called outside an EnterWorktree session, the tool is a **no-op**: it reports 
             text=True,
             check=False,
             stdin=subprocess.DEVNULL,
+            **run_kwargs,
         )
         output = (result.stdout or result.stderr).strip() or f"Removed worktree {worktree_path}"
         return ToolResult(output=output, is_error=result.returncode != 0)

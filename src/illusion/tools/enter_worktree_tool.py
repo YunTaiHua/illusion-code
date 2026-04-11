@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 from uuid import uuid4
 
@@ -99,7 +100,8 @@ class EnterWorktreeTool(BaseTool):
             capture_output=True,
             text=True,
             check=False,
-            stdin=subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
+            stdin=subprocess.DEVNULL,
+            **({"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}),
         )
         output = (result.stdout or result.stderr).strip() or f"Created worktree {worktree_path}"
         if result.returncode != 0:
@@ -123,7 +125,8 @@ def _git_output(cwd: Path, *args: str) -> str | None:
         capture_output=True,
         text=True,
         check=False,
-        stdin=subprocess.DEVNULL,  # 防止 Windows 上的句柄继承死锁
+        stdin=subprocess.DEVNULL,
+        **({"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}),
     )
     if result.returncode != 0:
         return None
