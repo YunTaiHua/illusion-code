@@ -572,7 +572,7 @@ class Settings(BaseModel):
     api_format: str = "anthropic"  # API 格式
     provider: str = ""  # 提供商
     active_profile: str = "claude-api"  # 活跃配置文件
-    profiles: dict[str, ProviderProfile] = Field(default_factory=default_provider_profiles)  # 所有配置文件
+    profiles: dict[str, ProviderProfile] = Field(default_factory=dict)  # 用户配置的配置文件（不包含内置默认）
     max_turns: int = 200  # 最大对话轮数
 
     # 行为配置
@@ -997,6 +997,7 @@ def save_settings(settings: Settings, config_path: Path | None = None) -> None:
     """将设置持久化到配置文件
     
     在保存前会同步配置文件字段并激活配置文件。
+    保存时会剥离与内置默认完全相同的profiles，避免冗余配置。
     
     Args:
         settings: 要保存的 Settings 实例
@@ -1009,6 +1010,18 @@ def save_settings(settings: Settings, config_path: Path | None = None) -> None:
 
     # 同步并激活配置文件
     settings = settings.sync_active_profile_from_flat_fields().materialize_active_profile()
+    
+    # 剥离与内置默认完全相同的profiles，只保留用户实际配置过的
+    builtin_defaults = default_provider_profiles()
+    user_profiles: dict[str, ProviderProfile] = {}
+    for name, profile in settings.profiles.items():
+        builtin = builtin_defaults.get(name)
+        # 如果该profile不是内置默认，或者用户修改过它，则保留
+        if builtin is None or profile != builtin:
+            user_profiles[name] = profile
+    
+    settings = settings.model_copy(update={"profiles": user_profiles})
+    
     config_path.parent.mkdir(parents=True, exist_ok=True)  # 确保目录存在
     # 写入 JSON 格式的配置
     config_path.write_text(

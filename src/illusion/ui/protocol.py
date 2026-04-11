@@ -155,6 +155,7 @@ class BackendEvent(BaseModel):
         is_error: 是否为错误
         phase: 当前会话阶段
         tool_count: 工具链中的工具数量
+        todo_items: 待办事项列表
         todo_markdown: 待办事项 Markdown
         plan_mode: 计划模式
         swarm_teammates: Swarm 队友列表
@@ -198,6 +199,7 @@ class BackendEvent(BaseModel):
     phase: str | None = None          # 当前会话阶段
     tool_count: int | None = None     # 工具链中的工具数量
     # 新增字段用于增强事件
+    todo_items: list[dict[str, Any]] | None = None
     todo_markdown: str | None = None
     plan_mode: str | None = None
     swarm_teammates: list[dict[str, Any]] | None = None
