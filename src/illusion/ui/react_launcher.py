@@ -30,6 +30,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -159,12 +160,16 @@ async def launch_react_tui(
 
     # 检查并安装依赖
     if not (frontend_dir / "node_modules").exists():
+        install_kwargs: dict = {}
+        if sys.platform == "win32":
+            install_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         install = await asyncio.create_subprocess_exec(
             npm,
             "install",
             "--no-fund",
             "--no-audit",
             cwd=str(frontend_dir),
+            **install_kwargs,
         )
         if await install.wait() != 0:
             raise RuntimeError("Failed to install React terminal frontend dependencies")

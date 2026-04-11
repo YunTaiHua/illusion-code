@@ -30,6 +30,8 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import subprocess
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -117,6 +119,9 @@ async def create_shell_subprocess(
     argv, cleanup_path = wrap_command_for_sandbox(argv, settings=resolved_settings)
 
     try:
+        kwargs: dict = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         process = await asyncio.create_subprocess_exec(
             *argv,
             cwd=str(Path(cwd).resolve()),
@@ -124,6 +129,7 @@ async def create_shell_subprocess(
             stdout=stdout,
             stderr=stderr,
             env=dict(env) if env is not None else None,
+            **kwargs,
         )
     except Exception:
         # 发生异常时清理沙箱临时文件

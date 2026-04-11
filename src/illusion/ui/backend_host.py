@@ -389,19 +389,19 @@ class ReactBackendHost:
                 # TodoWrite 工具执行时发送 todo_update 事件
                 if event.tool_name in ("TodoWrite", "todo_write"):
                     tool_input = self._last_tool_inputs.get(event.tool_name, {})
-                    # TodoWrite 输入可能有 'todos' 列表或 markdown content 字段
-                    todos = tool_input.get("todos") or tool_input.get("content") or []
-                    if isinstance(todos, list) and todos:
-                        lines = []
+                    todos = tool_input.get("todos") or []
+                    if isinstance(todos, list):
+                        todo_items = []
                         for item in todos:
                             if isinstance(item, dict):
-                                checked = item.get("status", "") in ("done", "completed", "x", True)
-                                text = item.get("content") or item.get("text") or str(item)
-                                lines.append(f"- [{'x' if checked else ' '}] {text}")
-                        if lines:
-                            await self._emit(BackendEvent(type="todo_update", todo_markdown="\n".join(lines)))
-                    else:
-                        await self._emit_todo_update_from_output(event.output)
+                                todo_items.append({
+                                    "content": item.get("content", ""),
+                                    "status": item.get("status", "pending"),
+                                    "activeForm": item.get("activeForm", item.get("content", "")),
+                                })
+                        if all(t.get("status") == "completed" for t in todo_items) and len(todo_items) >= 1:
+                            todo_items = []
+                        await self._emit(BackendEvent(type="todo_update", todo_items=todo_items))
                 # 计划相关工具完成时发送 plan_mode_change 事件
                 if event.tool_name in ("set_permission_mode", "plan_mode"):
                     assert self._bundle is not None
@@ -829,14 +829,19 @@ class ReactBackendHost:
         request_id = uuid4().hex
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self._question_requests[request_id] = future
+        tool_input = self._last_tool_inputs.get("ask_user_question", {})
+        questions_data = tool_input.get("questions")
+        modal_payload: dict = {
+            "kind": "question",
+            "request_id": request_id,
+            "question": question,
+        }
+        if questions_data:
+            modal_payload["questions"] = questions_data
         await self._emit(
             BackendEvent(
                 type="modal_request",
-                modal={
-                    "kind": "question",
-                    "request_id": request_id,
-                    "question": question,
-                },
+                modal=modal_payload,
             )
         )
         try:
