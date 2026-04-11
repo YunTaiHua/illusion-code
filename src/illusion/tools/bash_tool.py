@@ -135,9 +135,7 @@ Git Safety Protocol:
   - Ensure it accurately reflects the changes and their purpose
 3. Run the following commands in parallel:
    - Add relevant untracked files to the staging area.
-   - Create the commit with a message ending with:
-
-   Co-Authored-By: Illusion <noreply@illusion.dev>
+   - Create the commit.
    - Run git status after the commit completes to verify success.
    Note: git status depends on the commit completing, so run it sequentially after the commit.
 4. If the commit fails due to pre-commit hook: fix the issue and create a NEW commit
@@ -153,8 +151,6 @@ Important notes:
 <example>
 git commit -m "$(cat <<'EOF'
    Commit message here.
-
-   Co-Authored-By: Illusion <noreply@illusion.dev>
    EOF
    )"
 </example>
@@ -183,8 +179,6 @@ gh pr create --title "the pr title" --body "$(cat <<'EOF'
 
 ## Test plan
 [Bulleted markdown checklist of TODOs for testing the pull request...]
-
-🤖 Generated with [Illusion Code]
 EOF
 )"
 </example>

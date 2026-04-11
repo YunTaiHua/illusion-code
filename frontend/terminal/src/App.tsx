@@ -385,8 +385,10 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 
 	return (
 		<Box flexDirection="column" paddingX={1} height="100%">
-			{/* Conversation area */}
-			<Box flexDirection="column" flexGrow={1}>
+			{/* Conversation area — overflow:hidden + flexShrink prevent Ink output
+			    from exceeding terminal height, which causes cursor-up to scroll
+			    the viewport (frame alternation + scrollbar jumping). */}
+			<Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
 				{conversationNode}
 			</Box>
 

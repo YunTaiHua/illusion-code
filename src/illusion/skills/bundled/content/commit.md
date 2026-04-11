@@ -22,4 +22,4 @@ Use when the user asks to commit changes, create a PR, or prepare code for revie
 - Never use `--no-verify` unless explicitly asked
 - Never amend published commits unless explicitly asked
 - If a pre-commit hook fails, fix the issue and create a NEW commit (don't --amend)
-- Include `Co-Authored-By` if pair programming
+- Do not add Co-Authored-By trailers unless the user explicitly requests it

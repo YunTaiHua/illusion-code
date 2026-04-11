@@ -1,5 +1,5 @@
 import React from 'react';
-import {Box, Text} from 'ink';
+import {Box, Text, useStdout} from 'ink';
 
 import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
@@ -24,15 +24,37 @@ export const ConversationView = React.memo(function ConversationView({
 	showThinking: boolean;
 }): React.JSX.Element {
 	const {theme} = useTheme();
+	const {stdout} = useStdout();
+
 	const grouped = groupToolItems(items.filter((item) => !isEmptyItem(item)));
 	const renderedAssistantBuffer = renderAssistantText(assistantBuffer, showThinking);
 
+	// ---------------------------------------------------------------------------
+	// Virtualisation: only render items that fit within the terminal viewport.
+	//
+	// Root cause of flicker + auto-scroll-up:
+	//   Ink re-renders the FULL conversation on every state change. When the
+	//   rendered output exceeds the terminal height, Ink's cursor-up(N) scrolls
+	//   the terminal viewport upward, then the new content pushes it back down.
+	//   This up-down jitter produces the "old frame / new frame alternating"
+	//   visual and makes the scrollbar jump.
+	//
+	// Fix: keep Ink's output height ≤ terminal height by rendering only the
+	//      tail of the conversation that fits on screen.
+	// ---------------------------------------------------------------------------
+
+	const totalRows = stdout?.rows ?? 24;
+	// Fixed chrome: status bar (~1), input box (~3), keyboard hints (~1), padding (~1) = ~6
+	const fixedRows = 6;
+	const availableRows = Math.max(3, totalRows - fixedRows);
+	const visibleGrouped = tailToFit(grouped, availableRows);
+
 	return (
-		<Box flexDirection="column" flexGrow={1}>
+		<Box flexDirection="column" overflow="hidden">
 			{showWelcome && items.length === 0 ? <WelcomeBanner language={language} /> : null}
 
-			{grouped.map((entry, index) => {
-				const prevRole = index > 0 ? grouped[index - 1]?.role : undefined;
+			{visibleGrouped.map((entry, index) => {
+				const prevRole = index > 0 ? visibleGrouped[index - 1]?.role : undefined;
 				if (entry.type === 'tool_group') {
 					return <ToolGroupRow key={index} toolItem={entry.toolItem} resultItem={entry.resultItem} theme={theme} prevRole={prevRole} />;
 				}
@@ -48,6 +70,48 @@ export const ConversationView = React.memo(function ConversationView({
 		</Box>
 	);
 });
+
+/**
+ * Walk the grouped entries backwards from the newest, estimating row cost,
+ * and return only the tail that fits within `maxRows`.
+ */
+function tailToFit(entries: GroupEntry[], maxRows: number): GroupEntry[] {
+	if (entries.length === 0) {
+		return entries;
+	}
+
+	const cols = process.stdout?.columns ?? 80;
+	let used = 0;
+	let start = entries.length;
+
+	for (let i = entries.length - 1; i >= 0; i--) {
+		const cost = estimateRows(entries[i], cols);
+		if (used + cost > maxRows) {
+			break;
+		}
+		used += cost;
+		start = i;
+	}
+
+	return entries.slice(start);
+}
+
+/** Rough row-cost estimate for a single entry. */
+function estimateRows(entry: GroupEntry, termCols: number): number {
+	if (entry.type === 'tool_group') {
+		let h = 1; // tool header line
+		if (entry.resultItem) {
+			const textLines = (entry.resultItem.text ?? '').split('\n').filter((l: string) => l.trim() !== '').length;
+			h += Math.min(textLines, MAX_RESULT_LINES) + 1; // result lines + icon line
+		}
+		return h;
+	}
+	// Single message: at least 1 row, add wrapping estimate
+	const text = entry.item.text ?? '';
+	const base = 1; // the line itself
+	const wrap = text.length > termCols ? Math.ceil((text.length - termCols) / termCols) : 0;
+	return base + wrap;
+}
 
 function isEmptyItem(item: TranscriptItem): boolean {
 	if (item.role === 'assistant' && (!item.text || item.text.trim() === '')) {
