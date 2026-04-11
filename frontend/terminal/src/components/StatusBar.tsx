@@ -36,8 +36,8 @@ function PlanModeIndicator({
 		if (flash) {
 			return (
 				<Box marginLeft={1}>
-					<Text color="green" bold>
-						{' PLAN MODE OFF '}
+					<Text color={theme.colors.success} bold>
+						{' PLAN OFF '}
 					</Text>
 				</Box>
 			);
@@ -49,14 +49,14 @@ function PlanModeIndicator({
 
 	return (
 		<Box marginLeft={1}>
-			<Text backgroundColor="yellow" color="black" bold>
+			<Text backgroundColor={theme.colors.warning} color={theme.colors.background} bold>
 				{' PLAN '}
 			</Text>
 			{isBlockedTool ? (
 				<Box marginLeft={1}>
-					<Text color="red">{theme.icons.cross} </Text>
-					<Text color="red" bold>{activeToolName}</Text>
-					<Text color="red"> blocked</Text>
+					<Text color={theme.colors.error}>{theme.icons.cross} </Text>
+					<Text color={theme.colors.error} bold>{activeToolName}</Text>
+					<Text color={theme.colors.error}> blocked</Text>
 				</Box>
 			) : null}
 		</Box>
@@ -64,9 +64,10 @@ function PlanModeIndicator({
 }
 
 function AutoModeIndicator(): React.JSX.Element {
+	const {theme} = useTheme();
 	return (
 		<Box marginLeft={1}>
-			<Text backgroundColor="green" color="black" bold>
+			<Text backgroundColor={theme.colors.success} color={theme.colors.background} bold>
 				{' AUTO '}
 			</Text>
 		</Box>
@@ -97,7 +98,7 @@ function TaskIndicator({count}: {count: number}): React.JSX.Element {
 	const {theme} = useTheme();
 	return (
 		<Box>
-			<Text color="cyan">{theme.icons.inProgress}</Text>
+			<Text color={theme.colors.info}>{theme.icons.inProgress}</Text>
 			<Text dimColor> {count} task{count !== 1 ? 's' : ''}</Text>
 		</Box>
 	);
@@ -107,7 +108,7 @@ function McpIndicator({count}: {count: number}): React.JSX.Element {
 	const {theme} = useTheme();
 	return (
 		<Box>
-			<Text color="magenta">{theme.icons.dot}</Text>
+			<Text color={theme.colors.permission}>{theme.icons.dot}</Text>
 			<Text dimColor> {count} MCP</Text>
 		</Box>
 	);
@@ -138,7 +139,7 @@ export function StatusBar({
 				<Text dimColor>{'─'.repeat(60)}</Text>
 			</Box>
 			<Box flexDirection="row" alignItems="center">
-				<Text color={theme.colors.primary} dimColor>{model}</Text>
+				<Text color={theme.colors.muted} dimColor>{model}</Text>
 				{(inputTokens > 0 || outputTokens > 0) ? (
 					<>
 						<Text dimColor>{SEP}</Text>

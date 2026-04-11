@@ -6,8 +6,9 @@ import type {UiLanguage} from '../i18n.js';
 import {t} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import {Spinner} from './Spinner.js';
+import type {TodoItemSnapshot} from '../types.js';
 
-const noop = (): void => {};
+function noop(): void {}
 
 export function PromptInput({
 	busy,
@@ -17,6 +18,7 @@ export function PromptInput({
 	toolName,
 	suppressSubmit,
 	language,
+	todoItems,
 }: {
 	busy: boolean;
 	input: string;
@@ -25,24 +27,21 @@ export function PromptInput({
 	toolName?: string;
 	suppressSubmit?: boolean;
 	language: UiLanguage;
+	todoItems?: TodoItemSnapshot[];
 }): React.JSX.Element {
 	const {theme} = useTheme();
 
 	return (
-		<Box marginTop={1} flexDirection="column">
+		<Box flexDirection="column" marginTop={1}>
 			{busy ? (
 				<Box marginBottom={1}>
-					<Spinner label={toolName ? `${t(language, 'statusToolPrefix')} ${toolName}...` : t(language, 'statusThinking')} />
+					<Spinner label={toolName ? `${t(language, 'statusToolPrefix')} ${toolName}...` : t(language, 'statusThinking')} todoItems={todoItems} />
 				</Box>
 			) : null}
-			<Box>
-				<Text color={theme.colors.primary} bold>{theme.icons.user} </Text>
+			<Box borderStyle="round" borderLeft={false} borderRight={false} borderColor={theme.colors.promptBorder} paddingLeft={1} paddingRight={1}>
+				<Text color={theme.colors.illusion} dimColor={busy}>{theme.icons.pointer} </Text>
 				<TextInput value={input} onChange={setInput} onSubmit={suppressSubmit ? noop : onSubmit} />
 			</Box>
-			<Box>
-				<Text color={theme.colors.muted}>{'─'.repeat(60)}</Text>
-			</Box>
-			<Text dimColor>{t(language, 'inputHint')}</Text>
 		</Box>
 	);
 }

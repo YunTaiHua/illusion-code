@@ -1,7 +1,8 @@
-import React, {useEffect, useState} from 'react';
-import {Text} from 'ink';
+import React, {useEffect, useMemo, useState} from 'react';
+import {Box, Text} from 'ink';
 
 import {useTheme} from '../theme/ThemeContext.js';
+import type {TodoItemSnapshot} from '../types.js';
 
 const VERBS = [
 	'Thinking',
@@ -12,9 +13,21 @@ const VERBS = [
 	'Computing',
 	'Evaluating',
 	'Considering',
+	'Crafting',
+	'Generating',
+	'Pondering',
+	'Deliberating',
+	'Synthesizing',
+	'Contemplating',
+	'Calculating',
+	'Inferring',
+	'Orchestrating',
+	'Architecting',
+	'Iterating',
+	'Refining',
 ];
 
-export function Spinner({label}: {label?: string}): React.JSX.Element {
+export function Spinner({label, todoItems}: {label?: string; todoItems?: TodoItemSnapshot[]}): React.JSX.Element {
 	const {theme} = useTheme();
 	const frames = theme.icons.spinner;
 	const [frame, setFrame] = useState(0);
@@ -23,7 +36,7 @@ export function Spinner({label}: {label?: string}): React.JSX.Element {
 	useEffect(() => {
 		const timer = setInterval(() => {
 			setFrame((f) => (f + 1) % frames.length);
-		}, 80);
+		}, 220);
 		return () => clearInterval(timer);
 	}, [frames.length]);
 
@@ -34,12 +47,24 @@ export function Spinner({label}: {label?: string}): React.JSX.Element {
 		return () => clearInterval(timer);
 	}, []);
 
-	const verb = label ?? `${VERBS[verbIndex]}...`;
+	// 从todo列表中获取当前in_progress任务的activeForm
+	const currentTodo = todoItems?.find((t) => t.status === 'in_progress');
+	const nextTodo = todoItems?.find((t) => t.status === 'pending');
+	const verb = label ?? (currentTodo?.activeForm ? `${currentTodo.activeForm}...` : `${VERBS[verbIndex]}...`);
 
 	return (
-		<Text>
-			<Text color={theme.colors.primary}>{frames[frame]}</Text>
-			<Text color={theme.colors.muted}> {verb}</Text>
-		</Text>
+		<Box flexDirection="column">
+			<Box>
+				<Box width={2}>
+					<Text color={theme.colors.illusion}>{frames[frame]}</Text>
+				</Box>
+				<Text color={theme.colors.muted}>{verb}</Text>
+			</Box>
+			{nextTodo && !currentTodo ? (
+				<Box marginLeft={2}>
+					<Text dimColor>Next: {nextTodo.content}</Text>
+				</Box>
+			) : null}
+		</Box>
 	);
 }

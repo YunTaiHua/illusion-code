@@ -22,19 +22,20 @@ export function SelectModal({
 	const {theme} = useTheme();
 
 	return (
-		<Box flexDirection="column" marginTop={1} borderStyle="round" borderColor={theme.colors.accent} paddingX={1}>
-			<Box marginBottom={1}>
-				<Text color={theme.colors.accent} bold>{theme.icons.chevron} {title}</Text>
+		<Box flexDirection="column" marginTop={1}>
+			<Box>
+				<Text color={theme.colors.permission}>{theme.icons.pointer} </Text>
+				<Text bold>{title}</Text>
 			</Box>
 			{options.map((opt, i) => {
 				const isSelected = i === selectedIndex;
 				const isCurrent = opt.active;
 				return (
-					<Box key={opt.value} flexDirection="row" marginLeft={1}>
-						<Text color={isSelected ? theme.colors.accent : theme.colors.muted}>
-							{isSelected ? `${theme.icons.chevron} ` : '  '}
+					<Box key={opt.value}>
+						<Text color={isSelected ? theme.colors.suggestion : theme.colors.muted}>
+							{isSelected ? `${theme.icons.pointer} ` : '  '}
 						</Text>
-						<Text color={isSelected ? theme.colors.accent : undefined} bold={isSelected}>
+						<Text color={isSelected ? theme.colors.suggestion : undefined} bold={isSelected} dimColor={!isSelected}>
 							{opt.label}
 						</Text>
 						{isCurrent ? (
@@ -44,18 +45,18 @@ export function SelectModal({
 						) : null}
 						{opt.description ? (
 							<Box marginLeft={1}>
-								<Text dimColor>{opt.description}</Text>
+								<Text dimColor>{theme.icons.middleDot} {opt.description}</Text>
 							</Box>
 						) : null}
 					</Box>
 				);
 			})}
-			<Box marginTop={1}>
+			<Box>
 				<Text dimColor>
 					<Text color={theme.colors.muted}>↑↓</Text> navigate
-					<Text>  </Text>
+					<Text> {theme.icons.middleDot} </Text>
 					<Text color={theme.colors.muted}>↵</Text> select
-					<Text>  </Text>
+					<Text> {theme.icons.middleDot} </Text>
 					<Text color={theme.colors.muted}>esc</Text> cancel
 				</Text>
 			</Box>
