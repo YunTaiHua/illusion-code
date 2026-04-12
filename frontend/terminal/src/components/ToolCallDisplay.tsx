@@ -34,7 +34,7 @@ function ToolUseMessage({
 
 	return (
 		<Box>
-			<Text color={theme.colors.subtle} dimColor>{theme.icons.tool} </Text>
+			<Text color={theme.colors.info}>{theme.icons.tool} </Text>
 			<Text color={theme.colors.info} bold>{toolName}</Text>
 			{summary ? (
 				<>

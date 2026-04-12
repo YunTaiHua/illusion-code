@@ -136,10 +136,10 @@ export function StatusBar({
 	return (
 		<Box flexDirection="column" marginTop={1}>
 			<Box flexDirection="row">
-				<Text dimColor>{'─'.repeat(60)}</Text>
+				<Text color={theme.colors.text}>{'─'.repeat(60)}</Text>
 			</Box>
 			<Box flexDirection="row" alignItems="center">
-				<Text color={theme.colors.muted} dimColor>{model}</Text>
+				<Text color={theme.colors.illusion}>{model}</Text>
 				{(inputTokens > 0 || outputTokens > 0) ? (
 					<>
 						<Text dimColor>{SEP}</Text>

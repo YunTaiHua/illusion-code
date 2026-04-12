@@ -46,7 +46,7 @@ export type ThemeConfig = {
 export const defaultTheme: ThemeConfig = {
 	name: 'default',
 	colors: {
-		primary: 'cyan',
+		primary: '#56d4dd',
 		secondary: 'white',
 		accent: 'magenta',
 		foreground: 'white',
@@ -55,14 +55,14 @@ export const defaultTheme: ThemeConfig = {
 		success: 'green',
 		warning: 'yellow',
 		error: 'red',
-		info: '#7dcfff',
+		info: '#89ddff',
 		illusion: '#d4a574',
 		illusionShimmer: '#e8c49a',
 		text: 'white',
 		subtle: '#a8b2c1',
-		highlight: 'cyan',
+		highlight: '#56d4dd',
 		promptBorder: '#8b949e',
-		suggestion: '#79c0ff',
+		suggestion: '#89ddff',
 		permission: '#bb9af7',
 	},
 	icons: {
@@ -91,7 +91,7 @@ export const defaultTheme: ThemeConfig = {
 export const darkTheme: ThemeConfig = {
 	name: 'dark',
 	colors: {
-		primary: '#7aa2f7',
+		primary: '#89b4fa',
 		secondary: '#c0caf5',
 		accent: '#bb9af7',
 		foreground: '#c0caf5',
@@ -100,14 +100,14 @@ export const darkTheme: ThemeConfig = {
 		success: '#9ece6a',
 		warning: '#e0af68',
 		error: '#f7768e',
-		info: '#7dcfff',
+		info: '#89ddff',
 		illusion: '#d4a574',
 		illusionShimmer: '#e8c49a',
 		text: '#c0caf5',
 		subtle: '#7982a9',
-		highlight: '#7aa2f7',
+		highlight: '#89b4fa',
 		promptBorder: '#565f89',
-		suggestion: '#7aa2f7',
+		suggestion: '#89b4fa',
 		permission: '#bb9af7',
 	},
 	icons: {

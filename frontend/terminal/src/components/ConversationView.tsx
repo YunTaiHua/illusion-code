@@ -103,7 +103,7 @@ function ToolGroupRow({
 	return (
 		<Box flexDirection="column" marginTop={needsGap ? 1 : 0}>
 			<Box>
-				<Text color={theme.colors.subtle} dimColor>{theme.icons.tool} </Text>
+				<Text color={theme.colors.info}>{theme.icons.tool} </Text>
 				<Text color={theme.colors.info} bold>{toolName}</Text>
 				{summary ? (
 					<>
@@ -198,7 +198,7 @@ function MessageRow({
 				<Box flexDirection="column" marginTop={needsDivider ? 1 : 0}>
 					{needsDivider ? (
 						<Box marginBottom={0}>
-							<Text dimColor>{'─'.repeat(40)}</Text>
+							<Text color={theme.colors.text}>{'─'.repeat(40)}</Text>
 						</Box>
 					) : null}
 					<Box>
