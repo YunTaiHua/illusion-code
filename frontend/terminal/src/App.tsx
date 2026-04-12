@@ -1,9 +1,10 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Box, Text, useApp, useInput} from 'ink';
 
-import {ComposerController} from './components/ComposerController.js';
+import {CommandPicker} from './components/CommandPicker.js';
 import {ConversationView} from './components/ConversationView.js';
 import {ModalHost} from './components/ModalHost.js';
+import {PromptInput} from './components/PromptInput.js';
 import {SelectModal, type SelectOption} from './components/SelectModal.js';
 import {StatusBar} from './components/StatusBar.js';
 import {SwarmPanel} from './components/SwarmPanel.js';
@@ -57,13 +58,16 @@ export function App({config}: {config: FrontendConfig}): React.JSX.Element {
 function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	const {exit} = useApp();
 	const {theme, setThemeName} = useTheme();
+	const [input, setInput] = useState('');
 	const [modalInput, setModalInput] = useState('');
+	const [history, setHistory] = useState<string[]>([]);
+	const [historyIndex, setHistoryIndex] = useState(-1);
 	const [scriptIndex, setScriptIndex] = useState(0);
+	const [pickerIndex, setPickerIndex] = useState(0);
 	const [selectModal, setSelectModal] = useState<SelectModalState>(null);
 	const [selectIndex, setSelectIndex] = useState(0);
 	const [permissionIndex, setPermissionIndex] = useState(2);
 	const [pendingPermissionAck, setPendingPermissionAck] = useState(false);
-	const [showThinking, setShowThinking] = useState(false);
 	const session = useBackendSession(config, () => exit());
 	const isPermissionModal = session.modal?.kind === 'permission';
 	const language = normalizeLanguage(session.status.ui_language);
@@ -93,41 +97,31 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 		return undefined;
 	}, [session.transcript]);
 
-	const showComposer = session.ready && !session.modal && !selectModal && !pendingPermissionAck;
-
-	const conversationNode = useMemo(
-		() => (
-			<ConversationView
-				items={session.transcript}
-				assistantBuffer={session.assistantBuffer}
-				showWelcome={session.ready}
-				language={language}
-				showThinking={showThinking}
-			/>
-		),
-		[language, session.assistantBuffer, session.ready, session.transcript, showThinking]
-	);
-
-	const todoNode = useMemo(() => {
-		if (!session.ready || session.todoItems.length === 0) {
-			return null;
+	// Command hints
+	const commandHints = useMemo(() => {
+		if (!input.startsWith('/')) {
+			return [] as string[];
 		}
-		return <TodoPanel items={session.todoItems} />;
-	}, [session.ready, session.todoItems]);
-
-	const swarmNode = useMemo(() => {
-		if (!session.ready || (session.swarmTeammates.length === 0 && session.swarmNotifications.length === 0)) {
-			return null;
+		const value = input.trimEnd();
+		if (value === '') {
+			return [] as string[];
 		}
-		return <SwarmPanel teammates={session.swarmTeammates} notifications={session.swarmNotifications} />;
-	}, [session.ready, session.swarmNotifications, session.swarmTeammates]);
-
-	const statusNode = useMemo(() => {
-		if (!session.ready) {
-			return null;
+		const matches = session.commands.filter((cmd) => cmd.startsWith(value));
+		if (value === '/') {
+			const preferred = ['/stop', '/language'];
+			const boosted = preferred.filter((cmd) => matches.includes(cmd));
+			const rest = matches.filter((cmd) => !preferred.includes(cmd));
+			return [...boosted, ...rest];
 		}
-		return <StatusBar status={session.status} tasks={session.tasks} activeToolName={session.busy ? currentToolName : undefined} />;
-	}, [currentToolName, session.busy, session.ready, session.status, session.tasks]);
+		return matches;
+	}, [session.commands, input]);
+
+	const canShowPicker = input.startsWith('/') && commandHints.length > 0;
+	const showPicker = canShowPicker && !session.busy && !session.modal && !selectModal;
+
+	useEffect(() => {
+		setPickerIndex(0);
+	}, [canShowPicker, commandHints.length, input]);
 
 	// Handle backend-initiated select requests (e.g. /resume session list)
 	useEffect(() => {
@@ -250,11 +244,6 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			session.sendRequest({type: 'stop'});
 			return;
 		}
-		if (key.ctrl && chunk.toLowerCase() === 't') {
-			setShowThinking((value) => !value);
-			return;
-		}
-
 
 		// --- Select modal (permissions picker etc.) ---
 		if (selectModal) {
@@ -289,16 +278,22 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			return;
 		}
 
-		// --- Scripted raw return (question modal only) ---
-		if (rawReturnSubmit && key.return && session.modal?.kind === 'question') {
-			session.sendRequest({
-				type: 'question_response',
-				request_id: session.modal.request_id,
-				answer: modalInput,
-			});
-			session.setModal(null);
-			setModalInput('');
-			return;
+		// --- Scripted raw return ---
+		if (rawReturnSubmit && key.return) {
+			if (session.modal?.kind === 'question') {
+				session.sendRequest({
+					type: 'question_response',
+					request_id: session.modal.request_id,
+					answer: modalInput,
+				});
+				session.setModal(null);
+				setModalInput('');
+				return;
+			}
+			if (!session.modal && !session.busy && input.trim()) {
+				onSubmit(input);
+				return;
+			}
 		}
 
 		// --- Permission modal (MUST be before busy check — modal appears while busy) ---
@@ -342,28 +337,91 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			return;
 		}
 
+		// --- Command picker ---
+		if (showPicker) {
+			if (key.upArrow) {
+				setPickerIndex((i) => Math.max(0, i - 1));
+				return;
+			}
+			if (key.downArrow) {
+				setPickerIndex((i) => Math.min(commandHints.length - 1, i + 1));
+				return;
+			}
+			if (key.return) {
+				const selected = commandHints[pickerIndex];
+				if (selected) {
+					setInput('');
+					if (!handleCommand(selected)) {
+						onSubmit(selected);
+					}
+				}
+				return;
+			}
+			if (key.tab) {
+				const selected = commandHints[pickerIndex];
+				if (selected) {
+					setInput(selected + ' ');
+				}
+				return;
+			}
+			if (key.escape) {
+				setInput('');
+				return;
+			}
+		}
+
+		// --- History navigation ---
+		if (!showPicker && key.upArrow) {
+			const nextIndex = Math.min(history.length - 1, historyIndex + 1);
+			if (nextIndex >= 0) {
+				setHistoryIndex(nextIndex);
+				setInput(history[history.length - 1 - nextIndex] ?? '');
+			}
+			return;
+		}
+		if (!showPicker && key.downArrow) {
+			const nextIndex = Math.max(-1, historyIndex - 1);
+			setHistoryIndex(nextIndex);
+			setInput(nextIndex === -1 ? '' : (history[history.length - 1 - nextIndex] ?? ''));
+			return;
+		}
+
+		// Note: normal Enter submission is handled by TextInput's onSubmit in
+		// PromptInput.  Do NOT duplicate it here — that causes double requests.
 	});
 
 	const onSubmit = (value: string): void => {
-		const trimmed = value.trim();
 		if (session.modal?.kind === 'question') {
 			session.sendRequest({
 				type: 'question_response',
 				request_id: session.modal.request_id,
-				answer: trimmed,
+				answer: value,
 			});
 			session.setModal(null);
 			setModalInput('');
 			return;
 		}
-		if (!trimmed || session.busy || !session.ready) {
+		if (value.trim() === '/stop') {
+			session.sendRequest({type: 'stop'});
+			setHistory((items) => [...items, value]);
+			setHistoryIndex(-1);
+			setInput('');
+			return;
+		}
+		if (!value.trim() || session.busy || !session.ready) {
 			return;
 		}
 		// Check if it's an interactive command
-		if (handleCommand(trimmed)) {
+		if (handleCommand(value)) {
+			setHistory((items) => [...items, value]);
+			setHistoryIndex(-1);
+			setInput('');
 			return;
 		}
-		session.sendRequest({type: 'submit_line', line: trimmed});
+		session.sendRequest({type: 'submit_line', line: value});
+		setHistory((items) => [...items, value]);
+		setHistoryIndex(-1);
+		setInput('');
 		session.setBusy(true);
 	};
 
@@ -385,11 +443,14 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 
 	return (
 		<Box flexDirection="column" paddingX={1} height="100%">
-			{/* Conversation area — overflow:hidden + flexShrink prevent Ink output
-			    from exceeding terminal height, which causes cursor-up to scroll
-			    the viewport (frame alternation + scrollbar jumping). */}
-			<Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
-				{conversationNode}
+			{/* Conversation area */}
+			<Box flexDirection="column" flexGrow={1}>
+				<ConversationView
+					items={session.transcript}
+					assistantBuffer={session.assistantBuffer}
+					showWelcome={session.ready}
+					language={language}
+				/>
 			</Box>
 
 			{/* Permission confirm modal */}
@@ -421,31 +482,43 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 				/>
 			) : null}
 
+			{/* Command picker */}
+			{showPicker ? (
+				<CommandPicker hints={commandHints} selectedIndex={pickerIndex} totalCommands={session.commands.length} />
+			) : null}
+
 			{/* Todo panel */}
-			{todoNode}
+			{session.ready && session.todoItems.length > 0 ? (
+				<TodoPanel items={session.todoItems} />
+			) : null}
 
 			{/* Swarm panel */}
-			{swarmNode}
+			{session.ready && (session.swarmTeammates.length > 0 || session.swarmNotifications.length > 0) ? (
+				<SwarmPanel teammates={session.swarmTeammates} notifications={session.swarmNotifications} />
+			) : null}
 
 			{/* Status bar (only after backend is ready) */}
-			{statusNode}
+			{session.ready ? (
+				<StatusBar status={session.status} tasks={session.tasks} activeToolName={session.busy ? currentToolName : undefined} />
+			) : null}
 
 			{/* Input — show loading indicator until backend is ready */}
 			{!session.ready ? (
 				<Box>
 					<Text color={theme.colors.warning}>{t(language, 'connecting')}</Text>
 				</Box>
-			) : showComposer ? (
-				<ComposerController
-					commands={session.commands}
+			) : session.modal || selectModal || pendingPermissionAck ? null : (
+				<PromptInput
 					busy={session.busy}
-					disabled={Boolean(session.modal || selectModal || pendingPermissionAck)}
+					input={input}
+					setInput={setInput}
+					onSubmit={onSubmit}
+					toolName={session.busy ? currentToolName : undefined}
+					suppressSubmit={showPicker}
 					language={language}
 					todoItems={session.todoItems}
-					toolName={session.busy ? currentToolName : undefined}
-					onSubmit={onSubmit}
 				/>
-			) : null}
+			)}
 
 			{/* Keyboard hints (only after backend is ready) */}
 			{session.ready && !session.modal && !session.busy && !selectModal && !pendingPermissionAck ? (
@@ -455,7 +528,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 						<Text> {theme.icons.middleDot} </Text>
 						<Text color={theme.colors.muted}>/</Text> {t(language, 'commands')}
 						<Text> {theme.icons.middleDot} </Text>
-						<Text color={theme.colors.muted}>ctrl+t</Text> {showThinking ? t(language, 'hideThinking') : t(language, 'showThinking')}
+						<Text color={theme.colors.muted}>↑↓</Text> {t(language, 'history')}
 						<Text> {theme.icons.middleDot} </Text>
 						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exit')}
 					</Text>
@@ -463,11 +536,9 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			) : session.ready && session.busy && !session.modal && !selectModal ? (
 				<Box>
 					<Text dimColor>
-						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exit')}
+						<Text color={theme.colors.muted}>ctrl+c</Text> /stop
 						<Text> {theme.icons.middleDot} </Text>
-						<Text color={theme.colors.muted}>ctrl+x</Text> {t(language, 'stopTask')}
-						<Text> {theme.icons.middleDot} </Text>
-						<Text color={theme.colors.muted}>ctrl+t</Text> {showThinking ? t(language, 'hideThinking') : t(language, 'showThinking')}
+						<Text color={theme.colors.muted}>ctrl+x</Text> /stop
 					</Text>
 				</Box>
 			) : null}

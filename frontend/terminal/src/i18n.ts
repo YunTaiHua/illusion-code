@@ -21,9 +21,6 @@ const ZH: Dict = {
 	statusThinking: '思考中...',
 	statusExecuting: '执行指令中...',
 	statusToolPrefix: '执行工具',
-	stopTask: '停止任务',
-	showThinking: '显示思考',
-	hideThinking: '隐藏思考',
 };
 
 const EN: Dict = {
@@ -45,9 +42,6 @@ const EN: Dict = {
 	statusThinking: 'Thinking...',
 	statusExecuting: 'Executing command...',
 	statusToolPrefix: 'Running tool',
-	stopTask: 'stop task',
-	showThinking: 'show thinking',
-	hideThinking: 'hide thinking',
 };
 
 const ALL: Record<UiLanguage, Dict> = {
