@@ -35,7 +35,7 @@ export function PromptInput({
 		<Box flexDirection="column" marginTop={1}>
 			{busy ? (
 				<Box marginBottom={1}>
-					<Spinner label={toolName ? `${t(language, 'statusToolPrefix')} ${toolName}...` : t(language, 'statusThinking')} todoItems={todoItems} />
+					<Spinner todoItems={todoItems} language={language} toolName={toolName} />
 				</Box>
 			) : null}
 			<Box borderStyle="round" borderLeft={false} borderRight={false} borderColor={theme.colors.promptBorder} paddingLeft={1} paddingRight={1}>

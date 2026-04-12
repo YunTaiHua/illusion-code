@@ -480,8 +480,9 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			) : session.modal || selectModal || pendingPermissionAck ? null : session.busy ? (
 				<Box marginTop={1}>
 					<Spinner
-						label={currentToolName ? `${t(language, 'statusToolPrefix')} ${currentToolName}...` : t(language, 'statusThinking')}
 						todoItems={session.todoItems}
+						language={language}
+						toolName={currentToolName}
 					/>
 				</Box>
 			) : (
@@ -511,7 +512,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					</Text>
 				</Box>
 			) : session.ready && session.busy && !session.modal && !selectModal ? (
-				<Box>
+				<Box marginTop={1}>
 					<Text dimColor>
 						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exitProgram')}
 						<Text> {theme.icons.middleDot} </Text>
