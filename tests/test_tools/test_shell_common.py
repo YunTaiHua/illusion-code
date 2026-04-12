@@ -142,8 +142,12 @@ class TestCommandExecutor:
     @pytest.mark.asyncio
     async def test_run_and_normalize_success(self):
         """真实进程：echo 命令"""
+        if sys.platform == "win32":
+            cmd = ["cmd", "/c", "echo", "executor-test"]
+        else:
+            cmd = ["echo", "executor-test"]
         process = await asyncio.create_subprocess_exec(
-            "echo", "executor-test",
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

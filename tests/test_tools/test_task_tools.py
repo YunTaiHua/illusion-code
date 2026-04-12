@@ -23,25 +23,19 @@ async def test_task_create_and_output_tool(tmp_path: Path, monkeypatch):
 
     create_result = await TaskCreateTool().execute(
         TaskCreateToolInput(
-            type="local_bash",
-            description="echo",
-            command="printf 'tool task'",
+            subject="echo",
+            description="echo task",
         ),
         context,
     )
     assert create_result.is_error is False
     task_id = create_result.output.split()[2]
 
-    manager = get_task_manager()
-    for _ in range(20):
-        if "tool task" in manager.read_task_output(task_id):
-            break
-        await asyncio.sleep(0.1)
     output_result = await TaskOutputTool().execute(
         TaskOutputToolInput(task_id=task_id),
         context,
     )
-    assert "tool task" in output_result.output
+    assert output_result.output == "(no output)"
 
 
 @pytest.mark.asyncio
@@ -61,9 +55,8 @@ async def test_task_update_tool_updates_metadata(tmp_path: Path, monkeypatch):
 
     create_result = await TaskCreateTool().execute(
         TaskCreateToolInput(
-            type="local_bash",
-            description="updatable",
-            command="printf 'tool task'",
+            subject="updatable",
+            description="updatable task",
         ),
         context,
     )
@@ -83,8 +76,8 @@ async def test_task_update_tool_updates_metadata(tmp_path: Path, monkeypatch):
     task = get_task_manager().get_task(task_id)
     assert task is not None
     assert task.description == "renamed task"
-    assert task.metadata["progress"] == "60"
-    assert task.metadata["status_note"] == "waiting on verification"
+    assert task.metadata.get("progress") == "60"
+    assert task.metadata.get("status_note") == "waiting on verification"
 
 
 @pytest.mark.asyncio

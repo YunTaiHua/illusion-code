@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-from illusion.ui.input import InputSession
+import sys
+
+import pytest
+
 from illusion.ui.output import OutputRenderer
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="prompt_toolkit requires a real console on Windows")
 def test_input_session_updates_prompt_modes():
+    from illusion.ui.input import InputSession
+
     session = InputSession()
     assert session._prompt == "> "
 

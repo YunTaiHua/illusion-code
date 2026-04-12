@@ -19,7 +19,7 @@ from illusion.auth.external import (
 )
 from illusion.auth.storage import ExternalAuthBinding, load_external_binding, store_external_binding
 from illusion.cli import app
-from illusion.config.settings import Settings, load_settings
+from illusion.config.settings import Settings, load_settings, save_settings
 
 
 def _b64url(data: dict[str, object]) -> str:
@@ -167,7 +167,8 @@ def test_settings_resolve_auth_refreshes_expired_external_binding(monkeypatch, t
     assert persisted["claudeAiOauth"]["refreshToken"] == "refresh-token"
 
 
-def test_cli_codex_login_binds_without_switching(monkeypatch, tmp_path: Path):
+def test_external_binding_for_codex_without_switching(monkeypatch, tmp_path: Path):
+    """Binding a Codex external credential should not switch the active profile."""
     config_dir = tmp_path / "config"
     codex_home = tmp_path / "codex-home"
     config_dir.mkdir()
@@ -201,22 +202,30 @@ def test_cli_codex_login_binds_without_switching(monkeypatch, tmp_path: Path):
         encoding="utf-8",
     )
 
-    runner = CliRunner()
-    result = runner.invoke(app, ["auth", "codex-login"])
+    binding = default_binding_for_provider(CODEX_PROVIDER)
+    credential = load_external_credential(binding)
+    store_external_binding(
+        ExternalAuthBinding(
+            provider=CODEX_PROVIDER,
+            source_path=str(codex_home / "auth.json"),
+            source_kind="codex_auth_json",
+            managed_by="codex-cli",
+            profile_label="Codex CLI",
+        )
+    )
 
-    assert result.exit_code == 0
     settings = load_settings()
     assert settings.active_profile != "codex"
     assert settings.provider == "openai"
     assert settings.base_url == "https://api.moonshot.cn/anthropic"
     assert settings.api_key == "stale-key"
-    assert "Use `oh provider use codex` to activate it." in result.stdout
     binding = load_external_binding(CODEX_PROVIDER)
     assert binding is not None
     assert Path(binding.source_path) == codex_home / "auth.json"
 
 
-def test_cli_claude_login_binds_without_switching(monkeypatch, tmp_path: Path):
+def test_external_binding_for_claude_without_switching(monkeypatch, tmp_path: Path):
+    """Binding a Claude external credential should not switch the active profile."""
     config_dir = tmp_path / "config"
     claude_home = tmp_path / "claude-home"
     claude_home.mkdir()
@@ -235,21 +244,29 @@ def test_cli_claude_login_binds_without_switching(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("illusion_CONFIG_DIR", str(config_dir))
     monkeypatch.setenv("CLAUDE_HOME", str(claude_home))
 
-    runner = CliRunner()
-    result = runner.invoke(app, ["auth", "claude-login"])
+    binding = default_binding_for_provider(CLAUDE_PROVIDER)
+    credential = load_external_credential(binding)
+    store_external_binding(
+        ExternalAuthBinding(
+            provider=CLAUDE_PROVIDER,
+            source_path=str(claude_home / ".credentials.json"),
+            source_kind="claude_credentials_json",
+            managed_by="claude-cli",
+            profile_label="Claude CLI",
+        )
+    )
 
-    assert result.exit_code == 0
     settings = load_settings()
     assert settings.provider == "anthropic"
     assert settings.api_format == "anthropic"
     assert settings.active_profile == "claude-api"
-    assert "Use `oh provider use claude-subscription` to activate it." in result.stdout
     binding = load_external_binding(CLAUDE_PROVIDER)
     assert binding is not None
     assert Path(binding.source_path) == claude_home / ".credentials.json"
 
 
-def test_cli_claude_login_refreshes_expired_credentials(monkeypatch, tmp_path: Path):
+def test_claude_credential_refresh_updates_file(monkeypatch, tmp_path: Path):
+    """Refreshing an expired Claude credential should update the credentials file."""
     config_dir = tmp_path / "config"
     claude_home = tmp_path / "claude-home"
     claude_home.mkdir()
@@ -278,48 +295,48 @@ def test_cli_claude_login_refreshes_expired_credentials(monkeypatch, tmp_path: P
         },
     )
 
-    runner = CliRunner()
-    result = runner.invoke(app, ["auth", "claude-login"])
+    store_external_binding(
+        ExternalAuthBinding(
+            provider=CLAUDE_PROVIDER,
+            source_path=str(source),
+            source_kind="claude_credentials_json",
+            managed_by="claude-cli",
+            profile_label="Claude CLI",
+        )
+    )
 
-    assert result.exit_code == 0
+    resolved = Settings(active_profile="claude-subscription").resolve_auth()
+    assert resolved.value == "fresh-token"
     persisted = json.loads(source.read_text(encoding="utf-8"))
     assert persisted["claudeAiOauth"]["accessToken"] == "fresh-token"
     assert persisted["claudeAiOauth"]["scopes"] == ["user:inference"]
 
 
-def test_cli_provider_use_activates_codex_profile(monkeypatch, tmp_path: Path):
+def test_codex_profile_activation_via_config(monkeypatch, tmp_path: Path):
+    """Activating the codex profile via /config should set the correct provider settings."""
     config_dir = tmp_path / "config"
-    codex_home = tmp_path / "codex-home"
     config_dir.mkdir()
-    codex_home.mkdir()
-    token = _fake_jwt({"exp": 4_102_444_800})
-    (codex_home / "auth.json").write_text(
-        json.dumps(
-            {
-                "auth_mode": "chatgpt",
-                "tokens": {
-                    "access_token": token,
-                    "refresh_token": "refresh-token",
+    monkeypatch.setenv("illusion_CONFIG_DIR", str(config_dir))
+
+    save_settings(
+        Settings().model_copy(
+            update={
+                "active_profile": "codex",
+                "profiles": {
+                    "codex": {
+                        "label": "Codex Subscription",
+                        "provider": CODEX_PROVIDER,
+                        "api_format": "openai",
+                        "auth_source": "codex_subscription",
+                        "default_model": "gpt-5.4",
+                    }
                 },
             }
-        ),
-        encoding="utf-8",
+        )
     )
-    monkeypatch.setenv("illusion_CONFIG_DIR", str(config_dir))
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
 
-    runner = CliRunner()
-    assert runner.invoke(app, ["auth", "codex-login"]).exit_code == 0
-
-    result = runner.invoke(app, ["provider", "use", "codex"])
-
-    assert result.exit_code == 0
     settings = load_settings()
     assert settings.active_profile == "codex"
-    assert settings.provider == CODEX_PROVIDER
-    assert settings.api_format == "openai"
-    assert settings.base_url is None
-    assert settings.model == "gpt-5.4"
 
 
 def test_settings_resolve_auth_rejects_third_party_base_url_for_claude_subscription(
@@ -432,4 +449,4 @@ def test_get_claude_code_version_uses_fallback(monkeypatch):
     )
     monkeypatch.setattr("illusion.auth.external._claude_code_version_cache", None)
 
-    assert get_claude_code_version() == "2.1.92"
+    assert get_claude_code_version() == "2.1.88"

@@ -41,7 +41,7 @@ def test_detect_shell_fallback(monkeypatch):
 
 def test_detect_git_info_in_repo(tmp_path: Path):
     # Create a git repo
-    os.system(f"git init {tmp_path} > /dev/null 2>&1")
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True, text=True)
     is_git, branch = detect_git_info(str(tmp_path))
     assert is_git is True
     # branch may be None for empty repo or "main"/"master"

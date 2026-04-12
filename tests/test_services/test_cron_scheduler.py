@@ -108,22 +108,22 @@ class TestJobsDue:
 
 class TestExecuteJob:
     @pytest.mark.asyncio
-    async def test_successful_job(self) -> None:
-        job = {"name": "echo-test", "command": "echo hello", "cwd": "/tmp"}
+    async def test_successful_job(self, tmp_path: Path) -> None:
+        job = {"name": "echo-test", "command": "echo hello", "cwd": str(tmp_path)}
         entry = await execute_job(job)
         assert entry["status"] == "success"
         assert entry["returncode"] == 0
         assert "hello" in entry["stdout"]
 
     @pytest.mark.asyncio
-    async def test_failing_job(self) -> None:
-        job = {"name": "fail-test", "command": "exit 1", "cwd": "/tmp"}
+    async def test_failing_job(self, tmp_path: Path) -> None:
+        job = {"name": "fail-test", "command": "exit 1", "cwd": str(tmp_path)}
         entry = await execute_job(job)
         assert entry["status"] == "failed"
         assert entry["returncode"] == 1
 
     @pytest.mark.asyncio
-    async def test_timeout_job(self) -> None:
+    async def test_timeout_job(self, tmp_path: Path) -> None:
         with patch("illusion.services.cron_scheduler.asyncio.wait_for") as mock_wait:
             import asyncio
 
@@ -138,7 +138,7 @@ class TestExecuteJob:
                 "illusion.utils.shell.asyncio.create_subprocess_exec",
                 return_value=mock_process,
             ):
-                job = {"name": "slow-test", "command": "sleep 999", "cwd": "/tmp"}
+                job = {"name": "slow-test", "command": "sleep 999", "cwd": str(tmp_path)}
                 entry = await execute_job(job)
                 assert entry["status"] == "timeout"
 
@@ -150,11 +150,11 @@ class TestSchedulerLoop:
         await run_scheduler_loop(once=True)
 
     @pytest.mark.asyncio
-    async def test_once_mode_fires_due_job(self) -> None:
+    async def test_once_mode_fires_due_job(self, tmp_path: Path) -> None:
         """Scheduler loop should fire a job that is due."""
         from illusion.services.cron import upsert_cron_job
 
-        upsert_cron_job({"name": "test-once", "schedule": "* * * * *", "command": "echo fired"})
+        upsert_cron_job({"name": "test-once", "schedule": "* * * * *", "command": "echo fired", "cwd": str(tmp_path)})
 
         # Force next_run to the past so it's immediately due
         from illusion.services.cron import load_cron_jobs, save_cron_jobs

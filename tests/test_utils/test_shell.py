@@ -62,10 +62,10 @@ def test_resolve_shell_command_ignores_windows_bash_shim(monkeypatch):
 
 
 def test_resolve_windows_bash_uses_env_override(monkeypatch, tmp_path):
-    """CLAUDE_CODE_GIT_BASH_PATH takes priority over all other resolution."""
+    """ILLUSION_CODE_GIT_BASH_PATH takes priority over all other resolution."""
     fake_bash = tmp_path / "bash.exe"
     fake_bash.write_text("fake")
-    monkeypatch.setenv("CLAUDE_CODE_GIT_BASH_PATH", str(fake_bash))
+    monkeypatch.setenv("ILLUSION_CODE_GIT_BASH_PATH", str(fake_bash))
 
     assert _resolve_windows_bash() == str(fake_bash)
 
@@ -91,7 +91,7 @@ def test_resolve_windows_bash_finds_bash_via_git(monkeypatch, tmp_path):
 
     monkeypatch.setattr("illusion.utils.shell.shutil.which", fake_which)
     # Ensure env override is not set
-    monkeypatch.delenv("CLAUDE_CODE_GIT_BASH_PATH", raising=False)
+    monkeypatch.delenv("ILLUSION_CODE_GIT_BASH_PATH", raising=False)
 
     result = _resolve_windows_bash()
     assert result is not None

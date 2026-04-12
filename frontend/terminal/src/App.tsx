@@ -6,6 +6,7 @@ import {ConversationView} from './components/ConversationView.js';
 import {ModalHost} from './components/ModalHost.js';
 import {PromptInput} from './components/PromptInput.js';
 import {SelectModal, type SelectOption} from './components/SelectModal.js';
+import {Spinner} from './components/Spinner.js';
 import {StatusBar} from './components/StatusBar.js';
 import {SwarmPanel} from './components/SwarmPanel.js';
 import {TodoPanel} from './components/TodoPanel.js';
@@ -60,8 +61,6 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	const {theme, setThemeName} = useTheme();
 	const [input, setInput] = useState('');
 	const [modalInput, setModalInput] = useState('');
-	const [history, setHistory] = useState<string[]>([]);
-	const [historyIndex, setHistoryIndex] = useState(-1);
 	const [scriptIndex, setScriptIndex] = useState(0);
 	const [pickerIndex, setPickerIndex] = useState(0);
 	const [selectModal, setSelectModal] = useState<SelectModalState>(null);
@@ -108,7 +107,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 		}
 		const matches = session.commands.filter((cmd) => cmd.startsWith(value));
 		if (value === '/') {
-			const preferred = ['/stop', '/language'];
+			const preferred = ['/language'];
 			const boosted = preferred.filter((cmd) => matches.includes(cmd));
 			const rest = matches.filter((cmd) => !preferred.includes(cmd));
 			return [...boosted, ...rest];
@@ -229,19 +228,17 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	};
 
 	useInput((chunk, key) => {
-		// Ctrl+C → 如果正在执行任务则停止，否则退出
+		// Ctrl+C → 退出程序
 		if (key.ctrl && chunk === 'c') {
-			if (session.busy) {
-				session.sendRequest({type: 'stop'});
-				return;
-			}
 			session.sendRequest({type: 'shutdown'});
 			exit();
 			return;
 		}
-		// Ctrl+X → 停止当前任务（与busy时的Ctrl+C等效）
+		// Ctrl+X → 停止当前任务
 		if (key.ctrl && chunk.toLowerCase() === 'x') {
-			session.sendRequest({type: 'stop'});
+			if (session.busy) {
+				session.sendRequest({type: 'stop'});
+			}
 			return;
 		}
 
@@ -370,22 +367,6 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			}
 		}
 
-		// --- History navigation ---
-		if (!showPicker && key.upArrow) {
-			const nextIndex = Math.min(history.length - 1, historyIndex + 1);
-			if (nextIndex >= 0) {
-				setHistoryIndex(nextIndex);
-				setInput(history[history.length - 1 - nextIndex] ?? '');
-			}
-			return;
-		}
-		if (!showPicker && key.downArrow) {
-			const nextIndex = Math.max(-1, historyIndex - 1);
-			setHistoryIndex(nextIndex);
-			setInput(nextIndex === -1 ? '' : (history[history.length - 1 - nextIndex] ?? ''));
-			return;
-		}
-
 		// Note: normal Enter submission is handled by TextInput's onSubmit in
 		// PromptInput.  Do NOT duplicate it here — that causes double requests.
 	});
@@ -401,26 +382,15 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			setModalInput('');
 			return;
 		}
-		if (value.trim() === '/stop') {
-			session.sendRequest({type: 'stop'});
-			setHistory((items) => [...items, value]);
-			setHistoryIndex(-1);
-			setInput('');
-			return;
-		}
 		if (!value.trim() || session.busy || !session.ready) {
 			return;
 		}
 		// Check if it's an interactive command
 		if (handleCommand(value)) {
-			setHistory((items) => [...items, value]);
-			setHistoryIndex(-1);
 			setInput('');
 			return;
 		}
 		session.sendRequest({type: 'submit_line', line: value});
-		setHistory((items) => [...items, value]);
-		setHistoryIndex(-1);
 		setInput('');
 		session.setBusy(true);
 	};
@@ -507,7 +477,14 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 				<Box>
 					<Text color={theme.colors.warning}>{t(language, 'connecting')}</Text>
 				</Box>
-			) : session.modal || selectModal || pendingPermissionAck ? null : (
+			) : session.modal || selectModal || pendingPermissionAck ? null : session.busy ? (
+				<Box marginTop={1}>
+					<Spinner
+						label={currentToolName ? `${t(language, 'statusToolPrefix')} ${currentToolName}...` : t(language, 'statusThinking')}
+						todoItems={session.todoItems}
+					/>
+				</Box>
+			) : (
 				<PromptInput
 					busy={session.busy}
 					input={input}
@@ -528,17 +505,17 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 						<Text> {theme.icons.middleDot} </Text>
 						<Text color={theme.colors.muted}>/</Text> {t(language, 'commands')}
 						<Text> {theme.icons.middleDot} </Text>
-						<Text color={theme.colors.muted}>↑↓</Text> {t(language, 'history')}
+						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exitProgram')}
 						<Text> {theme.icons.middleDot} </Text>
-						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exit')}
+						<Text color={theme.colors.muted}>ctrl+x</Text> {t(language, 'stopCurrentTask')}
 					</Text>
 				</Box>
 			) : session.ready && session.busy && !session.modal && !selectModal ? (
 				<Box>
 					<Text dimColor>
-						<Text color={theme.colors.muted}>ctrl+c</Text> /stop
+						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exitProgram')}
 						<Text> {theme.icons.middleDot} </Text>
-						<Text color={theme.colors.muted}>ctrl+x</Text> /stop
+						<Text color={theme.colors.muted}>ctrl+x</Text> {t(language, 'stopCurrentTask')}
 					</Text>
 				</Box>
 			) : null}

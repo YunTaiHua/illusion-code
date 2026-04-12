@@ -67,7 +67,7 @@ def test_invalid_pattern_rule_is_skipped_and_warns(bad_rule, caplog):
         checker = PermissionChecker(settings)
 
     assert checker._path_rules == []
-    assert "Skipping path rule" in caplog.text
+    assert "跳过路径规则" in caplog.text
 
 
 def test_valid_deny_rule_blocks_matching_path():

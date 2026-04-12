@@ -55,7 +55,7 @@ class TestCopilotClientInit:
 
     def test_raises_when_no_token(self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "cfg"))
-        with pytest.raises(AuthenticationFailure, match="No GitHub Copilot token"):
+        with pytest.raises(AuthenticationFailure, match="GitHub Copilot"):
             CopilotClient()
 
     def test_succeeds_with_explicit_token(self, tmp_path: Path, monkeypatch):

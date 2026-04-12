@@ -159,5 +159,5 @@ def test_anthropic_client_refreshes_claude_token_on_request(monkeypatch):
     }
     assert "oauth-2025-04-20" in client._client.beta.messages.last_params["betas"]
     assert client._client.beta.messages.last_params["system"].startswith(
-        "x-anthropic-billing-header: cc_version=2.1.92; cc_entrypoint=cli;\n"
+        "x-anthropic-billing-header: cc_version=2.1.88; cc_entrypoint=cli;\n"
     )

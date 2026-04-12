@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from illusion.swarm.registry import BackendRegistry
@@ -17,7 +19,8 @@ def test_registry_registers_subprocess_and_in_process():
     registry = BackendRegistry()
     available = registry.available_backends()
     assert "subprocess" in available
-    assert "in_process" in available
+    if sys.platform != "win32":
+        assert "in_process" in available
 
 
 def test_get_executor_subprocess():
@@ -27,6 +30,7 @@ def test_get_executor_subprocess():
     assert executor.type == "subprocess"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="in_process backend not available on Windows")
 def test_get_executor_in_process():
     registry = BackendRegistry()
     executor = registry.get_executor("in_process")

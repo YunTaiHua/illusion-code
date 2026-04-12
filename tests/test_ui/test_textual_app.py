@@ -7,7 +7,7 @@ import pytest
 from illusion.api.client import ApiMessageCompleteEvent
 from illusion.api.usage import UsageSnapshot
 from illusion.engine.messages import ConversationMessage, TextBlock, ToolUseBlock
-from illusion.ui.textual_app import IllusionCodeTerminalApp
+from illusion.ui.textual_app import illusionTerminalApp as IllusionCodeTerminalApp
 
 
 class StaticApiClient:
@@ -89,7 +89,18 @@ async def test_textual_app_handles_ask_user_tool(tmp_path, monkeypatch):
                         ToolUseBlock(
                             id="toolu_ask",
                             name="ask_user_question",
-                            input={"question": "Pick a color"},
+                            input={
+                                "questions": [
+                                    {
+                                        "header": "Color",
+                                        "question": "Pick a color",
+                                        "options": [
+                                            {"label": "Green", "description": "Choose green"},
+                                            {"label": "Blue", "description": "Choose blue"},
+                                        ],
+                                    }
+                                ]
+                            },
                         )
                     ],
                 ),
@@ -102,8 +113,8 @@ async def test_textual_app_handles_ask_user_tool(tmp_path, monkeypatch):
     )
 
     async def _answer(question: str) -> str:
-        assert question == "Pick a color"
-        return "green"
+        assert "Pick a color" in question
+        return {"question-1": "green"}
 
     app._ask_question = _answer
     async with app.run_test() as pilot:
@@ -112,5 +123,5 @@ async def test_textual_app_handles_ask_user_tool(tmp_path, monkeypatch):
         await pilot.press("enter")
         await pilot.pause()
 
-    assert any("tool-result> ask_user_question: green" in line for line in app.transcript_lines)
+    assert any("tool-result> ask_user_question:" in line for line in app.transcript_lines)
     assert any("assistant> chosen green" in line for line in app.transcript_lines)

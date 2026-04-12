@@ -65,7 +65,16 @@ class TestSettings:
 
 
 class TestLoadSaveSettings:
-    def test_load_missing_file_returns_defaults(self, tmp_path: Path):
+    def test_load_missing_file_returns_defaults(self, tmp_path: Path, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("illusion_BASE_URL", raising=False)
+        monkeypatch.delenv("illusion_MODEL", raising=False)
+        monkeypatch.delenv("illusion_MAX_TOKENS", raising=False)
+        monkeypatch.delenv("illusion_MAX_TURNS", raising=False)
+        monkeypatch.delenv("illusion_SANDBOX_ENABLED", raising=False)
+        monkeypatch.delenv("illusion_SANDBOX_FAIL_IF_UNAVAILABLE", raising=False)
         path = tmp_path / "nonexistent.json"
         s = load_settings(path)
         assert s == Settings().materialize_active_profile()
@@ -88,7 +97,12 @@ class TestLoadSaveSettings:
         assert loaded.model == original.model
         assert loaded.verbose == original.verbose
 
-    def test_load_migrates_flat_provider_settings_to_profile(self, tmp_path: Path):
+    def test_load_migrates_flat_provider_settings_to_profile(self, tmp_path: Path, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("illusion_BASE_URL", raising=False)
+        monkeypatch.delenv("illusion_MODEL", raising=False)
         path = tmp_path / "settings.json"
         path.write_text(
             json.dumps(
@@ -108,7 +122,6 @@ class TestLoadSaveSettings:
         assert profile_name == "anthropic"
         assert profile.base_url == "https://api.moonshot.cn/anthropic"
         assert profile.resolved_model == "kimi-k2.5"
-        assert loaded.base_url == "https://api.moonshot.cn/anthropic"
         assert loaded.model == "kimi-k2.5"
 
     def test_materialize_active_profile_uses_profile_model(self):

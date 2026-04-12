@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import pytest
 from illusion.swarm import lockfile
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="fcntl not available on Windows")
 def test_exclusive_file_lock_creates_lock_file_on_posix(tmp_path: Path):
     lock_path = tmp_path / "locks" / "mailbox.lock"
 

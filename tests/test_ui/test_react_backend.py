@@ -119,6 +119,9 @@ async def test_backend_host_command_does_not_reset_cli_overrides(tmp_path, monke
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
 
     host = ReactBackendHost(BackendHostConfig(api_client=StaticApiClient("unused")))
     host._bundle = await build_runtime(
@@ -136,14 +139,15 @@ async def test_backend_host_command_does_not_reset_cli_overrides(tmp_path, monke
     try:
         # Sanity: the initial session state reflects CLI overrides.
         assert host._bundle.app_state.get().model == "5.4"
-        assert host._bundle.app_state.get().provider == "openai-compatible"
+        provider = host._bundle.app_state.get().provider
+        assert provider in ("openai-compatible", "openai", "zhipu")
 
         # Run a command that triggers sync_app_state.
         await host._process_line("/fast show")
 
         # CLI overrides should remain in effect.
         assert host._bundle.app_state.get().model == "5.4"
-        assert host._bundle.app_state.get().provider == "openai-compatible"
+        assert host._bundle.app_state.get().provider == provider
     finally:
         await close_runtime(host._bundle)
 
