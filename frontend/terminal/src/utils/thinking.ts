@@ -97,27 +97,19 @@ export function hasThinkTags(raw: string): boolean {
 }
 
 /**
- * 渲染助手消息的结构化结果
- */
-export interface RenderedAssistant {
-	/** 思考过程文本（灰色显示） */
-	thinking: string;
-	/** 实际回答文本（正常显示） */
-	answer: string;
-}
-
-/**
- * 解析助手消息，分离思考过程和实际回答
+ * 渲染助手消息文本，根据 showThinking 决定是否显示思考过程
  *
  * @param raw 原始文本（可能包含 `<think` 标签）
+ * @param showThinking 是否显示思考过程
  * @param reasoning 独立的推理文本（来自 reasoning_content 字段，无标签）
- * @returns 结构化的渲染结果
+ * @returns 显示给用户的文本
  */
-export function parseAssistantText(
+export function renderAssistantText(
 	raw: string,
+	showThinking: boolean,
 	reasoning?: string,
-): RenderedAssistant {
-	if (!raw && !reasoning) return {thinking: '', answer: ''};
+): string {
+	if (!raw && !reasoning) return '';
 
 	const hasTags = hasThinkTags(raw);
 	let cleanText = raw;
@@ -128,13 +120,13 @@ export function parseAssistantText(
 		cleanText = stripThinkTags(raw);
 	}
 
-	// 合并所有思考来源
-	const thinkingParts: string[] = [];
-	if (reasoning) thinkingParts.push(reasoning);
-	if (thinkContent && thinkContent !== reasoning) thinkingParts.push(thinkContent);
+	if (showThinking) {
+		const parts: string[] = [];
+		if (reasoning) parts.push(reasoning);
+		if (thinkContent && thinkContent !== reasoning) parts.push(thinkContent);
+		if (cleanText) parts.push(cleanText);
+		return parts.filter(Boolean).join('\n\n').trim();
+	}
 
-	return {
-		thinking: thinkingParts.filter(Boolean).join('\n\n').trim(),
-		answer: cleanText.trim(),
-	};
+	return cleanText.trim();
 }

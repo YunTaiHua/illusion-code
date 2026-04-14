@@ -4,7 +4,7 @@ import {Box, Static, Text} from 'ink';
 import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
-import {parseAssistantText} from '../utils/thinking.js';
+import {renderAssistantText} from '../utils/thinking.js';
 import {WelcomeBanner} from './WelcomeBanner.js';
 
 const MAX_RESULT_LINES = 8;
@@ -28,7 +28,7 @@ export function ConversationView({
 	const {theme} = useTheme();
 	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
 	const grouped = useMemo(() => groupToolItems(filtered), [filtered]);
-	const bufferParsed = useMemo(() => parseAssistantText(assistantBuffer, undefined), [assistantBuffer]);
+	const displayedBuffer = useMemo(() => renderAssistantText(assistantBuffer, showThinking, undefined), [assistantBuffer, showThinking]);
 
 	return (
 		<>
@@ -44,22 +44,10 @@ export function ConversationView({
 				}}
 			</Static>
 
-			{(bufferParsed.thinking && showThinking) || bufferParsed.answer ? (
-				<Box flexDirection="column" marginTop={1}>
-					{bufferParsed.thinking && showThinking ? (
-						<Box flexDirection="row">
-							<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
-							<Text dimColor>{bufferParsed.thinking}</Text>
-						</Box>
-					) : null}
-					{bufferParsed.answer ? (
-						<Box flexDirection="row">
-							{!bufferParsed.thinking || !showThinking ? (
-								<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
-							) : null}
-							<Text>{bufferParsed.answer}</Text>
-						</Box>
-					) : null}
+			{displayedBuffer ? (
+				<Box flexDirection="row" marginTop={1}>
+					<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
+					<Text>{displayedBuffer}</Text>
 				</Box>
 			) : null}
 		</>
@@ -229,31 +217,19 @@ function MessageRow({
 		}
 
 		case 'assistant': {
-			const parsed = parseAssistantText(item.text, item.reasoning);
-			const showThink = showThinking && parsed.thinking;
-			const hasAnswer = parsed.answer.length > 0;
-			if (!showThink && !hasAnswer) {
-				return <Box />;
+				const displayText = renderAssistantText(item.text, showThinking, item.reasoning);
+				if (!displayText) {
+					return <Box />;
+				}
+				return (
+					<Box marginTop={1} flexDirection="column">
+						<Text>
+							<Text color={theme.colors.illusion}>{theme.icons.assistant} </Text>
+							<Text>{displayText}</Text>
+						</Text>
+					</Box>
+				);
 			}
-			return (
-				<Box marginTop={1} flexDirection="column">
-					{showThink ? (
-						<Box flexDirection="row">
-							<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
-							<Text dimColor>{parsed.thinking}</Text>
-						</Box>
-					) : null}
-					{hasAnswer ? (
-						<Box flexDirection="row">
-							{!showThink ? (
-								<Text color={theme.colors.illusion}>{theme.icons.assistant} </Text>
-							) : null}
-							<Text>{parsed.answer}</Text>
-						</Box>
-					) : null}
-				</Box>
-			);
-		}
 
 		case 'tool_result': {
 			return <ToolResultBlock item={item} theme={theme} />;
