@@ -155,9 +155,7 @@ export function StatusBar({
 					</>
 				) : null}
 				<Box marginLeft={1}>
-					<Text backgroundColor={showThinking ? theme.colors.info : theme.colors.muted} color={theme.colors.background} bold>
-						{showThinking ? ' Thinking ' : ' Reasoning '}
-					</Text>
+					<Text dimColor>{showThinking ? 'Thinking' : 'Reasoning'}</Text>
 				</Box>
 				{taskCount > 0 ? (
 					<>
