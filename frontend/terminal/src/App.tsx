@@ -241,6 +241,11 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			}
 			return;
 		}
+		// Ctrl+T → 切换思考过程显示
+		if (key.ctrl && chunk.toLowerCase() === 't') {
+			session.setShowThinking((prev: boolean) => !prev);
+			return;
+		}
 
 		// --- Select modal (permissions picker etc.) ---
 		if (selectModal) {
@@ -420,6 +425,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					clearCount={session.clearCount}
 					assistantBuffer={session.assistantBuffer}
 					showWelcome={session.ready}
+					showThinking={session.showThinking}
 					language={language}
 				/>
 			</Box>
@@ -470,7 +476,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 
 			{/* Status bar (only after backend is ready) */}
 			{session.ready ? (
-				<StatusBar status={session.status} tasks={session.tasks} activeToolName={session.busy ? currentToolName : undefined} />
+				<StatusBar status={session.status} tasks={session.tasks} activeToolName={session.busy ? currentToolName : undefined} showThinking={session.showThinking} />
 			) : null}
 
 			{/* Input — show loading indicator until backend is ready */}
@@ -510,6 +516,8 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exitProgram')}
 						<Text> {theme.icons.middleDot} </Text>
 						<Text color={theme.colors.muted}>ctrl+x</Text> {t(language, 'stopCurrentTask')}
+					<Text> {theme.icons.middleDot} </Text>
+					<Text color={theme.colors.muted}>ctrl+t</Text> {t(language, 'toggleThinking')}
 					</Text>
 				</Box>
 			) : session.ready && session.busy && !session.modal && !selectModal ? (
@@ -518,6 +526,8 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exitProgram')}
 						<Text> {theme.icons.middleDot} </Text>
 						<Text color={theme.colors.muted}>ctrl+x</Text> {t(language, 'stopCurrentTask')}
+				<Text> {theme.icons.middleDot} </Text>
+				<Text color={theme.colors.muted}>ctrl+t</Text> {t(language, 'toggleThinking')}
 					</Text>
 				</Box>
 			) : null}

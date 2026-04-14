@@ -118,10 +118,12 @@ export function StatusBar({
 	status,
 	tasks,
 	activeToolName,
+	showThinking = true,
 }: {
 	status: Record<string, unknown>;
 	tasks: TaskSnapshot[];
 	activeToolName?: string;
+	showThinking?: boolean;
 }): React.JSX.Element {
 	const {theme} = useTheme();
 	const model = String(status.model ?? 'unknown');
@@ -152,6 +154,11 @@ export function StatusBar({
 						<Text dimColor>{mode}</Text>
 					</>
 				) : null}
+				<Box marginLeft={1}>
+					<Text backgroundColor={showThinking ? theme.colors.info : theme.colors.muted} color={theme.colors.background} bold>
+						{showThinking ? ' Thinking ' : ' Reasoning '}
+					</Text>
+				</Box>
 				{taskCount > 0 ? (
 					<>
 						<Text dimColor>{SEP}</Text>

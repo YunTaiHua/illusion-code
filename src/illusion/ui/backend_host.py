@@ -309,14 +309,21 @@ class ReactBackendHost:
             """渲染流式事件。"""
             # 助手文本增量
             if isinstance(event, AssistantTextDelta):
-                await self._emit(BackendEvent(type="assistant_delta", message=event.text))
+                reasoning = getattr(event, "reasoning", None)
+                await self._emit(BackendEvent(
+                    type="assistant_delta",
+                    message=event.text,
+                    reasoning=reasoning if reasoning else None,
+                ))
                 return
             # 助手回合完成
             if isinstance(event, AssistantTurnComplete):
+                reasoning = getattr(event.message, "_reasoning", None)
                 await self._emit(
                     BackendEvent(
                         type="assistant_complete",
                         message=event.message.text.strip(),
+                        reasoning=reasoning if reasoning else None,
                         item=TranscriptItem(role="assistant", text=event.message.text.strip()),
                     )
                 )

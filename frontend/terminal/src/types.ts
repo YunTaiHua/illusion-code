@@ -9,6 +9,7 @@ export type TranscriptItem = {
 	tool_name?: string;
 	tool_input?: Record<string, unknown>;
 	is_error?: boolean;
+	reasoning?: string;
 };
 
 export type TaskSnapshot = {
@@ -91,4 +92,5 @@ export type BackendEvent = {
 	plan_mode?: string | null;
 	swarm_teammates?: SwarmTeammateSnapshot[] | null;
 	swarm_notifications?: SwarmNotificationSnapshot[] | null;
+	reasoning?: string | null;
 };

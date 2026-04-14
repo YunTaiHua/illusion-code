@@ -4,6 +4,7 @@ import {Box, Static, Text} from 'ink';
 import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
+import {renderAssistantText} from '../utils/thinking.js';
 import {WelcomeBanner} from './WelcomeBanner.js';
 
 const MAX_RESULT_LINES = 8;
@@ -14,17 +15,20 @@ export function ConversationView({
 	clearCount,
 	assistantBuffer,
 	showWelcome,
+	showThinking,
 	language,
 }: {
 	staticItems: TranscriptItem[];
 	clearCount: number;
 	assistantBuffer: string;
 	showWelcome: boolean;
+	showThinking: boolean;
 	language: UiLanguage;
 }): React.JSX.Element {
 	const {theme} = useTheme();
 	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
 	const grouped = useMemo(() => groupToolItems(filtered), [filtered]);
+	const displayedBuffer = useMemo(() => renderAssistantText(assistantBuffer, showThinking, undefined), [assistantBuffer, showThinking]);
 
 	return (
 		<>
@@ -36,14 +40,14 @@ export function ConversationView({
 					if (entry.type === 'tool_group') {
 						return <ToolGroupRow key={`s-${index}`} toolItem={entry.toolItem} resultItem={entry.resultItem} theme={theme} prevRole={prevRole} />;
 					}
-					return <MessageRow key={`s-${index}`} item={entry.item} theme={theme} language={language} prevRole={prevRole} />;
+					return <MessageRow key={`s-${index}`} item={entry.item} theme={theme} language={language} prevRole={prevRole} showThinking={showThinking} />;
 				}}
 			</Static>
 
-			{assistantBuffer ? (
+			{displayedBuffer ? (
 				<Box flexDirection="row" marginTop={1}>
 					<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
-					<Text>{assistantBuffer}</Text>
+					<Text>{displayedBuffer}</Text>
 				</Box>
 			) : null}
 		</>
@@ -185,11 +189,13 @@ function MessageRow({
 	theme,
 	language,
 	prevRole,
+	showThinking = true,
 }: {
 	item: TranscriptItem;
 	theme: ReturnType<typeof useTheme>['theme'];
 	language: UiLanguage;
 	prevRole?: string;
+	showThinking?: boolean;
 }): React.JSX.Element {
 	switch (item.role) {
 		case 'user': {
@@ -210,15 +216,20 @@ function MessageRow({
 			);
 		}
 
-		case 'assistant':
+		case 'assistant': {
+			const displayText = renderAssistantText(item.text, showThinking, item.reasoning);
+			if (!displayText) {
+				return <Box />;
+			}
 			return (
 				<Box marginTop={1} flexDirection="column">
 					<Text>
 						<Text color={theme.colors.illusion}>{theme.icons.assistant} </Text>
-						<Text>{item.text}</Text>
+						<Text>{displayText}</Text>
 					</Text>
 				</Box>
 			);
+		}
 
 		case 'tool_result': {
 			return <ToolResultBlock item={item} theme={theme} />;

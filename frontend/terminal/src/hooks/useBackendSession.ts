@@ -35,6 +35,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 	const [selectRequest, setSelectRequest] = useState<SelectRequestPayload | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [ready, setReady] = useState(false);
+	const [showThinking, setShowThinking] = useState(true);
 	const [todoItems, setTodoItems] = useState<TodoItemSnapshot[]>([]);
 	const [swarmTeammates, setSwarmTeammates] = useState<SwarmTeammateSnapshot[]>([]);
 	const [swarmNotifications, setSwarmNotifications] = useState<SwarmNotificationSnapshot[]>([]);
@@ -46,6 +47,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 	const assistantBufferRef = useRef('');
 	const pendingAssistantDeltaRef = useRef('');
 	const assistantFlushTimerRef = useRef<NodeJS.Timeout | null>(null);
+		const reasoningBufferRef = useRef('');
 
 	const flushAssistantDelta = (): void => {
 		const pending = pendingAssistantDeltaRef.current;
@@ -65,6 +67,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			assistantFlushTimerRef.current = null;
 		}
 		setAssistantBuffer('');
+		reasoningBufferRef.current = '';
 	};
 
 	const sendRequest = (payload: Record<string, unknown>): void => {
@@ -161,6 +164,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			return;
 		}
 		if (event.type === 'assistant_delta') {
+			if (event.reasoning) { reasoningBufferRef.current += event.reasoning; }
 			const delta = event.message ?? '';
 			if (!delta) {
 				return;
@@ -185,7 +189,8 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			}
 			flushAssistantDelta();
 			const text = event.message ?? assistantBufferRef.current;
-			pushStatic({role: 'assistant', text});
+			const reasoning = (event.reasoning ?? reasoningBufferRef.current) || undefined;
+			pushStatic({role: 'assistant', text, reasoning});
 			clearAssistantDelta();
 			return;
 		}
@@ -269,6 +274,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			staticItems,
 			assistantBuffer,
 			clearCount,
+			showThinking,
 			status,
 			tasks,
 			commands,
@@ -284,8 +290,9 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			setModal,
 			setSelectRequest,
 			setBusy,
+			setShowThinking,
 			sendRequest,
 		}),
-		[assistantBuffer, bridgeSessions, busy, clearCount, commands, mcpServers, modal, ready, selectRequest, staticItems, status, swarmNotifications, swarmTeammates, tasks, todoItems]
+		[assistantBuffer, bridgeSessions, busy, clearCount, commands, mcpServers, modal, ready, selectRequest, showThinking, staticItems, status, swarmNotifications, swarmTeammates, tasks, todoItems]
 	);
 }
