@@ -84,8 +84,8 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 
 	// Current tool name for spinner
 	const currentToolName = useMemo(() => {
-		for (let i = session.transcript.length - 1; i >= 0; i--) {
-			const item = session.transcript[i];
+		for (let i = session.staticItems.length - 1; i >= 0; i--) {
+			const item = session.staticItems[i];
 			if (item.role === 'tool') {
 				return item.tool_name ?? 'tool';
 			}
@@ -94,7 +94,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			}
 		}
 		return undefined;
-	}, [session.transcript]);
+	}, [session.staticItems]);
 
 	// Command hints
 	const commandHints = useMemo(() => {
@@ -416,7 +416,8 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			{/* Conversation area */}
 			<Box flexDirection="column" flexGrow={1}>
 				<ConversationView
-					items={session.transcript}
+					staticItems={session.staticItems}
+					clearCount={session.clearCount}
 					assistantBuffer={session.assistantBuffer}
 					showWelcome={session.ready}
 					language={language}

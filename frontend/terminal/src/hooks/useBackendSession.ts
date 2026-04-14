@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
 import readline from 'node:readline';
 
@@ -20,7 +20,11 @@ const ASSISTANT_DELTA_FLUSH_MS = 33;
 const ASSISTANT_DELTA_FLUSH_CHARS = 256;
 
 export function useBackendSession(config: FrontendConfig, onExit: (code?: number | null) => void) {
-	const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
+	const [staticItems, setStaticItems] = useState<TranscriptItem[]>([]);
+	const [clearCount, setClearCount] = useState(0);
+	const pushStatic = useCallback((item: TranscriptItem): void => {
+		setStaticItems((prev) => [...prev, item]);
+	}, []);
 	const [assistantBuffer, setAssistantBuffer] = useState('');
 	const [status, setStatus] = useState<Record<string, unknown>>({});
 	const [tasks, setTasks] = useState<TaskSnapshot[]>([]);
@@ -84,7 +88,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 		const reader = readline.createInterface({input: child.stdout});
 		reader.on('line', (line) => {
 			if (!line.startsWith(PROTOCOL_PREFIX)) {
-				setTranscript((items) => [...items, {role: 'log', text: line}]);
+				pushStatic({role: 'log', text: line});
 				return;
 			}
 			const event = JSON.parse(line.slice(PROTOCOL_PREFIX.length)) as BackendEvent;
@@ -92,7 +96,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 		});
 
 		child.on('exit', (code) => {
-			setTranscript((items) => [...items, {role: 'system', text: `backend exited with code ${code ?? 0}`}]);
+			pushStatic({role: 'system', text: `backend exited with code ${code ?? 0}`});
 			process.exitCode = code ?? 0;
 			onExit(code);
 		});
@@ -153,7 +157,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			return;
 		}
 		if (event.type === 'transcript_item' && event.item) {
-			setTranscript((items) => [...items, event.item as TranscriptItem]);
+			pushStatic(event.item as TranscriptItem);
 			return;
 		}
 		if (event.type === 'assistant_delta') {
@@ -181,7 +185,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			}
 			flushAssistantDelta();
 			const text = event.message ?? assistantBufferRef.current;
-			setTranscript((items) => [...items, {role: 'assistant', text}]);
+			pushStatic({role: 'assistant', text});
 			clearAssistantDelta();
 			return;
 		}
@@ -202,11 +206,12 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 				tool_input: event.item.tool_input ?? undefined,
 				is_error: event.item.is_error ?? event.is_error ?? undefined,
 			};
-			setTranscript((items) => [...items, enrichedItem]);
+			pushStatic(enrichedItem);
 			return;
 		}
 		if (event.type === 'clear_transcript') {
-			setTranscript([]);
+			setStaticItems([]);
+			setClearCount((c) => c + 1);
 			clearAssistantDelta();
 			return;
 		}
@@ -225,10 +230,10 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 		}
 		if (event.type === 'error') {
 			if ((event.message ?? '').includes('No active task to stop')) {
-				setTranscript((items) => [...items, {role: 'system', text: event.message ?? ''}]);
+				pushStatic({role: 'system', text: event.message ?? ''});
 				return;
 			}
-			setTranscript((items) => [...items, {role: 'system', text: `error: ${event.message ?? 'unknown error'}`}]);
+			pushStatic({role: 'system', text: `error: ${event.message ?? 'unknown error'}`});
 			clearAssistantDelta();
 			setBusy(false);
 			return;
@@ -261,8 +266,9 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 
 	return useMemo(
 		() => ({
-			transcript,
+			staticItems,
 			assistantBuffer,
+			clearCount,
 			status,
 			tasks,
 			commands,
@@ -280,6 +286,6 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			setBusy,
 			sendRequest,
 		}),
-		[assistantBuffer, bridgeSessions, busy, commands, mcpServers, modal, ready, selectRequest, status, swarmNotifications, swarmTeammates, tasks, todoItems, transcript]
+		[assistantBuffer, bridgeSessions, busy, clearCount, commands, mcpServers, modal, ready, selectRequest, staticItems, status, swarmNotifications, swarmTeammates, tasks, todoItems]
 	);
 }

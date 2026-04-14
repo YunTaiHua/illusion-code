@@ -1,43 +1,44 @@
-import React from 'react';
-import {Box, Text} from 'ink';
+import React, {useMemo} from 'react';
+import {Box, Static, Text} from 'ink';
 
 import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 import {WelcomeBanner} from './WelcomeBanner.js';
 
-const MAX_VISIBLE_ITEMS = 80;
 const MAX_RESULT_LINES = 8;
 const MAX_SUMMARY_LENGTH = 120;
 
 export function ConversationView({
-	items,
+	staticItems,
+	clearCount,
 	assistantBuffer,
 	showWelcome,
 	language,
 }: {
-	items: TranscriptItem[];
+	staticItems: TranscriptItem[];
+	clearCount: number;
 	assistantBuffer: string;
 	showWelcome: boolean;
 	language: UiLanguage;
 }): React.JSX.Element {
 	const {theme} = useTheme();
-	const visible = items
-		.slice(-MAX_VISIBLE_ITEMS)
-		.filter((item) => !isEmptyItem(item));
-	const grouped = groupToolItems(visible);
+	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
+	const grouped = useMemo(() => groupToolItems(filtered), [filtered]);
 
 	return (
-		<Box flexDirection="column" flexGrow={1}>
-			{showWelcome && items.length === 0 ? <WelcomeBanner language={language} /> : null}
+		<>
+			{showWelcome && grouped.length === 0 ? <WelcomeBanner language={language} /> : null}
 
-			{grouped.map((entry, index) => {
-				const prevRole = index > 0 ? grouped[index - 1]?.role : undefined;
-				if (entry.type === 'tool_group') {
-					return <ToolGroupRow key={index} toolItem={entry.toolItem} resultItem={entry.resultItem} theme={theme} prevRole={prevRole} />;
-				}
-				return <MessageRow key={index} item={entry.item} theme={theme} language={language} prevRole={prevRole} />;
-			})}
+			<Static key={clearCount} items={grouped}>
+				{(entry, index) => {
+					const prevRole = index > 0 ? grouped[index - 1]?.role : undefined;
+					if (entry.type === 'tool_group') {
+						return <ToolGroupRow key={`s-${index}`} toolItem={entry.toolItem} resultItem={entry.resultItem} theme={theme} prevRole={prevRole} />;
+					}
+					return <MessageRow key={`s-${index}`} item={entry.item} theme={theme} language={language} prevRole={prevRole} />;
+				}}
+			</Static>
 
 			{assistantBuffer ? (
 				<Box flexDirection="row" marginTop={1}>
@@ -45,7 +46,7 @@ export function ConversationView({
 					<Text>{assistantBuffer}</Text>
 				</Box>
 			) : null}
-		</Box>
+		</>
 	);
 }
 
