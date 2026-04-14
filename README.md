@@ -993,9 +993,6 @@ uv sync --dev
 # 运行测试
 pytest
 
-# 代码检查
-ruff check .
-mypy .
 ```
 
 ---
