@@ -45,11 +45,16 @@ export function ConversationView({
 			</Static>
 
 			{displayedBuffer ? (
-				<Box flexDirection="row" marginTop={1}>
-					<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
-					<Text>{displayedBuffer}</Text>
-				</Box>
-			) : null}
+					<Box flexDirection="column" marginTop={1}>
+						<Text>
+							<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
+							<Text>{displayedBuffer.split('\n')[0]}</Text>
+						</Text>
+						{displayedBuffer.split('\n').slice(1).map((line: string, i: number) => (
+							<Text key={i}>{'  '}{line}</Text>
+						))}
+					</Box>
+				) : null}
 		</>
 	);
 }
@@ -109,7 +114,7 @@ function ToolGroupRow({
 		<Box flexDirection="column" marginTop={needsGap ? 1 : 0}>
 			<Box>
 				<Text color={theme.colors.info}>{theme.icons.tool} </Text>
-				<Text color={theme.colors.info} bold>{toolName}</Text>
+				<Text bold>{toolName}</Text>
 				{summary ? (
 					<>
 						<Text dimColor>{' ('}</Text>
@@ -221,12 +226,16 @@ function MessageRow({
 				if (!displayText) {
 					return <Box />;
 				}
+				const lines = displayText.split('\n');
 				return (
 					<Box marginTop={1} flexDirection="column">
 						<Text>
 							<Text color={theme.colors.illusion}>{theme.icons.assistant} </Text>
-							<Text>{displayText}</Text>
+							<Text>{lines[0]}</Text>
 						</Text>
+						{lines.slice(1).map((line, i) => (
+							<Text key={i}>{'  '}{line}</Text>
+						))}
 					</Box>
 				);
 			}
