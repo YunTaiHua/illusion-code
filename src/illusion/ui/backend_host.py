@@ -420,6 +420,10 @@ class ReactBackendHost:
                 )
                 return
 
+        async def _replay_transcript_item(item: dict) -> None:
+            """重播 transcript_item。"""
+            await self._emit(BackendEvent(type="transcript_item", item=TranscriptItem(**item)))
+
         async def _clear_output() -> None:
             """清空输出。"""
             await self._emit(BackendEvent(type="clear_transcript"))
@@ -430,6 +434,7 @@ class ReactBackendHost:
             print_system=_print_system,
             render_event=_render_event,
             clear_output=_clear_output,
+            replay_transcript_item=_replay_transcript_item,
         )
 
         # 更新会话阶段为空闲

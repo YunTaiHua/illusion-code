@@ -47,8 +47,8 @@ export function ConversationView({
 			{displayedBuffer ? (
 					<Box flexDirection="column" marginTop={1}>
 						<Text>
-							<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant} </Text>
-							<Text>{displayedBuffer.split('\n')[0]}</Text>
+							<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant}</Text>
+							<Text>{' '}{displayedBuffer.split('\n')[0]}</Text>
 						</Text>
 						{displayedBuffer.split('\n').slice(1).map((line: string, i: number) => (
 							<Text key={i}>{'  '}{line}</Text>
@@ -113,8 +113,8 @@ function ToolGroupRow({
 	return (
 		<Box flexDirection="column" marginTop={needsGap ? 1 : 0}>
 			<Box>
-				<Text color={theme.colors.info}>{theme.icons.tool} </Text>
-				<Text bold>{toolName}</Text>
+				<Text color={theme.colors.info}>{theme.icons.tool}</Text>
+				<Text bold>{' '}{toolName}</Text>
 				{summary ? (
 					<>
 						<Text dimColor>{' ('}</Text>
@@ -204,18 +204,17 @@ function MessageRow({
 }): React.JSX.Element {
 	switch (item.role) {
 		case 'user': {
-			// 用户消息前添加分隔线，增强对话轮次区分度
 			const needsDivider = prevRole !== undefined && prevRole !== 'user';
 			return (
 				<Box flexDirection="column" marginTop={needsDivider ? 1 : 0}>
 					{needsDivider ? (
 						<Box marginBottom={0}>
-							<Text color={theme.colors.text}>{'─'.repeat(40)}</Text>
+							<Text color={theme.colors.text}>{' '}{'─'.repeat(60)}</Text>
 						</Box>
 					) : null}
 					<Box>
-						<Text color={theme.colors.illusion}>{theme.icons.pointer} </Text>
-						<Text bold>{item.text}</Text>
+						<Text color={theme.colors.illusion}>{theme.icons.pointer}</Text>
+						<Text bold>{' '}{item.text}</Text>
 					</Box>
 				</Box>
 			);
@@ -230,8 +229,8 @@ function MessageRow({
 				return (
 					<Box marginTop={1} flexDirection="column">
 						<Text>
-							<Text color={theme.colors.illusion}>{theme.icons.assistant} </Text>
-							<Text>{lines[0]}</Text>
+							<Text color={theme.colors.illusion}>{theme.icons.assistant}</Text>
+							<Text>{' '}{lines[0]}</Text>
 						</Text>
 						{lines.slice(1).map((line, i) => (
 							<Text key={i}>{'  '}{line}</Text>
@@ -248,8 +247,8 @@ function MessageRow({
 			return (
 				<Box marginTop={1}>
 					<Text>
-						<Text color={theme.colors.warning}>{theme.icons.system} </Text>
-						<Text color={theme.colors.muted}>{item.text}</Text>
+						<Text color={theme.colors.warning}>{theme.icons.system}</Text>
+						<Text color={theme.colors.muted}>{' '}{item.text}</Text>
 					</Text>
 				</Box>
 			);
