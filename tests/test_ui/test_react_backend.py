@@ -242,3 +242,116 @@ async def test_backend_host_does_not_treat_stop_text_as_special_command(tmp_path
         event.type == "assistant_complete" and event.message == "handled as normal text"
         for event in events
     )
+
+
+@pytest.mark.asyncio
+async def test_backend_resume_keeps_restored_session_id(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+
+    from illusion.services.session_storage import save_session_snapshot
+    from illusion.ui.backend_host import BackendHostConfig, ReactBackendHost
+
+    host = ReactBackendHost(BackendHostConfig(api_client=StaticApiClient("unused")))
+    host._bundle = await build_runtime(api_client=StaticApiClient("unused"))
+    await start_runtime(host._bundle)
+    try:
+        host._bundle.engine.load_messages([
+            ConversationMessage(role="user", content=[TextBlock(text="hello")]),
+            ConversationMessage(role="assistant", content=[TextBlock(text="world")]),
+        ])
+        save_session_snapshot(
+            cwd=tmp_path,
+            model="claude-test",
+            system_prompt="system",
+            messages=host._bundle.engine.messages,
+            usage=UsageSnapshot(),
+            session_id="sid-old-001",
+        )
+        await host._process_line("/resume sid-old-001")
+        assert host._bundle.session_id == "sid-old-001"
+    finally:
+        await close_runtime(host._bundle)
+
+
+@pytest.mark.asyncio
+async def test_resume_replay_has_no_session_restored_system_banner(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+
+    host = ReactBackendHost(BackendHostConfig(api_client=StaticApiClient("unused")))
+    host._bundle = await build_runtime(api_client=StaticApiClient("unused"))
+    events = []
+
+    async def _emit(event):
+        events.append(event)
+
+    host._emit = _emit  # type: ignore[method-assign]
+    await start_runtime(host._bundle)
+    try:
+        from illusion.api.usage import UsageSnapshot
+        from illusion.services.session_storage import save_session_snapshot
+        host._bundle.engine.load_messages([
+            ConversationMessage(role="user", content=[TextBlock(text="u")]),
+            ConversationMessage(role="assistant", content=[TextBlock(text="a")]),
+        ])
+        save_session_snapshot(
+            cwd=tmp_path,
+            model="claude-test",
+            system_prompt="system",
+            messages=host._bundle.engine.messages,
+            usage=UsageSnapshot(),
+            session_id="sid-banner-001",
+        )
+        await host._process_line("/resume sid-banner-001")
+    finally:
+        await close_runtime(host._bundle)
+
+    assert not any(
+        e.type == "transcript_item" and e.item and e.item.role == "system" and e.item.text == "Session restored:"
+        for e in events
+    )
+
+
+@pytest.mark.asyncio
+async def test_resume_replay_skips_empty_user_transcript_rows(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ILLUSION_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("ILLUSION_DATA_DIR", str(tmp_path / "data"))
+
+    host = ReactBackendHost(BackendHostConfig(api_client=StaticApiClient("unused")))
+    host._bundle = await build_runtime(api_client=StaticApiClient("unused"))
+    events = []
+
+    async def _emit(event):
+        events.append(event)
+
+    host._emit = _emit  # type: ignore[method-assign]
+    await start_runtime(host._bundle)
+    try:
+        from illusion.api.usage import UsageSnapshot
+        from illusion.engine.messages import ToolResultBlock
+        from illusion.services.session_storage import save_session_snapshot
+
+        host._bundle.engine.load_messages([
+            ConversationMessage(role="assistant", content=[]),
+            ConversationMessage(role="user", content=[ToolResultBlock(tool_use_id="x", content="ok", is_error=False)]),
+        ])
+        save_session_snapshot(
+            cwd=tmp_path,
+            model="claude-test",
+            system_prompt="system",
+            messages=host._bundle.engine.messages,
+            usage=UsageSnapshot(),
+            session_id="sid-empty-user-001",
+        )
+        await host._process_line("/resume sid-empty-user-001")
+    finally:
+        await close_runtime(host._bundle)
+
+    assert not any(
+        e.type == "transcript_item" and e.item and e.item.role == "user" and e.item.text.strip() == ""
+        for e in events
+    )

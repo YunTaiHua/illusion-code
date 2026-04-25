@@ -171,6 +171,7 @@ async def build_runtime(
     permission_prompt: PermissionPrompt | None = None,
     ask_user_prompt: AskUserPrompt | None = None,
     restore_messages: list[dict] | None = None,
+    restore_session_id: str | None = None,
 ) -> RuntimeBundle:
     """构建 IllusionCode 会话的共享运行时。
 
@@ -296,7 +297,7 @@ async def build_runtime(
         engine=engine,
         commands=create_default_command_registry(),
         external_api_client=api_client is not None,
-        session_id=uuid4().hex[:12],
+        session_id=restore_session_id or uuid4().hex[:12],
         settings_overrides=settings_overrides,
     )
 
@@ -506,6 +507,8 @@ async def handle_line(
             detail = f"\n{suffix}" if suffix else ""
             result.message = f"{prefix}{bundle.session_id}{detail}"
         await _render_command_result(result, print_system, clear_output, render_event, replay_transcript_item)
+        if result.restored_session_id:
+            bundle.session_id = result.restored_session_id
         # 处理待继续标志
         if result.continue_pending:
             settings = bundle.current_settings()
@@ -597,14 +600,14 @@ async def _render_command_result(
 		from illusion.engine.messages import ToolUseBlock, ToolResultBlock
 
 		await clear_output()
-		await print_system("Session restored:")
 		tool_uses_by_id: dict[str, dict] = {}
 		for msg in result.replay_messages:
 			if msg.role == "user":
-				if replay_transcript_item is not None:
-					await replay_transcript_item({"role": "user", "text": msg.text})
-				else:
-					await print_system(f"> {msg.text}")
+				if msg.text.strip():
+					if replay_transcript_item is not None:
+						await replay_transcript_item({"role": "user", "text": msg.text})
+					else:
+						await print_system(f"> {msg.text}")
 				for block in msg.content:
 					if isinstance(block, ToolResultBlock) and replay_transcript_item is not None:
 						tool_info = tool_uses_by_id.get(block.tool_use_id, {})

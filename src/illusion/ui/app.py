@@ -48,6 +48,7 @@ async def run_repl(
     api_client: SupportsStreamingMessages | None = None,
     backend_only: bool = False,
     restore_messages: list[dict] | None = None,
+    restore_session_id: str | None = None,
 ) -> None:
     """运行默认的 IllusionCode 交互式应用程序（React TUI）。
 
@@ -63,6 +64,7 @@ async def run_repl(
         api_client: 流式 API 客户端实例
         backend_only: 是否仅运行后端
         restore_messages: 恢复的会话消息列表
+        restore_session_id: 恢复的会话ID
     """
     # 后端单独运行模式
     if backend_only:
@@ -76,6 +78,7 @@ async def run_repl(
             api_format=api_format,
             api_client=api_client,
             restore_messages=restore_messages,
+            restore_session_id=restore_session_id,
             enforce_max_turns=max_turns is not None,
         )
         return

@@ -843,6 +843,7 @@ def main(
                 system_prompt=session_data.get("system_prompt") or system_prompt,  # 系统提示词
                 api_key=api_key,  # API 密钥
                 restore_messages=session_data.get("messages"),  # 恢复的消息
+                restore_session_id=session_data.get("session_id"),
             )
         )
         return

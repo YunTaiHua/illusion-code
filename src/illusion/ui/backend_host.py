@@ -85,6 +85,7 @@ class BackendHostConfig:
     api_format: str | None = None
     api_client: SupportsStreamingMessages | None = None
     restore_messages: list[dict] | None = None
+    restore_session_id: str | None = None
     enforce_max_turns: bool = True
 
 
@@ -134,6 +135,7 @@ class ReactBackendHost:
             api_format=self._config.api_format,
             api_client=self._config.api_client,
             restore_messages=self._config.restore_messages,
+            restore_session_id=self._config.restore_session_id,
             permission_prompt=self._ask_permission,
             ask_user_prompt=self._ask_question,
         )
@@ -900,6 +902,7 @@ async def run_backend_host(
     cwd: str | None = None,
     api_client: SupportsStreamingMessages | None = None,
     restore_messages: list[dict] | None = None,
+    restore_session_id: str | None = None,
     enforce_max_turns: bool = True,
 ) -> int:
     """Run the structured React backend host."""
@@ -915,6 +918,7 @@ async def run_backend_host(
             api_format=api_format,
             api_client=api_client,
             restore_messages=restore_messages,
+            restore_session_id=restore_session_id,
             enforce_max_turns=enforce_max_turns,
         )
     )
