@@ -46,6 +46,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable
+from uuid import uuid4
 
 from illusion.api.client import AnthropicApiClient, SupportsStreamingMessages
 from illusion.api.copilot_client import CopilotClient
@@ -285,8 +286,6 @@ async def build_runtime(
         ]
         engine.load_messages(restored)
 
-    from uuid import uuid4
-
     return RuntimeBundle(
         api_client=resolved_api_client,
         cwd=cwd,
@@ -499,6 +498,13 @@ async def handle_line(
                 app_state=bundle.app_state,
             ),
         )
+        if result.reset_session:
+            bundle.session_id = uuid4().hex[:12]
+            locale = str(bundle.app_state.get().ui_language or bundle.current_settings().ui_language)
+            prefix = "新会话已开启，任务 ID：" if locale.lower().startswith("zh") else "Started new session. Task ID: "
+            suffix = result.message or ""
+            detail = f"\n{suffix}" if suffix else ""
+            result.message = f"{prefix}{bundle.session_id}{detail}"
         await _render_command_result(result, print_system, clear_output, render_event, replay_transcript_item)
         # 处理待继续标志
         if result.continue_pending:
