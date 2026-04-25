@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -112,6 +113,145 @@ class CommandResult:
     replay_messages: list | None = None  # ConversationMessage列表用于TUI重放
     continue_pending: bool = False  # 继续待处理标志
     continue_turns: int | None = None  # 继续回合数
+    reset_session: bool = False  # 是否重置会话ID
+
+
+_COMMAND_DESCRIPTIONS_ZH: dict[str, str] = {
+    "help": "显示可用命令",
+    "exit": "退出 IllusionCode",
+    "clear": "清空当前对话历史",
+    "new": "开启新对话并重置任务 ID",
+    "version": "显示已安装版本",
+    "status": "显示会话状态",
+    "context": "显示当前运行时系统提示词",
+    "summary": "总结对话历史",
+    "compact": "压缩较早对话历史",
+    "cost": "显示 token 用量和预估费用",
+    "usage": "显示用量与 token 估算",
+    "stats": "显示会话统计",
+    "memory": "查看和管理项目记忆",
+    "hooks": "显示已配置 hooks",
+    "resume": "恢复最近保存的会话",
+    "session": "查看当前会话存储",
+    "export": "导出当前转录",
+    "share": "创建可分享的转录快照",
+    "copy": "复制最新回复或指定文本",
+    "tag": "为当前会话创建命名快照",
+    "rewind": "移除最新对话轮次",
+    "files": "列出当前工作区文件",
+    "init": "初始化项目 IllusionCode 文件",
+    "bridge": "查看 bridge 辅助信息并创建 bridge 会话",
+    "login": "查看认证状态或保存 API Key",
+    "logout": "清除已保存 API Key",
+    "feedback": "保存 CLI 反馈到本地日志",
+    "onboarding": "显示快速上手指南",
+    "skills": "列出或显示可用技能",
+    "config": "显示或更新配置",
+    "mcp": "显示 MCP 状态",
+    "plugin": "管理插件",
+    "reload-plugins": "重新加载当前工作区插件发现结果",
+    "permissions": "显示或更新权限模式",
+    "plan": "切换计划权限模式",
+    "fast": "显示或更新快速模式",
+    "effort": "显示或更新推理强度",
+    "passes": "显示或更新推理轮数",
+    "turns": "显示或更新最大 agent 轮数",
+    "continue": "在中断后继续上一轮工具循环",
+    "model": "显示或更新默认模型",
+    "theme": "列出、设置、显示或预览 TUI 主题",
+    "language": "显示或更新界面语言",
+    "output-style": "显示或更新输出风格",
+    "keybindings": "显示最终键位绑定",
+    "doctor": "显示环境诊断信息",
+    "diff": "显示 git diff 输出",
+    "branch": "显示 git 分支信息",
+    "commit": "显示状态或创建 git 提交",
+    "issue": "显示或更新项目 issue 上下文",
+    "pr_comments": "显示或更新项目 PR 评论上下文",
+    "privacy-settings": "显示本地隐私与存储设置",
+    "rate-limit-options": "显示降低提供商限流压力的方式",
+    "release-notes": "显示最近发布说明",
+    "upgrade": "显示升级说明",
+    "agents": "列出或查看 agent 与 teammate 任务",
+    "tasks": "管理后台任务",
+}
+
+
+def _resolve_ui_language(context: "CommandContext | None") -> str:
+    if context is not None and context.app_state is not None:
+        value = str(context.app_state.get().ui_language or "")
+        if value:
+            return value
+    return str(load_settings().ui_language)
+
+
+def _is_zh(locale: str) -> bool:
+    return locale.lower().startswith("zh")
+
+
+def _translate_command_message(message: str, *, locale: str) -> str:
+    if not message or not _is_zh(locale):
+        return message
+
+    exact = {
+        "Available commands:": "可用命令：",
+        "Conversation cleared.": "对话已清空。",
+        "Started a new conversation session.": "已开启新对话。",
+        "No memory files.": "没有记忆文件。",
+        "No hooks configured.": "未配置 hooks。",
+        "No saved sessions found for this project.": "当前项目未找到已保存会话。",
+        "Nothing to copy.": "没有可复制的内容。",
+        "(empty)": "（空）",
+        "(no directories)": "（无目录）",
+        "(no matching files)": "（无匹配文件）",
+        "No active or recorded agents.": "没有活跃或历史 agent。",
+        "Project already initialized for IllusionCode.": "项目已完成 IllusionCode 初始化。",
+        "No bridge sessions.": "没有 bridge 会话。",
+        "No plugins discovered.": "未发现插件。",
+        "No skills available.": "没有可用技能。",
+        "Stored API key in ~/.illusion/settings.json": "API Key 已保存到 ~/.illusion/settings.json",
+        "Cleared stored API key.": "已清除已保存 API Key。",
+        "Usage: /feedback TEXT": "用法：/feedback 文本",
+        "Plan mode enabled.": "计划模式已开启。",
+        "Plan mode disabled.": "计划模式已关闭。",
+        "Usage: /model [show|set MODEL]": "用法：/model [show|set MODEL]",
+        "Available UI languages: zh-CN, en": "可用界面语言：zh-CN, en",
+        "Usage: /language [show|list|set zh-CN|set en]": "用法：/language [show|list|set zh-CN|set en]",
+        "Usage: /theme [list|show|set NAME|preview NAME]": "用法：/theme [list|show|set NAME|preview NAME]",
+        "Usage: /output-style [show|list|set NAME]": "用法：/output-style [show|list|set NAME]",
+        "Doctor summary:": "诊断摘要：",
+        "Privacy settings:": "隐私设置：",
+        "Rate limit options:": "限流应对选项：",
+        "Usage: /branch [show|list]": "用法：/branch [show|list]",
+        "Nothing to commit.": "没有可提交的改动。",
+        "No background tasks.": "没有后台任务。",
+    }
+    if message in exact:
+        return exact[message]
+
+    substitutions: list[tuple[re.Pattern[str], str]] = [
+        (re.compile(r"^IllusionCode (.+)$"), r"IllusionCode 版本 \1"),
+        (re.compile(r"^Model: (.+)$"), r"模型：\1"),
+        (re.compile(r"^UI language: (.+)$"), r"界面语言：\1"),
+        (re.compile(r"^Theme set to (.+)$"), r"主题已设置为 \1"),
+        (re.compile(r"^Output style: (.+)$"), r"输出风格：\1"),
+        (re.compile(r"^Output style set to (.+)$"), r"输出风格已设置为 \1"),
+        (re.compile(r"^Fast mode: (on|off)$"), r"快速模式：\1"),
+        (re.compile(r"^Reasoning effort: (.+)$"), r"推理强度：\1"),
+        (re.compile(r"^Reasoning effort set to (.+)\.$"), r"推理强度已设置为 \1。"),
+        (re.compile(r"^Passes: (.+)$"), r"推理轮数：\1"),
+        (re.compile(r"^Pass count set to (.+)\.$"), r"推理轮数已设置为 \1。"),
+        (re.compile(r"^Max turns set to (.+)\.$"), r"最大轮数已设置为 \1。"),
+        (re.compile(r"^Model set to (.+)\. Restart session to use it\.$"), r"模型已设置为 \1。重启会话后生效。"),
+        (re.compile(r"^Permission mode set to (.+)$"), r"权限模式已设置为 \1"),
+        (re.compile(r"^Started task (.+)$"), r"已启动任务 \1"),
+        (re.compile(r"^Stopped task (.+)$"), r"已停止任务 \1"),
+        (re.compile(r"^No task found with ID: (.+)$"), r"未找到任务 ID：\1"),
+    ]
+    translated = message
+    for pattern, replacement in substitutions:
+        translated = pattern.sub(replacement, translated)
+    return translated
 
 
 @dataclass
@@ -172,7 +312,22 @@ class CommandRegistry:
         Args:
             command: 要注册的SlashCommand
         """
-        self._commands[command.name] = command  # 添加到映射
+        original_handler = command.handler
+
+        async def _localized_handler(args: str, context: CommandContext) -> CommandResult:
+            result = await original_handler(args, context)
+            if result.message:
+                result.message = _translate_command_message(
+                    result.message,
+                    locale=_resolve_ui_language(context),
+                )
+            return result
+
+        self._commands[command.name] = SlashCommand(
+            name=command.name,
+            description=command.description,
+            handler=_localized_handler,
+        )
 
     def lookup(self, raw_input: str) -> tuple[SlashCommand, str] | None:
         """解析斜杠命令并返回其处理器和原始参数
@@ -197,9 +352,13 @@ class CommandRegistry:
         Returns:
             str: 格式化的命令帮助文本
         """
-        lines = ["Available commands:"]  # 标题
+        locale = _resolve_ui_language(None)
+        lines = ["可用命令：" if _is_zh(locale) else "Available commands:"]  # 标题
         for command in sorted(self._commands.values(), key=lambda item: item.name):  # 遍历命令
-            lines.append(f"/{command.name:<12} {command.description}")  # 格式化输出
+            description = command.description
+            if _is_zh(locale):
+                description = _COMMAND_DESCRIPTIONS_ZH.get(command.name, description)
+            lines.append(f"/{command.name:<12} {description}")  # 格式化输出
         return "\n".join(lines)
 
     def list_commands(self) -> list[SlashCommand]:
@@ -362,6 +521,14 @@ def create_default_command_registry() -> CommandRegistry:
     async def _clear_handler(_: str, context: CommandContext) -> CommandResult:
         context.engine.clear()
         return CommandResult(message="Conversation cleared.", clear_screen=True)
+
+    async def _new_handler(_: str, context: CommandContext) -> CommandResult:
+        context.engine.clear()
+        return CommandResult(
+            message="Started a new conversation session.",
+            clear_screen=True,
+            reset_session=True,
+        )
 
     async def _status_handler(_: str, context: CommandContext) -> CommandResult:
         usage = context.engine.total_usage
@@ -1495,6 +1662,7 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("help", "Show available commands", _help_handler))
     registry.register(SlashCommand("exit", "Exit IllusionCode", _exit_handler))
     registry.register(SlashCommand("clear", "Clear conversation history", _clear_handler))
+    registry.register(SlashCommand("new", "Start a new conversation session", _new_handler))
     registry.register(SlashCommand("version", "Show the installed IllusionCode version", _version_handler))
     registry.register(SlashCommand("status", "Show session status", _status_handler))
     registry.register(SlashCommand("context", "Show the active runtime system prompt", _context_handler))
