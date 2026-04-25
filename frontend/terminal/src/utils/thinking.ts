@@ -13,6 +13,11 @@ const THINK_CLOSE_TAG = /<\/think\b[^>]*>/gi;
 const THINK_OPEN_INCOMPLETE = /<th(?:i(?:n(?:k)?)?)?\s*$/i;
 // 匹配完整的开闭标签对及其内容
 const THINK_BLOCK_FULL = /<think\b[^>]*>[\s\S]*?<\/think\b[^>]*>/gi;
+// DeepSeek 工具调用残留标记（例如 <｜DSML｜tool_calls）
+const DSML_TOOL_CALL_PREFIX = /<\s*[|｜]\s*DSML\s*[|｜]\s*tool_calls[^\n>]*>?/gi;
+// 兼容常见工具调用 XML 片段
+const TOOL_CALL_XML_BLOCK = /<tool_call\b[^>]*>[\s\S]*?<\/tool_call\b[^>]*>/gi;
+const TOOL_CALL_XML_TAG = /<\/?(?:tool_call|arg_key|arg_value)\b[^>]*>/gi;
 
 /**
  * 清除 `<think` 标签包裹的思考块（保留标签外的内容）
@@ -96,6 +101,51 @@ export function hasThinkTags(raw: string): boolean {
 	return /<think\b/i.test(raw);
 }
 
+function stripToolCallArtifacts(raw: string): string {
+	if (!raw) return '';
+	return raw
+		.replace(DSML_TOOL_CALL_PREFIX, '')
+		.replace(TOOL_CALL_XML_BLOCK, '')
+		.replace(TOOL_CALL_XML_TAG, '');
+}
+
+function normalizeCompareText(raw: string): string {
+	return stripToolCallArtifacts(raw)
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function appendUnique(parts: string[], value: string): void {
+	const cleaned = stripToolCallArtifacts(value).trim();
+	if (!cleaned) {
+		return;
+	}
+
+	const candidateNorm = normalizeCompareText(cleaned);
+	if (!candidateNorm) {
+		return;
+	}
+
+	for (const existing of parts) {
+		const existingNorm = normalizeCompareText(existing);
+		if (!existingNorm) {
+			continue;
+		}
+		if (existingNorm === candidateNorm || existingNorm.includes(candidateNorm)) {
+			return;
+		}
+	}
+
+	for (let i = parts.length - 1; i >= 0; i -= 1) {
+		const existingNorm = normalizeCompareText(parts[i]);
+		if (candidateNorm.includes(existingNorm)) {
+			parts.splice(i, 1);
+		}
+	}
+
+	parts.push(cleaned);
+}
+
 /**
  * 渲染助手消息文本，根据 showThinking 决定是否显示思考过程
  *
@@ -111,20 +161,22 @@ export function renderAssistantText(
 ): string {
 	if (!raw && !reasoning) return '';
 
-	const hasTags = hasThinkTags(raw);
-	let cleanText = raw;
+	const sanitizedRaw = stripToolCallArtifacts(raw);
+	const sanitizedReasoning = stripToolCallArtifacts(reasoning ?? '');
+	const hasTags = hasThinkTags(sanitizedRaw);
+	let cleanText = sanitizedRaw;
 	let thinkContent = '';
 
 	if (hasTags) {
-		thinkContent = extractThinkContent(raw);
-		cleanText = stripThinkTags(raw);
+		thinkContent = stripToolCallArtifacts(extractThinkContent(sanitizedRaw));
+		cleanText = stripToolCallArtifacts(stripThinkTags(sanitizedRaw));
 	}
 
 	if (showThinking) {
 		const parts: string[] = [];
-		if (reasoning) parts.push(reasoning);
-		if (thinkContent && thinkContent !== reasoning) parts.push(thinkContent);
-		if (cleanText) parts.push(cleanText);
+		if (sanitizedReasoning) appendUnique(parts, sanitizedReasoning);
+		if (thinkContent) appendUnique(parts, thinkContent);
+		if (cleanText) appendUnique(parts, cleanText);
 		return parts.filter(Boolean).join('\n\n').trim();
 	}
 
