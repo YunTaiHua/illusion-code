@@ -620,3 +620,33 @@ def test_stop_command_removed_from_registry() -> None:
     registry = create_default_command_registry()
     lookup = registry.lookup("/stop")
     assert lookup is None
+
+
+@pytest.mark.asyncio
+async def test_resume_command_returns_restored_session_id(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("illusion_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("illusion_DATA_DIR", str(tmp_path / "data"))
+    registry = create_default_command_registry()
+    context = _make_context(tmp_path)
+
+    from illusion.api.usage import UsageSnapshot
+    from illusion.services.session_storage import save_session_snapshot
+
+    context.engine.load_messages([
+        ConversationMessage(role="user", content=[TextBlock(text="resume me")]),
+        ConversationMessage(role="assistant", content=[TextBlock(text="ok")]),
+    ])
+    save_session_snapshot(
+        cwd=tmp_path,
+        model="claude-test",
+        system_prompt="system",
+        messages=context.engine.messages,
+        usage=UsageSnapshot(),
+        session_id="resume-abc123",
+    )
+
+    command, args = registry.lookup("/resume resume-abc123")
+    result = await command.handler(args, context)
+
+    assert result.replay_messages is not None
+    assert result.restored_session_id == "resume-abc123"

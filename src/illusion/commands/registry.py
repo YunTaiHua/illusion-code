@@ -114,6 +114,7 @@ class CommandResult:
     continue_pending: bool = False  # 继续待处理标志
     continue_turns: int | None = None  # 继续回合数
     reset_session: bool = False  # 是否重置会话ID
+    restored_session_id: str | None = None  # 恢复的会话ID
 
 
 _COMMAND_DESCRIPTIONS_ZH: dict[str, str] = {
@@ -693,6 +694,7 @@ def create_default_command_registry() -> CommandRegistry:
                 message=f"Restored {len(messages)} messages from session {sid}"
                 + (f" ({summary})" if summary else ""),
                 replay_messages=messages,
+                restored_session_id=str(snapshot.get("session_id") or sid),
             )
 
         # /resume — list sessions (for the TUI to show a picker)
@@ -710,6 +712,7 @@ def create_default_command_registry() -> CommandRegistry:
             return CommandResult(
                 message=f"Restored {len(messages)} messages from the latest session.",
                 replay_messages=messages,
+                restored_session_id=str(snapshot.get("session_id", "")),
             )
 
         # Format session list for display / picker
