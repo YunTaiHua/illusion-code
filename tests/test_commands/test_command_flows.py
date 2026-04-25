@@ -148,3 +148,32 @@ async def test_plugin_command_lifecycle_flow(tmp_path: Path, monkeypatch):
     uninstall_command, uninstall_args = registry.lookup("/plugin uninstall fixture-plugin")
     uninstall_result = await uninstall_command.handler(uninstall_args, context)
     assert "Uninstalled plugin" in uninstall_result.message
+
+
+@pytest.mark.asyncio
+async def test_resume_followed_by_session_tag_uses_restored_session_id(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("illusion_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("illusion_DATA_DIR", str(tmp_path / "data"))
+    registry = create_default_command_registry()
+    context = _build_context(tmp_path)
+
+    from illusion.api.usage import UsageSnapshot
+    from illusion.services.session_storage import save_session_snapshot, load_session_by_id
+
+    context.engine.load_messages([
+        ConversationMessage(role="user", content=[TextBlock(text="first")]),
+        ConversationMessage(role="assistant", content=[TextBlock(text="second")]),
+    ])
+    save_session_snapshot(
+        cwd=tmp_path,
+        model="claude-test",
+        system_prompt="system",
+        messages=context.engine.messages,
+        usage=UsageSnapshot(),
+        session_id="sid-flow-001",
+    )
+
+    resume_command, resume_args = registry.lookup("/resume sid-flow-001")
+    resume_result = await resume_command.handler(resume_args, context)
+    assert resume_result.restored_session_id == "sid-flow-001"
+    assert load_session_by_id(tmp_path, "sid-flow-001") is not None
