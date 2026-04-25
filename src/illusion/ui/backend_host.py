@@ -516,11 +516,13 @@ class ReactBackendHost:
         import time as _time
 
         assert self._bundle is not None
+        locale = str(self._bundle.app_state.get().ui_language or self._bundle.current_settings().ui_language)
+        zh = locale.lower().startswith("zh")
         sessions = list_session_snapshots(self._bundle.cwd, limit=10)
         options = []
         for s in sessions:
             ts = _time.strftime("%m/%d %H:%M", _time.localtime(s["created_at"]))
-            summary = s.get("summary", "")[:50] or "(no summary)"
+            summary = s.get("summary", "")[:50] or ("（无摘要）" if zh else "(no summary)")
             options.append({
                 "value": s["session_id"],
                 "label": f"{ts}  {s['message_count']}msg  {summary}",
@@ -528,7 +530,7 @@ class ReactBackendHost:
         await self._emit(
             BackendEvent(
                 type="select_request",
-                modal={"kind": "select", "title": "Resume Session", "command": "resume"},
+                modal={"kind": "select", "title": "恢复会话" if zh else "Resume Session", "command": "resume"},
                 select_options=options,
             )
         )
@@ -543,6 +545,8 @@ class ReactBackendHost:
 
         settings = self._bundle.current_settings()
         state = self._bundle.app_state.get()
+        locale = str(state.ui_language or settings.ui_language)
+        zh = locale.lower().startswith("zh")
         _, active_profile = settings.resolve_profile()
         current_model = display_model_setting(active_profile)
 
@@ -560,7 +564,7 @@ class ReactBackendHost:
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Provider Profile", "command": "provider"},
+                    modal={"kind": "select", "title": "提供商配置" if zh else "Provider Profile", "command": "provider"},
                     select_options=options,
                 )
             )
@@ -570,27 +574,27 @@ class ReactBackendHost:
             options = [
                 {
                     "value": "default",
-                    "label": "Default",
-                    "description": "Ask before write/execute operations",
+                    "label": "默认" if zh else "Default",
+                    "description": "写入/执行前询问" if zh else "Ask before write/execute operations",
                     "active": settings.permission.mode.value == "default",
                 },
                 {
                     "value": "full_auto",
-                    "label": "Auto",
-                    "description": "Allow all tools automatically",
+                    "label": "自动" if zh else "Auto",
+                    "description": "自动允许所有工具" if zh else "Allow all tools automatically",
                     "active": settings.permission.mode.value == "full_auto",
                 },
                 {
                     "value": "plan",
-                    "label": "Plan Mode",
-                    "description": "Block all write operations",
+                    "label": "计划模式" if zh else "Plan Mode",
+                    "description": "阻止所有写入操作" if zh else "Block all write operations",
                     "active": settings.permission.mode.value == "plan",
                 },
             ]
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Permission Mode", "command": "permissions"},
+                    modal={"kind": "select", "title": "权限模式" if zh else "Permission Mode", "command": "permissions"},
                     select_options=options,
                 )
             )
@@ -608,7 +612,7 @@ class ReactBackendHost:
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Theme", "command": "theme"},
+                    modal={"kind": "select", "title": "主题" if zh else "Theme", "command": "theme"},
                     select_options=options,
                 )
             )
@@ -627,7 +631,7 @@ class ReactBackendHost:
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Output Style", "command": "output-style"},
+                    modal={"kind": "select", "title": "输出风格" if zh else "Output Style", "command": "output-style"},
                     select_options=options,
                 )
             )
@@ -635,14 +639,14 @@ class ReactBackendHost:
 
         if command == "effort":
             options = [
-                {"value": "low", "label": "Low", "description": "Fastest responses", "active": settings.effort == "low"},
-                {"value": "medium", "label": "Medium", "description": "Balanced reasoning", "active": settings.effort == "medium"},
-                {"value": "high", "label": "High", "description": "Deepest reasoning", "active": settings.effort == "high"},
+                {"value": "low", "label": "低" if zh else "Low", "description": "最快响应" if zh else "Fastest responses", "active": settings.effort == "low"},
+                {"value": "medium", "label": "中" if zh else "Medium", "description": "平衡推理" if zh else "Balanced reasoning", "active": settings.effort == "medium"},
+                {"value": "high", "label": "高" if zh else "High", "description": "最深推理" if zh else "Deepest reasoning", "active": settings.effort == "high"},
             ]
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Reasoning Effort", "command": "effort"},
+                    modal={"kind": "select", "title": "推理强度" if zh else "Reasoning Effort", "command": "effort"},
                     select_options=options,
                 )
             )
@@ -651,13 +655,13 @@ class ReactBackendHost:
         if command == "passes":
             current = int(state.passes or settings.passes)
             options = [
-                {"value": str(value), "label": f"{value} pass{'es' if value != 1 else ''}", "active": value == current}
+                {"value": str(value), "label": (f"{value} 轮" if zh else f"{value} pass{'es' if value != 1 else ''}"), "active": value == current}
                 for value in range(1, 9)
             ]
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Reasoning Passes", "command": "passes"},
+                    modal={"kind": "select", "title": "推理轮数" if zh else "Reasoning Passes", "command": "passes"},
                     select_options=options,
                 )
             )
@@ -668,15 +672,15 @@ class ReactBackendHost:
             values = {32, 64, 128, 200, 256, 512}
             if isinstance(current, int):
                 values.add(current)
-            options = [{"value": "unlimited", "label": "Unlimited", "description": "Do not hard-stop this session", "active": current is None}]
+            options = [{"value": "unlimited", "label": "无限" if zh else "Unlimited", "description": "不对本会话硬性停止" if zh else "Do not hard-stop this session", "active": current is None}]
             options.extend(
-                {"value": str(value), "label": f"{value} turns", "active": value == current}
+                {"value": str(value), "label": (f"{value} 轮" if zh else f"{value} turns"), "active": value == current}
                 for value in sorted(values)
             )
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Max Turns", "command": "turns"},
+                    modal={"kind": "select", "title": "最大轮数" if zh else "Max Turns", "command": "turns"},
                     select_options=options,
                 )
             )
@@ -685,13 +689,13 @@ class ReactBackendHost:
         if command == "fast":
             current = bool(state.fast_mode)
             options = [
-                {"value": "on", "label": "On", "description": "Prefer shorter, faster responses", "active": current},
-                {"value": "off", "label": "Off", "description": "Use normal response mode", "active": not current},
+                {"value": "on", "label": "开" if zh else "On", "description": "偏向更短更快的响应" if zh else "Prefer shorter, faster responses", "active": current},
+                {"value": "off", "label": "关" if zh else "Off", "description": "使用常规响应模式" if zh else "Use normal response mode", "active": not current},
             ]
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Fast Mode", "command": "fast"},
+                    modal={"kind": "select", "title": "快速模式" if zh else "Fast Mode", "command": "fast"},
                     select_options=options,
                 )
             )
@@ -706,7 +710,7 @@ class ReactBackendHost:
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Language", "command": "language"},
+                    modal={"kind": "select", "title": "语言" if zh else "Language", "command": "language"},
                     select_options=options,
                 )
             )
@@ -721,7 +725,7 @@ class ReactBackendHost:
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Language", "command": "language"},
+                    modal={"kind": "select", "title": "语言" if zh else "Language", "command": "language"},
                     select_options=options,
                 )
             )
@@ -732,13 +736,13 @@ class ReactBackendHost:
             await self._emit(
                 BackendEvent(
                     type="select_request",
-                    modal={"kind": "select", "title": "Model", "command": "model"},
+                    modal={"kind": "select", "title": "模型" if zh else "Model", "command": "model"},
                     select_options=options,
                 )
             )
             return
 
-        await self._emit(BackendEvent(type="error", message=f"No selector available for /{command}"))
+        await self._emit(BackendEvent(type="error", message=(f"/{command} 暂无可选项" if zh else f"No selector available for /{command}")))
 
     def _model_select_options(self, current_model: str, provider: str) -> list[dict[str, object]]:
         """生成模型选择选项列表。"""
