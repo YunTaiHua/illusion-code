@@ -347,7 +347,7 @@ async def test_auth_feedback_and_project_context_commands(tmp_path: Path, monkey
 
     login_command, login_args = registry.lookup("/login sk-test-123456")
     login_result = await login_command.handler(login_args, context)
-    assert "Stored API key" in login_result.message
+    assert "Stored API key" in login_result.message or "API Key 已保存" in login_result.message
     assert load_settings().api_key == "sk-test-123456"
 
     issue_command, issue_args = registry.lookup("/issue set Fix CI :: The CI flakes on task retry")
@@ -367,7 +367,7 @@ async def test_auth_feedback_and_project_context_commands(tmp_path: Path, monkey
 
     logout_command, logout_args = registry.lookup("/logout")
     logout_result = await logout_command.handler(logout_args, context)
-    assert "Cleared stored API key" in logout_result.message
+    assert "Cleared stored API key" in logout_result.message or "已清除已保存 API Key" in logout_result.message
     assert load_settings().api_key == ""
 
 
@@ -555,7 +555,29 @@ async def test_mcp_and_language_commands_report_richer_state(tmp_path: Path, mon
 
     language_command, language_args = registry.lookup("/language show")
     language_result = await language_command.handler(language_args, context)
-    assert "UI language:" in language_result.message
+    assert "UI language:" in language_result.message or "界面语言" in language_result.message
+
+
+@pytest.mark.asyncio
+async def test_new_command_clears_messages_and_requests_new_session(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("illusion_CONFIG_DIR", str(tmp_path / "config"))
+    registry = create_default_command_registry()
+    context = _make_context(tmp_path)
+    context.engine.load_messages(
+        [
+            ConversationMessage(role="user", content=[TextBlock(text="hello")]),
+            ConversationMessage(role="assistant", content=[TextBlock(text="world")]),
+        ]
+    )
+
+    command, args = registry.lookup("/new")
+    assert command is not None
+
+    result = await command.handler(args, context)
+
+    assert len(context.engine.messages) == 0
+    assert result.clear_screen is True
+    assert result.reset_session is True
 
 
 @pytest.mark.asyncio
