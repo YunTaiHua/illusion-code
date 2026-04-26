@@ -5,6 +5,7 @@ import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 import {renderAssistantText} from '../utils/thinking.js';
+import {MarkdownContent} from './MarkdownContent.js';
 import {WelcomeBanner} from './WelcomeBanner.js';
 
 const MAX_RESULT_LINES = 8;
@@ -256,16 +257,20 @@ function MessageRow({
 
 function renderAssistantBlock(text: string, theme: ReturnType<typeof useTheme>['theme']): React.JSX.Element | null {
 	if (!text) return null;
-	const lines = text.split('\n');
+	const firstNewline = text.indexOf('\n');
+	const firstLine = firstNewline >= 0 ? text.slice(0, firstNewline) : text;
+	const restText = firstNewline >= 0 ? text.slice(firstNewline + 1) : '';
 	return (
 		<Box marginTop={1} flexDirection="column">
 			<Text>
 				<Text color={theme.colors.illusion}>{theme.icons.assistant}</Text>
-				<Text>{' '}{lines[0]}</Text>
+				<Text>{' '}{firstLine}</Text>
 			</Text>
-			{lines.slice(1).map((line, i) => (
-				<Text key={i}>{'  '}{line}</Text>
-			))}
+			{restText ? (
+				<Box marginLeft={2} flexDirection="column">
+					<MarkdownContent text={restText} />
+				</Box>
+			) : null}
 		</Box>
 	);
 }

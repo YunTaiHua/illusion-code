@@ -8,11 +8,16 @@
   "dependencies": {
     "ink": "^5.1.0",
     "ink-text-input": "^6.0.0",
-    "react": "^18.3.1"
+    "marked": "^18.0.2",
+    "react": "^18.3.1",
+    "string-width": "^8.2.0",
+    "strip-ansi": "^7.2.0",
+    "wrap-ansi": "^10.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@types/react": "^18.3.12",
+    "@types/strip-ansi": "^3.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
