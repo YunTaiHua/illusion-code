@@ -29,6 +29,15 @@ export function ConversationView({
 	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
 	const grouped = useMemo(() => groupToolItems(filtered), [filtered]);
 	const displayedBuffer = useMemo(() => renderAssistantText(assistantBuffer, showThinking, undefined), [assistantBuffer, showThinking]);
+	const isSuppressedByStatic = useMemo(() => {
+		if (!displayedBuffer) return false;
+		const lastAssistant = [...grouped].reverse().find((entry) => entry.role === 'assistant');
+		if (!lastAssistant) return false;
+		const item = lastAssistant.type === 'single' ? lastAssistant.item : null;
+		if (!item) return false;
+		const staticDisplayText = renderAssistantText(item.text, showThinking, item.reasoning);
+		return isTextSubsetOrEqual(staticDisplayText, displayedBuffer);
+	}, [grouped, displayedBuffer, showThinking]);
 
 	return (
 		<>
@@ -44,17 +53,7 @@ export function ConversationView({
 				}}
 			</Static>
 
-			{displayedBuffer ? (
-					<Box flexDirection="column" marginTop={1}>
-						<Text>
-							<Text color={theme.colors.illusion} dimColor>{theme.icons.assistant}</Text>
-							<Text>{' '}{displayedBuffer.split('\n')[0]}</Text>
-						</Text>
-						{displayedBuffer.split('\n').slice(1).map((line: string, i: number) => (
-							<Text key={i}>{'  '}{line}</Text>
-						))}
-					</Box>
-				) : null}
+			{displayedBuffer && !isSuppressedByStatic ? renderAssistantBlock(displayedBuffer, theme) : null}
 		</>
 	);
 }
@@ -222,21 +221,7 @@ function MessageRow({
 
 		case 'assistant': {
 				const displayText = renderAssistantText(item.text, showThinking, item.reasoning);
-				if (!displayText) {
-					return <Box />;
-				}
-				const lines = displayText.split('\n');
-				return (
-					<Box marginTop={1} flexDirection="column">
-						<Text>
-							<Text color={theme.colors.illusion}>{theme.icons.assistant}</Text>
-							<Text>{' '}{lines[0]}</Text>
-						</Text>
-						{lines.slice(1).map((line, i) => (
-							<Text key={i}>{'  '}{line}</Text>
-						))}
-					</Box>
-				);
+				return renderAssistantBlock(displayText, theme) ?? <Box />;
 			}
 
 		case 'tool_result': {
@@ -267,6 +252,33 @@ function MessageRow({
 				</Box>
 			);
 	}
+}
+
+function renderAssistantBlock(text: string, theme: ReturnType<typeof useTheme>['theme']): React.JSX.Element | null {
+	if (!text) return null;
+	const lines = text.split('\n');
+	return (
+		<Box marginTop={1} flexDirection="column">
+			<Text>
+				<Text color={theme.colors.illusion}>{theme.icons.assistant}</Text>
+				<Text>{' '}{lines[0]}</Text>
+			</Text>
+			{lines.slice(1).map((line, i) => (
+				<Text key={i}>{'  '}{line}</Text>
+			))}
+		</Box>
+	);
+}
+
+function normalizeTextForCompare(raw: string): string {
+	return raw.replace(/\s+/g, ' ').trim();
+}
+
+function isTextSubsetOrEqual(a: string, b: string): boolean {
+	const normA = normalizeTextForCompare(a);
+	const normB = normalizeTextForCompare(b);
+	if (!normA || !normB) return false;
+	return normA === normB || normA.includes(normB) || normB.includes(normA);
 }
 
 function summarizeInput(toolName: string, toolInput?: Record<string, unknown>, fallback?: string): string {

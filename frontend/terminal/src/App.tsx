@@ -417,7 +417,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	}, [scriptIndex, session.busy, session.modal, selectModal]);
 
 	return (
-		<Box flexDirection="column" paddingX={1} height="100%">
+		<Box flexDirection="column" height="100%">
 			{/* Conversation area */}
 			<Box flexDirection="column" flexGrow={1}>
 				<ConversationView
@@ -430,6 +430,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 				/>
 			</Box>
 
+			<Box flexDirection="column" paddingX={1}>
 			{/* Permission confirm modal */}
 			{isPermissionModal ? (
 				<SelectModal
@@ -531,6 +532,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					</Text>
 				</Box>
 			) : null}
+			</Box>
 		</Box>
 	);
 }
