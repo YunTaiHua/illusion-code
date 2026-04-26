@@ -86,7 +86,7 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 		const verticalOffsets = cellLines.map((ls) => Math.floor((maxLines - ls.length) / 2));
 		const result: string[] = [];
 		for (let lineIdx = 0; lineIdx < maxLines; lineIdx++) {
-			let line = '|';
+			let line = '│';
 			for (let colIndex = 0; colIndex < cells.length; colIndex++) {
 				const ls = cellLines[colIndex]!;
 				const offset = verticalOffsets[colIndex]!;
@@ -95,7 +95,7 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 				const width = columnWidths[colIndex]!;
 				const align = isHeader ? 'center' : (token.align?.[colIndex] as 'left' | 'center' | 'right' | undefined) ?? 'left';
 				const displayW = stringWidth(stripAnsi(lineText));
-				line += ' ' + padAligned(lineText, displayW, width, align) + ' |';
+				line += ' ' + padAligned(lineText, displayW, width, align) + ' │';
 			}
 			result.push(line);
 		}
