@@ -47,7 +47,9 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 	const assistantBufferRef = useRef('');
 	const pendingAssistantDeltaRef = useRef('');
 	const assistantFlushTimerRef = useRef<NodeJS.Timeout | null>(null);
-		const reasoningBufferRef = useRef('');
+	const reasoningBufferRef = useRef('');
+	// Raw buffer for thinking tag processing and final message text
+	const rawBufferRef = useRef('');
 
 	const flushAssistantDelta = (): void => {
 		const pending = pendingAssistantDeltaRef.current;
@@ -55,13 +57,30 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			return;
 		}
 		pendingAssistantDeltaRef.current = '';
-		assistantBufferRef.current += pending;
-		setAssistantBuffer(assistantBufferRef.current);
+		rawBufferRef.current += pending;
+
+		// Process thinking tags for streaming display
+		let displayText = rawBufferRef.current;
+		if (!showThinking) {
+			displayText = displayText
+				.replace(/<think\b[^>]*>[\s\S]*?<\/think\b[^>]*>/gi, '')
+				.replace(/<\/think\b[^>]*>/gi, '')
+				.replace(/<think\b[^>]*>/gi, '')
+				.replace(/<th(?:i(?:n(?:k)?)?)?\s*$/i, '');
+		} else {
+			displayText = displayText
+				.replace(/<think\b[^>]*>/gi, '')
+				.replace(/<\/think\b[^>]*>/gi, '')
+				.replace(/<th(?:i(?:n(?:k)?)?)?\s*$/i, '');
+		}
+		assistantBufferRef.current = displayText;
+		setAssistantBuffer(displayText);
 	};
 
 	const clearAssistantDelta = (): void => {
 		pendingAssistantDeltaRef.current = '';
 		assistantBufferRef.current = '';
+		rawBufferRef.current = '';
 		if (assistantFlushTimerRef.current) {
 			clearTimeout(assistantFlushTimerRef.current);
 			assistantFlushTimerRef.current = null;
@@ -188,9 +207,15 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 				assistantFlushTimerRef.current = null;
 			}
 			flushAssistantDelta();
-			const text = event.message ?? assistantBufferRef.current;
+
+			// Push the full message as a single assistant item for proper
+			// markdown rendering (tables, code blocks, etc.)
+			const text = event.message ?? rawBufferRef.current;
 			const reasoning = (event.reasoning ?? reasoningBufferRef.current) || undefined;
-			pushStatic({role: 'assistant', text, reasoning});
+			if (text.trim()) {
+				pushStatic({role: 'assistant', text, reasoning});
+			}
+
 			clearAssistantDelta();
 			return;
 		}

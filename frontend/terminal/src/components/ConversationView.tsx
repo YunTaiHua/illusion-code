@@ -10,6 +10,7 @@ import {WelcomeBanner} from './WelcomeBanner.js';
 
 const MAX_RESULT_LINES = 8;
 const MAX_SUMMARY_LENGTH = 120;
+const STREAMING_TAIL_LINES = 15;
 
 export function ConversationView({
 	staticItems,
@@ -29,7 +30,7 @@ export function ConversationView({
 	const {theme} = useTheme();
 	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
 	const grouped = useMemo(() => groupToolItems(filtered), [filtered]);
-	const displayedBuffer = useMemo(() => renderAssistantText(assistantBuffer, showThinking, undefined), [assistantBuffer, showThinking]);
+	const displayedBuffer = assistantBuffer; // Already processed in useBackendSession
 	const isSuppressedByStatic = useMemo(() => {
 		if (!displayedBuffer) return false;
 		const lastAssistant = [...grouped].reverse().find((entry) => entry.role === 'assistant');
@@ -54,13 +55,16 @@ export function ConversationView({
 				}}
 			</Static>
 
-			{displayedBuffer && !isSuppressedByStatic ? renderAssistantBlock(displayedBuffer, theme) : null}
+			{displayedBuffer && !isSuppressedByStatic ? renderStreamingTail(displayedBuffer, grouped, theme) : null}
 		</>
 	);
 }
 
 function isEmptyItem(item: TranscriptItem): boolean {
 	if (item.role === 'assistant' && (!item.text || item.text.trim() === '')) {
+		return true;
+	}
+	if (item.role === 'assistant_streaming' && (!item.text || item.text.trim() === '')) {
 		return true;
 	}
 	if (item.role === 'tool' && (!item.text || item.text.trim() === '') && !item.tool_name) {
@@ -225,6 +229,25 @@ function MessageRow({
 				return renderAssistantBlock(displayText, theme) ?? <Box />;
 			}
 
+		case 'assistant_streaming': {
+				const isFirst = prevRole !== 'assistant_streaming';
+				if (isFirst) {
+					return (
+						<Box marginTop={1}>
+							<Text>
+								<Text color={theme.colors.illusion}>{theme.icons.assistant}</Text>
+								<Text>{' '}{item.text}</Text>
+							</Text>
+						</Box>
+					);
+				}
+				return (
+					<Box marginLeft={2}>
+						<Text>{item.text}</Text>
+					</Box>
+				);
+			}
+
 		case 'tool_result': {
 			return <ToolResultBlock item={item} theme={theme} />;
 		}
@@ -271,6 +294,46 @@ function renderAssistantBlock(text: string, theme: ReturnType<typeof useTheme>['
 					<MarkdownContent text={restText} />
 				</Box>
 			) : null}
+		</Box>
+	);
+}
+
+function renderStreamingTail(
+	text: string,
+	grouped: GroupEntry[],
+	theme: ReturnType<typeof useTheme>['theme'],
+): React.JSX.Element {
+	const lines = text.split('\n');
+	const tailLines = lines.length > STREAMING_TAIL_LINES
+		? lines.slice(-STREAMING_TAIL_LINES)
+		: lines;
+
+	const lastStaticRole = grouped.length > 0 ? grouped[grouped.length - 1].role : undefined;
+	// Show assistant icon only if no assistant/streaming items precede
+	const showIcon = lastStaticRole !== 'assistant' && lastStaticRole !== 'assistant_streaming';
+
+	return (
+		<Box marginTop={1} flexDirection="column">
+			{lines.length > STREAMING_TAIL_LINES ? (
+				<Box marginLeft={2}>
+					<Text dimColor>… {lines.length - STREAMING_TAIL_LINES} lines above</Text>
+				</Box>
+			) : null}
+			{tailLines.map((line, i) => {
+				const isFirst = i === 0 && showIcon;
+				return (
+					<Box key={i} marginLeft={isFirst ? 0 : 2}>
+						{isFirst ? (
+							<Text>
+								<Text color={theme.colors.illusion}>{theme.icons.assistant}</Text>
+								<Text>{' '}{line}</Text>
+							</Text>
+						) : (
+							<Text>{line}</Text>
+						)}
+					</Box>
+				);
+			})}
 		</Box>
 	);
 }
