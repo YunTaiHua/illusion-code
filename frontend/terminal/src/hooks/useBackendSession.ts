@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
+import {spawn, type ChildProcess} from 'node:child_process';
 import readline from 'node:readline';
 
 import type {
@@ -39,7 +39,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 	const [todoItems, setTodoItems] = useState<TodoItemSnapshot[]>([]);
 	const [swarmTeammates, setSwarmTeammates] = useState<SwarmTeammateSnapshot[]>([]);
 	const [swarmNotifications, setSwarmNotifications] = useState<SwarmNotificationSnapshot[]>([]);
-	const childRef = useRef<ChildProcessWithoutNullStreams | null>(null);
+	const childRef = useRef<ChildProcess | null>(null);
 	const sentInitialPrompt = useRef(false);
 
 	// Streaming deltas can arrive one token at a time; updating Ink state for each
@@ -91,7 +91,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 
 	const sendRequest = (payload: Record<string, unknown>): void => {
 		const child = childRef.current;
-		if (!child || child.stdin.destroyed) {
+		if (!child || !child.stdin || child.stdin.destroyed) {
 			return;
 		}
 		child.stdin.write(JSON.stringify(payload) + '\n');

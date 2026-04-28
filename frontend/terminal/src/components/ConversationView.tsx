@@ -280,14 +280,23 @@ function MessageRow({
 
 function renderAssistantBlock(text: string, theme: ReturnType<typeof useTheme>['theme']): React.JSX.Element | null {
 	if (!text) return null;
+
 	const firstNewline = text.indexOf('\n');
 	const firstLine = firstNewline >= 0 ? text.slice(0, firstNewline) : text;
 	const restText = firstNewline >= 0 ? text.slice(firstNewline + 1) : '';
+
+	// Strip heading markers (## etc.) from first line for inline rendering with ●
+	const headingMatch = firstLine.match(/^#{1,6}\s+(.+)$/);
+
 	return (
 		<Box marginTop={1} flexDirection="column">
 			<Text>
 				<Text color={theme.colors.illusion}>{theme.icons.assistant}</Text>
-				<Text>{' '}{firstLine}</Text>
+				{headingMatch ? (
+					<Text bold color={theme.colors.highlight}>{' '}{headingMatch[1]}</Text>
+				) : (
+					<Text>{' '}{firstLine}</Text>
+				)}
 			</Text>
 			{restText ? (
 				<Box marginLeft={2} flexDirection="column">
@@ -303,13 +312,16 @@ function renderStreamingTail(
 	grouped: GroupEntry[],
 	theme: ReturnType<typeof useTheme>['theme'],
 ): React.JSX.Element {
-	const lines = text.split('\n');
+	// Filter empty lines to prevent showing golden ● with no text
+	const allLines = text.split('\n');
+	const lines = allLines.filter(l => l.trim() !== '');
+	if (lines.length === 0) return <Box />;
+
 	const tailLines = lines.length > STREAMING_TAIL_LINES
 		? lines.slice(-STREAMING_TAIL_LINES)
 		: lines;
 
 	const lastStaticRole = grouped.length > 0 ? grouped[grouped.length - 1].role : undefined;
-	// Show assistant icon only if no assistant/streaming items precede
 	const showIcon = lastStaticRole !== 'assistant' && lastStaticRole !== 'assistant_streaming';
 
 	return (
