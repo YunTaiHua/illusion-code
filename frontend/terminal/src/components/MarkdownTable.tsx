@@ -1,4 +1,4 @@
-import type {Tokens} from 'marked';
+import type {Token, Tokens} from 'marked';
 import React from 'react';
 import {Text} from 'ink';
 import {useTerminalSize} from '../hooks/useTerminalSize.js';
@@ -8,26 +8,90 @@ const SAFETY_MARGIN = 4;
 const MIN_COLUMN_WIDTH = 3;
 const MAX_ROW_LINES = 4;
 
-type CellData = {text: string; tokens: Array<{text: string}>};
+const INLINE_CODE_COLOR = '#b1b9f9';
+
+function hexToAnsiRgb(hex: string): string {
+	const r = parseInt(hex.slice(1, 3), 16);
+	const g = parseInt(hex.slice(3, 5), 16);
+	const b = parseInt(hex.slice(5, 7), 16);
+	return `38;2;${r};${g};${b}`;
+}
+
+function renderInlineToAnsi(tokens: Token[] | undefined): string {
+	if (!tokens || tokens.length === 0) return '';
+	let result = '';
+
+	for (const t of tokens) {
+		switch (t.type) {
+			case 'strong': {
+				const st = t as Tokens.Strong;
+				result += `\x1b[1m${renderInlineToAnsi(st.tokens)}\x1b[22m`;
+				break;
+			}
+			case 'em': {
+				const et = t as Tokens.Em;
+				result += `\x1b[3m${renderInlineToAnsi(et.tokens)}\x1b[23m`;
+				break;
+			}
+			case 'codespan': {
+				const ct = t as Tokens.Codespan;
+				result += `\x1b[${hexToAnsiRgb(INLINE_CODE_COLOR)}m ${ct.text} \x1b[39m`;
+				break;
+			}
+			case 'link': {
+				const lt = t as Tokens.Link;
+				result += `\x1b[4m${renderInlineToAnsi(lt.tokens)}\x1b[24m`;
+				break;
+			}
+			case 'text': {
+				const tt = t as Tokens.Text;
+				if (tt.tokens && tt.tokens.length > 0) {
+					result += renderInlineToAnsi(tt.tokens);
+				} else {
+					result += tt.raw ?? tt.text;
+				}
+				break;
+			}
+			case 'escape': {
+				result += t.text;
+				break;
+			}
+			default: {
+				result += (t as {raw?: string}).raw ?? (t as {text?: string}).text ?? '';
+				break;
+			}
+		}
+	}
+
+	return result;
+}
+
+type CellData = {text: string; tokens: Token[]};
 
 type Props = {
 	token: Tokens.Table;
 	forceWidth?: number;
 };
 
-function cellText(cell: CellData | undefined | null): string {
-	return cell?.text ?? '';
+function cellAnsiText(cell: CellData | undefined | null): string {
+	if (!cell) return '';
+	if (!cell.tokens || cell.tokens.length === 0) return cell.text ?? '';
+	return renderInlineToAnsi(cell.tokens);
+}
+
+function cellPlainText(cell: CellData | undefined | null): string {
+	return stripAnsi(cellAnsiText(cell));
 }
 
 function cellMinWidth(cell: CellData | undefined | null): number {
-	const text = cellText(cell);
+	const text = cellPlainText(cell);
 	const words = text.split(/\s+/).filter((w) => w.length > 0);
 	if (words.length === 0) return MIN_COLUMN_WIDTH;
 	return Math.max(...words.map((w) => stringWidth(w)), MIN_COLUMN_WIDTH);
 }
 
 function cellIdealWidth(cell: CellData | undefined | null): number {
-	return Math.max(stringWidth(cellText(cell)), MIN_COLUMN_WIDTH);
+	return Math.max(stringWidth(cellPlainText(cell)), MIN_COLUMN_WIDTH);
 }
 
 export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
@@ -79,7 +143,7 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 
 	function renderRowLines(cells: Array<CellData | undefined>, isHeader: boolean): string[] {
 		const cellLines = cells.map((cell, colIndex) => {
-			const text = cellText(cell);
+			const text = cellAnsiText(cell);
 			return wrapText(text, columnWidths[colIndex]!, {hard: needsHardWrap});
 		});
 		const maxLines = Math.max(...cellLines.map((ls) => ls.length), 1);
@@ -119,12 +183,12 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 	function calculateMaxRowLines(): number {
 		let maxLines = 1;
 		for (let i = 0; i < headerCells.length; i++) {
-			const wrapped = wrapText(cellText(headerCells[i]), columnWidths[i]!, {hard: needsHardWrap});
+			const wrapped = wrapText(cellAnsiText(headerCells[i]), columnWidths[i]!, {hard: needsHardWrap});
 			maxLines = Math.max(maxLines, wrapped.length);
 		}
 		for (const row of rowsCells) {
 			for (let i = 0; i < row.length; i++) {
-				const wrapped = wrapText(cellText(row[i]), columnWidths[i]!, {hard: needsHardWrap});
+				const wrapped = wrapText(cellAnsiText(row[i]), columnWidths[i]!, {hard: needsHardWrap});
 				maxLines = Math.max(maxLines, wrapped.length);
 			}
 		}
@@ -136,13 +200,13 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 
 	function renderVerticalFormat(): string {
 		const lines: string[] = [];
-		const headers = headerCells.map((h) => cellText(h));
+		const headers = headerCells.map((h) => cellAnsiText(h));
 		const separator = '─'.repeat(Math.min(terminalWidth - 1, 40));
 		rowsCells.forEach((row, rowIndex) => {
 			if (rowIndex > 0) lines.push(separator);
 			row.forEach((cell, colIndex) => {
 				const label = headers[colIndex] ?? `Column ${colIndex + 1}`;
-				const value = cellText(cell).replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+				const value = cellPlainText(cell).replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
 				const firstLineWidth = Math.max(terminalWidth - stringWidth(label) - 3, 10);
 				const wrappedValue = wrapText(value, firstLineWidth);
 				lines.push(`${label}: ${wrappedValue[0] ?? ''}`);
