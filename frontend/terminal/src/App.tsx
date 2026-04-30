@@ -224,6 +224,26 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			return true;
 		}
 
+		// /model → show model selector dropdown
+		if (trimmed === '/model' || trimmed === '/model show') {
+			session.sendRequest({type: 'select_command', command: 'model'});
+			return true;
+		}
+
+		// /rewind → show message selector to pick rewind point
+		if (trimmed === '/rewind') {
+			session.sendRequest({type: 'select_command', command: 'rewind'});
+			return true;
+		}
+
+		// /new → clear conversation window and start fresh session
+		if (trimmed === '/new') {
+			session.clearStaticItems();
+			session.sendRequest({type: 'submit_line', line: '/new'});
+			session.setBusy(true);
+			return true;
+		}
+
 		return false;
 	};
 

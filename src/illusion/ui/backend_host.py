@@ -482,7 +482,21 @@ class ReactBackendHost:
         if command == "language":
             return f"/language {value}"
         if command == "model":
-            return f"/model {value}"
+            return f"/model set {value}"
+        if command == "rewind":
+            # value is the message index to rewind to (before that message)
+            if self._bundle is None:
+                return None
+            try:
+                target_idx = int(value)
+            except ValueError:
+                return None
+            messages = self._bundle.engine.messages
+            turns = sum(
+                1 for i, msg in enumerate(messages)
+                if i >= target_idx and msg.role == "user" and msg.text.strip()
+            )
+            return f"/rewind {turns}" if turns > 0 else None
         return None
 
     def _status_snapshot(self) -> BackendEvent:
@@ -744,68 +758,85 @@ class ReactBackendHost:
             )
             return
 
+        if command == "rewind":
+            messages = self._bundle.engine.messages
+            user_msgs = [
+                (i, msg) for i, msg in enumerate(messages)
+                if msg.role == "user" and msg.text.strip()
+            ]
+            if not user_msgs:
+                await self._emit(BackendEvent(type="error", message=("没有可回退的消息。" if zh else "No messages to rewind to.")))
+                return
+            options = []
+            for idx, msg in reversed(user_msgs):
+                text = msg.text.strip()
+                label = text[:80] + ("…" if len(text) > 80 else "")
+                options.append({
+                    "value": str(idx),
+                    "label": label,
+                    "description": f"#{idx}",
+                })
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "回退到" if zh else "Rewind to", "command": "rewind"},
+                    select_options=options,
+                )
+            )
+            return
+
         await self._emit(BackendEvent(type="error", message=(f"/{command} 暂无可选项" if zh else f"No selector available for /{command}")))
 
     def _model_select_options(self, current_model: str, provider: str) -> list[dict[str, object]]:
-        """生成模型选择选项列表。"""
-        provider_name = provider.lower()
-        if provider_name in {"anthropic", "anthropic_claude"}:
-            return [
-                {
-                    "value": value,
-                    "label": label,
-                    "description": description,
-                    "active": value == current_model,
-                }
-                for value, label, description in CLAUDE_MODEL_ALIAS_OPTIONS
-            ]
-        families: list[tuple[str, str]] = []
-        if provider_name in {"openai-codex", "openai", "openai-compatible", "openrouter", "github_copilot"}:
-            families.extend(
-                [
-                    ("gpt-5.4", "OpenAI flagship"),
-                    ("gpt-5", "General GPT-5"),
-                    ("gpt-4.1", "Stable GPT-4.1"),
-                    ("o4-mini", "Fast reasoning"),
-                ]
-            )
-        elif provider_name in {"moonshot", "moonshot-compatible"}:
-            families.extend(
-                [
-                    ("kimi-k2.5", "Moonshot K2.5"),
-                    ("kimi-k2-turbo-preview", "Faster Moonshot"),
-                ]
-            )
-        elif provider_name == "dashscope":
-            families.extend(
-                [
-                    ("qwen3.5-flash", "Fast Qwen"),
-                    ("qwen3-max", "Strong Qwen"),
-                    ("deepseek-r1", "Reasoning model"),
-                ]
-            )
-        elif provider_name == "gemini":
-            families.extend(
-                [
-                    ("gemini-2.5-pro", "Gemini Pro"),
-                    ("gemini-2.5-flash", "Gemini Flash"),
-                ]
-            )
+        """从 settings.json 的 profiles 中提取所有实际可用的模型。"""
+        assert self._bundle is not None
+        settings = self._bundle.current_settings()
+        profiles = settings.merged_profiles()
+        is_claude = provider.lower() in {"anthropic", "anthropic_claude"}
 
+        # 1. 从所有 profile 收集已配置的模型
+        #    每个 profile 的 last_model 和 default_model 都是用户实际可用的
         seen: set[str] = set()
         options: list[dict[str, object]] = []
-        for value, description in [(current_model, "Current model"), *families]:
-            if not value or value in seen:
-                continue
-            seen.add(value)
-            options.append(
-                {
-                    "value": value,
-                    "label": value,
-                    "description": description,
-                    "active": value == current_model,
-                }
-            )
+
+        # 当前模型排第一位
+        if current_model:
+            seen.add(current_model)
+            options.append({
+                "value": current_model,
+                "label": current_model,
+                "description": "Current",
+                "active": True,
+            })
+
+        # 遍历所有 profile，提取 last_model 和 default_model
+        for name, profile in profiles.items():
+            label = profile.label or name
+            for model in [profile.last_model, profile.default_model]:
+                m = (model or "").strip()
+                if not m or m in seen:
+                    continue
+                seen.add(m)
+                is_current = m == current_model
+                options.append({
+                    "value": m,
+                    "label": m,
+                    "description": f"Profile: {label}",
+                    "active": is_current,
+                })
+
+        # 2. 对 Claude 提供商，追加 Claude 别名选项（default/sonnet/opus 等）
+        if is_claude:
+            for value, alias_label, description in CLAUDE_MODEL_ALIAS_OPTIONS:
+                if value not in seen:
+                    seen.add(value)
+                    options.append({
+                        "value": value,
+                        "label": f"{alias_label} ({value})",
+                        "description": description,
+                        "active": value == current_model,
+                    })
+
         return options
 
     async def _ask_permission(self, tool_name: str, reason: str) -> bool:

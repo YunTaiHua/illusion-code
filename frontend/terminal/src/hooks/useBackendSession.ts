@@ -97,6 +97,12 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 		child.stdin.write(JSON.stringify(payload) + '\n');
 	};
 
+	const clearStaticItems = (): void => {
+		setStaticItems([]);
+		setClearCount((c) => c + 1);
+		clearAssistantDelta();
+	};
+
 	useEffect(() => {
 		const [command, ...args] = config.backend_command;
 		const child = spawn(command, args, {
@@ -317,6 +323,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			setBusy,
 			setShowThinking,
 			sendRequest,
+			clearStaticItems,
 		}),
 		[assistantBuffer, bridgeSessions, busy, clearCount, commands, mcpServers, modal, ready, selectRequest, showThinking, staticItems, status, swarmNotifications, swarmTeammates, tasks, todoItems]
 	);

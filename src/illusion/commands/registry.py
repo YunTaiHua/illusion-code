@@ -216,6 +216,7 @@ def _translate_command_message(message: str, *, locale: str) -> str:
         "Plan mode enabled.": "计划模式已开启。",
         "Plan mode disabled.": "计划模式已关闭。",
         "Usage: /model [show|set MODEL]": "用法：/model [show|set MODEL]",
+        "Model set to": "模型已切换为",
         "Available UI languages: zh-CN, en": "可用界面语言：zh-CN, en",
         "Usage: /language [show|list|set zh-CN|set en]": "用法：/language [show|list|set zh-CN|set en]",
         "Usage: /theme [list|show|set NAME|preview NAME]": "用法：/theme [list|show|set NAME|preview NAME]",
@@ -796,7 +797,11 @@ def create_default_command_registry() -> CommandRegistry:
         updated = _rewind_turns(context.engine.messages, turns)
         context.engine.load_messages(updated)
         removed = before - len(updated)
-        return CommandResult(message=f"Rewound {turns} turn(s); removed {removed} message(s).")
+        return CommandResult(
+            clear_screen=True,
+            replay_messages=list(updated),
+            message=f"Rewound {turns} turn(s); removed {removed} message(s).",
+        )
 
     async def _tag_handler(args: str, context: CommandContext) -> CommandResult:
         name = args.strip()
@@ -1337,14 +1342,19 @@ def create_default_command_registry() -> CommandRegistry:
         tokens = args.split(maxsplit=1)
         if not tokens or tokens[0] == "show":
             return CommandResult(message=f"Model: {settings.model}")
+        # /model set MODEL or /model MODEL (bare model name)
         if tokens[0] == "set" and len(tokens) == 2:
-            settings.model = tokens[1]
-            save_settings(settings)
-            context.engine.set_model(tokens[1])
-            if context.app_state is not None:
-                context.app_state.set(model=tokens[1])
-            return CommandResult(message=f"Model set to {tokens[1]}. Restart session to use it.")
-        return CommandResult(message="Usage: /model [show|set MODEL]")
+            model_name = tokens[1]
+        elif tokens[0] not in ("set", "show") and len(tokens) == 1:
+            model_name = tokens[0]
+        else:
+            return CommandResult(message="Usage: /model [show|set MODEL]")
+        settings.model = model_name
+        save_settings(settings)
+        context.engine.set_model(model_name)
+        if context.app_state is not None:
+            context.app_state.set(model=model_name)
+        return CommandResult(message=f"Model set to {model_name}.")
 
     async def _language_handler(args: str, context: CommandContext) -> CommandResult:
         settings = load_settings()
