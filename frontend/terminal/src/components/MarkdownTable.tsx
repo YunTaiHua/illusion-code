@@ -73,6 +73,10 @@ type Props = {
 	forceWidth?: number;
 };
 
+function trimLeadingAnsiSpace(text: string): string {
+	return text.replace(/^((?:\x1b\[[\d;]*m)*)\s/, '$1');
+}
+
 function cellAnsiText(cell: CellData | undefined | null): string {
 	if (!cell) return '';
 	if (!cell.tokens || cell.tokens.length === 0) return cell.text ?? '';
@@ -143,7 +147,8 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 
 	function renderRowLines(cells: Array<CellData | undefined>, isHeader: boolean): string[] {
 		const cellLines = cells.map((cell, colIndex) => {
-			const text = cellAnsiText(cell);
+			const raw = cellAnsiText(cell);
+			const text = isHeader ? raw : trimLeadingAnsiSpace(raw);
 			return wrapText(text, columnWidths[colIndex]!, {hard: needsHardWrap});
 		});
 		const maxLines = Math.max(...cellLines.map((ls) => ls.length), 1);
@@ -188,7 +193,7 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 		}
 		for (const row of rowsCells) {
 			for (let i = 0; i < row.length; i++) {
-				const wrapped = wrapText(cellAnsiText(row[i]), columnWidths[i]!, {hard: needsHardWrap});
+				const wrapped = wrapText(trimLeadingAnsiSpace(cellAnsiText(row[i])), columnWidths[i]!, {hard: needsHardWrap});
 				maxLines = Math.max(maxLines, wrapped.length);
 			}
 		}
