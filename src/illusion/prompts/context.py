@@ -24,7 +24,35 @@ from illusion.config.settings import Settings
 from illusion.memory import find_relevant_memories, load_memory_prompt
 from illusion.prompts.claudemd import load_claude_md_prompt
 from illusion.prompts.system_prompt import build_system_prompt
-from illusion.skills.loader import load_skill_registry
+from illusion.skills.loader import get_project_rules_dir, load_skill_registry
+
+
+def _build_rules_section(cwd: str | Path) -> str | None:
+    """构建项目级 rules 章节
+
+    从 .illusion/rules/ 目录加载所有 .md 文件作为项目指令。
+
+    Args:
+        cwd: 工作目录
+
+    Returns:
+        str | None: rules 章节字符串，如果没有 rules 则返回 None
+    """
+    rules_dir = get_project_rules_dir(cwd)
+    rule_files = sorted(rules_dir.glob("*.md"))
+    if not rule_files:
+        return None
+
+    contents = []
+    for path in rule_files:
+        content = path.read_text(encoding="utf-8", errors="replace").strip()
+        if content:
+            contents.append(content)
+
+    if not contents:
+        return None
+
+    return "# Project Rules\n\n" + "\n\n---\n\n".join(contents)
 
 
 def _build_skills_section(cwd: str | Path) -> str | None:
@@ -98,6 +126,11 @@ def build_runtime_system_prompt(
     claude_md = load_claude_md_prompt(cwd)
     if claude_md:
         sections.append(claude_md)
+
+    # 项目级 rules
+    rules_section = _build_rules_section(cwd)
+    if rules_section:
+        sections.append(rules_section)
 
     # 项目上下文文件
     for title, path in (

@@ -19,15 +19,34 @@ if TYPE_CHECKING:  # pragma: no cover
     from illusion.skills.registry import SkillRegistry
     from illusion.skills.types import SkillDefinition
 
-__all__ = ["SkillDefinition", "SkillRegistry", "get_user_skills_dir", "load_skill_registry"]
+__all__ = [
+    "SkillDefinition",
+    "SkillRegistry",
+    "get_project_rules_dir",
+    "get_project_skills_dir",
+    "get_user_skills_dir",
+    "load_skill_registry",
+]
 
 
 def __getattr__(name: str):
-    if name in {"get_user_skills_dir", "load_skill_registry"}:
-        from illusion.skills.loader import get_user_skills_dir, load_skill_registry
+    if name in {
+        "get_user_skills_dir",
+        "get_project_skills_dir",
+        "get_project_rules_dir",
+        "load_skill_registry",
+    }:
+        from illusion.skills.loader import (
+            get_project_rules_dir,
+            get_project_skills_dir,
+            get_user_skills_dir,
+            load_skill_registry,
+        )
 
         return {
             "get_user_skills_dir": get_user_skills_dir,
+            "get_project_skills_dir": get_project_skills_dir,
+            "get_project_rules_dir": get_project_rules_dir,
             "load_skill_registry": load_skill_registry,
         }[name]
     if name == "SkillRegistry":

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from illusion.config.paths import get_config_dir
+from illusion.config.paths import get_config_dir, get_project_config_dir
 from illusion.config.settings import load_settings
 from illusion.skills.bundled import get_bundled_skills
 from illusion.skills.registry import SkillRegistry
@@ -41,6 +41,20 @@ def get_user_skills_dir() -> Path:
     return path
 
 
+def get_project_skills_dir(cwd: str | Path) -> Path:
+    """返回项目级 skills 目录（.illusion/skills/）。"""
+    path = get_project_config_dir(cwd) / "skills"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_project_rules_dir(cwd: str | Path) -> Path:
+    """返回项目级 rules 目录（.illusion/rules/）。"""
+    path = get_project_config_dir(cwd) / "rules"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def load_skill_registry(cwd: str | Path | None = None) -> SkillRegistry:
     """加载内置和用户定义的 skills。"""
     registry = SkillRegistry()
@@ -50,8 +64,11 @@ def load_skill_registry(cwd: str | Path | None = None) -> SkillRegistry:
     # 注册用户 skills
     for skill in load_user_skills():
         registry.register(skill)
-    # 如果提供了工作目录，加载插件 skills
+    # 如果提供了工作目录，加载项目级 skills 和插件 skills
     if cwd is not None:
+        # 项目级 skills（同名时覆盖全局）
+        for skill in load_project_skills(cwd):
+            registry.register(skill)
         from illusion.plugins.loader import load_plugins
 
         settings = load_settings()
@@ -78,6 +95,31 @@ def load_user_skills() -> list[SkillDefinition]:
                 path=str(path),
             )
         )
+    return skills
+
+
+def load_project_skills(cwd: str | Path) -> list[SkillDefinition]:
+    """从项目目录加载 markdown skills。
+
+    目录结构: <project>/.illusion/skills/<skill_name>/<skill_name>.md
+    """
+    skills: list[SkillDefinition] = []
+    skills_dir = get_project_skills_dir(cwd)
+    for sub in sorted(skills_dir.iterdir()):
+        if not sub.is_dir():
+            continue
+        for path in sorted(sub.glob("*.md")):
+            content = path.read_text(encoding="utf-8")
+            name, description = _parse_skill_markdown(path.stem, content)
+            skills.append(
+                SkillDefinition(
+                    name=name,
+                    description=description,
+                    content=content,
+                    source="project",
+                    path=str(path),
+                )
+            )
     return skills
 
 
