@@ -447,6 +447,7 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 					showWelcome={session.ready}
 					showThinking={session.showThinking}
 					language={language}
+					commandPickerOpen={showPicker}
 				/>
 			</Box>
 

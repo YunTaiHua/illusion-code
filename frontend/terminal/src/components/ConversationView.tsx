@@ -19,6 +19,7 @@ export function ConversationView({
 	showWelcome,
 	showThinking,
 	language,
+	commandPickerOpen,
 }: {
 	staticItems: TranscriptItem[];
 	clearCount: number;
@@ -26,6 +27,7 @@ export function ConversationView({
 	showWelcome: boolean;
 	showThinking: boolean;
 	language: UiLanguage;
+	commandPickerOpen?: boolean;
 }): React.JSX.Element {
 	const {theme} = useTheme();
 	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
@@ -43,7 +45,7 @@ export function ConversationView({
 
 	return (
 		<>
-			{showWelcome && grouped.length === 0 ? <WelcomeBanner language={language} /> : null}
+			{showWelcome && grouped.length === 0 && !commandPickerOpen ? <WelcomeBanner language={language} /> : null}
 
 			<Static key={clearCount} items={grouped}>
 				{(entry, index) => {
