@@ -42,9 +42,8 @@ function renderInline(
 			}
 			case 'codespan': {
 				const ct = t as Tokens.Codespan;
-				const code = i === 0 ? `${ct.text} ` : ` ${ct.text} `;
 				result.push(
-					<Text key={k} color={INLINE_CODE_COLOR}>{code}</Text>,
+					<Text key={k} color={INLINE_CODE_COLOR}>{ct.text}</Text>,
 				);
 				break;
 			}

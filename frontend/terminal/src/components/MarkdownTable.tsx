@@ -35,7 +35,7 @@ function renderInlineToAnsi(tokens: Token[] | undefined): string {
 			}
 			case 'codespan': {
 				const ct = t as Tokens.Codespan;
-				result += `\x1b[${hexToAnsiRgb(INLINE_CODE_COLOR)}m ${ct.text} \x1b[39m`;
+				result += `\x1b[${hexToAnsiRgb(INLINE_CODE_COLOR)}m${ct.text}\x1b[39m`;
 				break;
 			}
 			case 'link': {
@@ -72,10 +72,6 @@ type Props = {
 	token: Tokens.Table;
 	forceWidth?: number;
 };
-
-function trimLeadingAnsiSpace(text: string): string {
-	return text.replace(/^((?:\x1b\[[\d;]*m)*)\s/, '$1');
-}
 
 function cellAnsiText(cell: CellData | undefined | null): string {
 	if (!cell) return '';
@@ -147,8 +143,7 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 
 	function renderRowLines(cells: Array<CellData | undefined>, isHeader: boolean): string[] {
 		const cellLines = cells.map((cell, colIndex) => {
-			const raw = cellAnsiText(cell);
-			const text = isHeader ? raw : trimLeadingAnsiSpace(raw);
+			const text = cellAnsiText(cell);
 			return wrapText(text, columnWidths[colIndex]!, {hard: needsHardWrap});
 		});
 		const maxLines = Math.max(...cellLines.map((ls) => ls.length), 1);
@@ -193,7 +188,7 @@ export function MarkdownTable({token, forceWidth}: Props): React.JSX.Element {
 		}
 		for (const row of rowsCells) {
 			for (let i = 0; i < row.length; i++) {
-				const wrapped = wrapText(trimLeadingAnsiSpace(cellAnsiText(row[i])), columnWidths[i]!, {hard: needsHardWrap});
+				const wrapped = wrapText(cellAnsiText(row[i]), columnWidths[i]!, {hard: needsHardWrap});
 				maxLines = Math.max(maxLines, wrapped.length);
 			}
 		}
