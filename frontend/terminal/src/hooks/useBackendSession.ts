@@ -19,6 +19,18 @@ const PROTOCOL_PREFIX = 'OHJSON:';
 const ASSISTANT_DELTA_FLUSH_MS = 16;
 const ASSISTANT_DELTA_FLUSH_CHARS = 32;
 
+// Pattern for tool-call-like lines that the model may embed in assistant text.
+// Matches: "  bash (git add ...)" or "read (file_path: ...)"
+const TOOL_CALL_LINE_RE = /^\s{2,}\w[\w-]*\s*\(.*\)\s*$/;
+
+/** Strip lines that look like tool-call previews from assistant text. */
+function stripToolCallLines(text: string): string {
+	const lines = text.split('\n');
+	const filtered = lines.filter((line) => !TOOL_CALL_LINE_RE.test(line));
+	// If stripping removed everything, return original text as fallback
+	return filtered.length > 0 ? filtered.join('\n') : text;
+}
+
 export function useBackendSession(config: FrontendConfig, onExit: (code?: number | null) => void) {
 	const [staticItems, setStaticItems] = useState<TranscriptItem[]>([]);
 	const [clearCount, setClearCount] = useState(0);
@@ -223,7 +235,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 				const text = event.message ?? rawBufferRef.current;
 				const reasoning = (event.reasoning ?? reasoningBufferRef.current) || undefined;
 				if (text.trim()) {
-					pushStatic({role: 'assistant', text, reasoning});
+					pushStatic({role: 'assistant', text: stripToolCallLines(text), reasoning});
 				}
 			}
 			assistantFlushedForToolRef.current = false;
@@ -251,7 +263,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 					if (text.trim()) {
 						pushStatic({
 							role: 'assistant',
-							text,
+							text: stripToolCallLines(text),
 							reasoning: reasoningBufferRef.current || undefined,
 						});
 					}

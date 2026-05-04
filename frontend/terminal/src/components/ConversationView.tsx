@@ -87,18 +87,28 @@ type GroupEntry =
 
 function groupToolItems(items: TranscriptItem[]): GroupEntry[] {
 	const result: GroupEntry[] = [];
+	const usedResults = new Set<number>();
 	let i = 0;
 	while (i < items.length) {
 		const item = items[i];
 		if (item.role === 'tool') {
 			let resultItem: TranscriptItem | null = null;
-			if (i + 1 < items.length && items[i + 1].role === 'tool_result' && items[i + 1].tool_name === item.tool_name) {
-				resultItem = items[i + 1];
-				i += 2;
-			} else {
-				i += 1;
+			// Look ahead for the matching tool_result (handles concurrent tool calls
+			// where all tool_started events arrive before any tool_completed events)
+			for (let j = i + 1; j < items.length; j++) {
+				if (items[j].role === 'tool_result' && items[j].tool_name === item.tool_name && !usedResults.has(j)) {
+					resultItem = items[j];
+					usedResults.add(j);
+					break;
+				}
 			}
 			result.push({type: 'tool_group', toolItem: item, resultItem, role: 'tool'});
+			i += 1;
+			continue;
+		}
+		// Skip orphaned tool_result items that were already paired
+		if (item.role === 'tool_result' && usedResults.has(i)) {
+			i += 1;
 			continue;
 		}
 		result.push({type: 'single', item, role: item.role});
