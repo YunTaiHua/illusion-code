@@ -16,8 +16,8 @@ import type {
 } from '../types.js';
 
 const PROTOCOL_PREFIX = 'OHJSON:';
-const ASSISTANT_DELTA_FLUSH_MS = 33;
-const ASSISTANT_DELTA_FLUSH_CHARS = 256;
+const ASSISTANT_DELTA_FLUSH_MS = 16;
+const ASSISTANT_DELTA_FLUSH_CHARS = 32;
 
 export function useBackendSession(config: FrontendConfig, onExit: (code?: number | null) => void) {
 	const [staticItems, setStaticItems] = useState<TranscriptItem[]>([]);
