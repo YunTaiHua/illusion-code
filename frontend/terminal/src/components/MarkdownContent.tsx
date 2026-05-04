@@ -4,11 +4,20 @@ import {Box, Text} from 'ink';
 import type {Token, Tokens} from 'marked';
 import {MarkdownTable} from './MarkdownTable.js';
 import {useTheme} from '../theme/ThemeContext.js';
+import {useTerminalSize} from '../hooks/useTerminalSize.js';
+import {stringWidth, padAligned} from '../utils/markdown.js';
 
 type ThemeConfig = ReturnType<typeof useTheme>['theme'];
 
 // Claude Code dark theme permission color (used for inline code)
 const INLINE_CODE_COLOR = '#b1b9f9';
+
+function hexToAnsiRgb(hex: string): string {
+	const r = parseInt(hex.slice(1, 3), 16);
+	const g = parseInt(hex.slice(3, 5), 16);
+	const b = parseInt(hex.slice(5, 7), 16);
+	return `${r};${g};${b}`;
+}
 
 /**
  * Recursively render inline tokens (bold, italic, code spans, links, text).
@@ -116,6 +125,7 @@ function renderItemContent(item: Tokens.ListItem, theme: ThemeConfig, prefix: st
 function tokensToElements(
 	tokens: Token[],
 	theme: ThemeConfig,
+	terminalWidth: number,
 ): ReactNode[] {
 	const elements: ReactNode[] = [];
 	let ki = 0;
@@ -135,34 +145,65 @@ function tokensToElements(
 				if (codeLines.length > 0 && codeLines[codeLines.length - 1] === '') {
 					codeLines.pop();
 				}
+				if (codeLines.length === 0) break;
 
-				// Right-aligned line number width based on total lines
 				const numWidth = String(codeLines.length).length;
+				const separator = '│ ';
+				const sepWidth = 2;
+
+				let maxCodeWidth = 0;
+				for (const line of codeLines) {
+					const w = stringWidth(line || ' ');
+					if (w > maxCodeWidth) maxCodeWidth = w;
+				}
+				maxCodeWidth = Math.max(maxCodeWidth, 1);
+
+				const borderWidth = Math.min(
+					numWidth + sepWidth + maxCodeWidth + 3,
+					terminalWidth - 1,
+				);
+
+				// Top border with optional language label
+				let topLine: string;
+				if (ct.lang) {
+					const label = ` ${ct.lang} `;
+					const labelW = stringWidth(label);
+					const remain = borderWidth - 2 - labelW;
+					topLine = `╭─${label}${'─'.repeat(Math.max(remain, 0))}╮`;
+				} else {
+					topLine = `╭${'─'.repeat(Math.max(borderWidth - 2, 0))}╮`;
+				}
+
+				// Code lines with line numbers and diff coloring
+				const contentLines: string[] = [];
+				for (let li = 0; li < codeLines.length; li++) {
+					const line = codeLines[li] || ' ';
+					const lineNum = numWidth > 1
+						? String(li + 1).padStart(numWidth, '0')
+						: String(li + 1);
+					const trimmed = line.trimStart();
+
+					let color = theme.colors.subtle;
+					if (trimmed.startsWith('+') && !trimmed.startsWith('+++')) {
+						color = theme.colors.success;
+					} else if (trimmed.startsWith('-') && !trimmed.startsWith('---')) {
+						color = theme.colors.error;
+					} else if (trimmed.startsWith('@@')) {
+						color = theme.colors.info;
+					}
+
+					const codePadded = padAligned(line, stringWidth(line), maxCodeWidth, 'left');
+					const colored = `\x1b[38;2;${hexToAnsiRgb(color)}m${codePadded}\x1b[39m`;
+					contentLines.push(
+						`\x1b[2m ${lineNum}${separator}\x1b[22m${colored}`,
+					);
+				}
+
+				const bottomLine = `╰${'─'.repeat(Math.max(borderWidth - 2, 0))}╯`;
+				const allLines = [topLine, ...contentLines, bottomLine];
 
 				elements.push(
-					<Box key={`t-${ki++}`} flexDirection="column">
-						{codeLines.map((line, li) => {
-							const lineNum = String(li + 1).padStart(numWidth);
-							const trimmed = line.trimStart();
-
-							// Diff syntax coloring
-							let lineColor = theme.colors.subtle;
-							if (trimmed.startsWith('+') && !trimmed.startsWith('+++')) {
-								lineColor = theme.colors.success;
-							} else if (trimmed.startsWith('-') && !trimmed.startsWith('---')) {
-								lineColor = theme.colors.error;
-							} else if (trimmed.startsWith('@@')) {
-								lineColor = theme.colors.info;
-							}
-
-							return (
-								<Text key={li} color={lineColor}>
-									<Text dimColor>{`  ${lineNum} │ `}</Text>
-									{line || ' '}
-								</Text>
-							);
-						})}
-					</Box>,
+					<Text key={`t-${ki++}`}>{allLines.join('\n')}</Text>,
 				);
 				break;
 			}
@@ -288,15 +329,16 @@ function tokensToElements(
 
 export function MarkdownContent({text}: {text: string}): React.JSX.Element {
 	const {theme} = useTheme();
+	const {columns: terminalWidth} = useTerminalSize();
 	const elements = useMemo(() => {
 		if (!text.trim()) return [];
 		try {
 			const tokens = lexer(text);
-			return tokensToElements(tokens, theme);
+			return tokensToElements(tokens, theme, terminalWidth);
 		} catch {
 			return text.split('\n').map((line, i) => <Text key={`f-${i}`}>{line}</Text>);
 		}
-	}, [text, theme]);
+	}, [text, theme, terminalWidth]);
 
 	return (
 		<Box flexDirection="column">
