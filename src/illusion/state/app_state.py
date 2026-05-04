@@ -42,7 +42,6 @@ class AppState:
         bridge_sessions: 活跃的桥接会话数量
         output_style: 输出样式名称
         phase: 会话阶段 (idle/thinking/tool_executing)
-        keybindings: 键盘快捷键映射
     """
 
     model: str  # 模型名称
@@ -61,4 +60,3 @@ class AppState:
     bridge_sessions: int = 0  # 活跃的桥接会话数量
     output_style: str = "default"  # 输出样式名称
     phase: str = "idle"  # 会话阶段: idle / thinking / tool_executing
-    keybindings: dict[str, str] = field(default_factory=dict)  # 键盘快捷键映射

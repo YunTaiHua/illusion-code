@@ -158,13 +158,6 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	const handleCommand = (cmd: string): boolean => {
 		const trimmed = cmd.trim();
 
-		// /theme set <name> → switch theme locally
-		const themeMatch = /^\/theme\s+set\s+(\S+)$/.exec(trimmed);
-		if (themeMatch) {
-			setThemeName(themeMatch[1]);
-			return true;
-		}
-
 		// /permissions → show mode picker
 		if (trimmed === '/permissions' || trimmed === '/permissions show') {
 			const currentMode = String(session.status.permission_mode ?? 'default');

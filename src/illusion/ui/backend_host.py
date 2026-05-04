@@ -36,7 +36,6 @@ from illusion.api.client import SupportsStreamingMessages
 from illusion.auth.manager import AuthManager
 from illusion.config.settings import CLAUDE_MODEL_ALIAS_OPTIONS, display_model_setting
 from illusion.bridge import get_bridge_manager
-from illusion.themes import list_themes
 from illusion.engine.stream_events import (
     AssistantTextDelta,
     AssistantTurnComplete,
@@ -465,8 +464,6 @@ class ReactBackendHost:
             return f"/resume {value}" if value else "/resume"
         if command == "permissions":
             return f"/permissions {value}"
-        if command == "theme":
-            return f"/theme {value}"
         if command == "language":
             return f"/language {value}"
         if command == "output-style":
@@ -617,24 +614,6 @@ class ReactBackendHost:
                 BackendEvent(
                     type="select_request",
                     modal={"kind": "select", "title": "权限模式" if zh else "Permission Mode", "command": "permissions"},
-                    select_options=options,
-                )
-            )
-            return
-
-        if command == "theme":
-            options = [
-                {
-                    "value": name,
-                    "label": name,
-                    "active": name == settings.theme,
-                }
-                for name in list_themes()
-            ]
-            await self._emit(
-                BackendEvent(
-                    type="select_request",
-                    modal={"kind": "select", "title": "主题" if zh else "Theme", "command": "theme"},
                     select_options=options,
                 )
             )

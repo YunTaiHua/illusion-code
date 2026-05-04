@@ -18,7 +18,7 @@ IllusionCode 是一个开源的 AI 驱动命令行编程助手，由 OpenHarness
 
 - 🤖 **多 AI 提供商支持** - Anthropic Claude、OpenAI、GitHub Copilot、阿里云 DashScope 等
 - 🛠️ **丰富的工具集** - 38+ 内置工具 + MCP 动态工具扩展
-- ⌨️ **57 个斜杠命令** - 覆盖会话管理、配置、项目操作、任务调度等
+- ⌨️ **51 个斜杠命令** - 覆盖会话管理、配置、项目操作、任务调度等
 - 🧠 **多智能体协作** - 7 种内置专业 Agent，支持任务编排
 - 🔌 **灵活扩展系统** - 插件、钩子、技能、MCP 服务器
 - 🔐 **完善权限控制** - 三种模式 + 细粒度规则
@@ -46,7 +46,7 @@ uv sync
 ### 基本使用
 
 ```bash
-# 启动交互式会话
+# 启动交互式会话（推荐）
 illusion
 
 # 非交互式打印模式
@@ -104,9 +104,9 @@ illusion cron list               # 列出任务
 
 | 类别 | 命令示例 | 说明 |
 |------|----------|------|
-| 会话管理 | `/help`, `/clear`, `/exit`, `/rewind` | 管理会话状态 |
-| 记忆快照 | `/memory`, `/resume`, `/export`, `/tag` | 记忆与会话管理 |
-| 配置设置 | `/config`, `/model`, `/theme`, `/plan` | 调整运行配置 |
+| 会话管理 | `/help`, `/clear`, `/exit`, `/rewind`, `/delete` | 管理会话状态 |
+| 记忆快照 | `/memory`, `/resume`, `/export`, `/rules` | 记忆与会话管理 |
+| 配置设置 | `/config`, `/model`, `/permissions`, `/plan` | 调整运行配置 |
 | 插件扩展 | `/skills`, `/hooks`, `/mcp`, `/plugin` | 管理扩展功能 |
 | 项目 Git | `/init`, `/diff`, `/branch`, `/commit` | 项目与版本控制 |
 | 多智能体 | `/agents`, `/tasks`, `/continue` | Agent 协作 |
@@ -120,7 +120,7 @@ illusion-code/
 ├── src/illusion/           # 主要源代码
 │   ├── api/                # API 客户端 (Anthropic, OpenAI, Copilot 等)
 │   ├── auth/               # 认证管理
-│   ├── commands/           # 斜杠命令系统 (57 个命令)
+│   ├── commands/           # 斜杠命令系统 (51 个命令)
 │   ├── config/             # 配置系统
 │   ├── coordinator/        # 多智能体协调器
 │   ├── engine/             # 核心对话引擎
@@ -333,7 +333,6 @@ settings.json 支持两种配置方式：
   },
   "enabled_plugins": {},
   "mcp_servers": {},
-  "theme": "default",
   "ui_language": "zh-CN",
   "output_style": "default",
   "fast_mode": false,
@@ -357,7 +356,6 @@ settings.json 支持两种配置方式：
 | `profiles` | object | {} | 用户自定义的提供商配置文件 | `{"my-profile": {...}}` |
 | `max_turns` | int | 200 | 最大对话轮数 | `500` |
 | `system_prompt` | string\|null | null | 自定义系统提示词 | `"你是一个专业的Python开发者"` |
-| `theme` | string | "default" | UI 主题 | `"dark"` |
 | `ui_language` | string | "zh-CN" | 界面语言 | `"en-US"` |
 | `fast_mode` | bool | false | 快速模式 | `true` |
 | `effort` | string | "medium" | 工作量级别：low/medium/high | `"high"` |
@@ -441,7 +439,7 @@ IllusionCode 支持多种 AI 提供商，通过 `profiles` 配置不同的工作
 
 ```bash
 # 方式一：使用 /model 命令切换
-/model nvidia-minimax
+/model
 
 # 方式二：使用 -m 参数指定模型
 illusion -m minimaxai/minimax-m2.7

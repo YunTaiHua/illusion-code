@@ -21,14 +21,14 @@
 内置命令列表：
     - /help, /exit, /clear, /version, /status, /context, /summary
     - /compact, /cost, /usage, /stats, /memory, /hooks, /resume
-    - /session, /export, /share, /copy, /tag, /rewind, /files
-    - /init, /bridge, /login, /logout, /feedback, /onboarding
+    - /export, /share, /copy, /rewind, /files
+    - /init, /bridge, /login, /logout, /feedback
     - /skills, /config, /mcp, /plugin, /reload-plugins
     - /permissions, /plan, /fast, /effort, /passes, /turns
-    - /continue, /model, /theme, /language, /output-style
-    - /keybindings, /doctor, /diff, /branch, /commit
-    - /issue, /pr_comments, /privacy-settings, /rate-limit-options
-    - /release-notes, /upgrade, /agents, /tasks, /delete, /rules
+    - /continue, /model, /language, /output-style
+    - /doctor, /diff, /branch, /commit
+    - /issue, /pr_comments, /privacy-settings
+    - /agents, /tasks, /delete, /rules
 
 使用示例：
     >>> from illusion.commands import create_default_command_registry
@@ -133,11 +133,9 @@ _COMMAND_DESCRIPTIONS_ZH: dict[str, str] = {
     "memory": "查看和管理项目记忆",
     "hooks": "显示已配置 hooks",
     "resume": "恢复最近保存的会话",
-    "session": "查看当前会话存储",
     "export": "导出当前转录",
     "share": "创建可分享的转录快照",
     "copy": "复制最新回复或指定文本",
-    "tag": "为当前会话创建命名快照",
     "rewind": "移除最新对话轮次",
     "files": "列出当前工作区文件",
     "init": "初始化项目 IllusionCode 文件",
@@ -145,7 +143,6 @@ _COMMAND_DESCRIPTIONS_ZH: dict[str, str] = {
     "login": "查看认证状态或保存 API Key",
     "logout": "清除已保存 API Key",
     "feedback": "保存 CLI 反馈到本地日志",
-    "onboarding": "显示快速上手指南",
     "skills": "列出或显示可用技能",
     "config": "显示或更新配置",
     "mcp": "显示 MCP 状态",
@@ -159,10 +156,8 @@ _COMMAND_DESCRIPTIONS_ZH: dict[str, str] = {
     "turns": "显示或更新最大 agent 轮数",
     "continue": "在中断后继续上一轮工具循环",
     "model": "显示或更新默认模型",
-    "theme": "列出、设置、显示或预览 TUI 主题",
     "language": "显示或更新界面语言",
     "output-style": "显示或更新输出风格",
-    "keybindings": "显示最终键位绑定",
     "doctor": "显示环境诊断信息",
     "diff": "显示 git diff 输出",
     "branch": "显示 git 分支信息",
@@ -170,9 +165,6 @@ _COMMAND_DESCRIPTIONS_ZH: dict[str, str] = {
     "issue": "显示或更新项目 issue 上下文",
     "pr_comments": "显示或更新项目 PR 评论上下文",
     "privacy-settings": "显示本地隐私与存储设置",
-    "rate-limit-options": "显示降低提供商限流压力的方式",
-    "release-notes": "显示最近发布说明",
-    "upgrade": "显示升级说明",
     "agents": "列出或查看 agent 与 teammate 任务",
     "tasks": "管理后台任务",
     "delete": "清理选定的会话",
@@ -190,6 +182,19 @@ def _resolve_ui_language(context: "CommandContext | None") -> str:
 
 def _is_zh(locale: str) -> bool:
     return locale.lower().startswith("zh")
+
+
+def _translate_single_line(line: str, exact: dict[str, str], substitutions: list[tuple[re.Pattern[str], str]]) -> str:
+    """翻译单行消息"""
+    if line in exact:
+        return exact[line]
+    translated = line
+    for pattern, replacement in substitutions:
+        if callable(replacement):
+            translated = pattern.sub(replacement, translated)
+        else:
+            translated = pattern.sub(replacement, translated)
+    return translated
 
 
 def _translate_command_message(message: str, *, locale: str) -> str:
@@ -236,13 +241,11 @@ def _translate_command_message(message: str, *, locale: str) -> str:
         # 语言
         "Available UI languages: zh-CN, en": "可用界面语言：zh-CN, en",
         "Usage: /language [show|list|set zh-CN|set en]": "用法：/language [show|list|set zh-CN|set en]",
-        # 主题与输出风格
-        "Usage: /theme [list|show|set NAME|preview NAME]": "用法：/theme [list|show|set NAME|preview NAME]",
+        # 输出风格
         "Usage: /output-style [show|list|set NAME]": "用法：/output-style [show|list|set NAME]",
         # 诊断与隐私
         "Doctor summary:": "诊断摘要：",
         "Privacy settings:": "隐私设置：",
-        "Rate limit options:": "限流应对选项：",
         # Git
         "Usage: /branch [show|list]": "用法：/branch [show|list]",
         "Nothing to commit.": "没有可提交的改动。",
@@ -265,10 +268,7 @@ def _translate_command_message(message: str, *, locale: str) -> str:
         "Usage: /compact [PRESERVE_RECENT]": "用法：/compact [保留近期消息数]",
         "Usage: /memory add TITLE :: CONTENT": "用法：/memory add 标题 :: 内容",
         "Usage: /memory [list|show NAME|add TITLE :: CONTENT|remove NAME]": "用法：/memory [list|show 名称|add 标题 :: 内容|remove 名称]",
-        "Usage: /session tag NAME": "用法：/session tag 名称",
-        "Usage: /session [show|ls|path|tag NAME|clear]": "用法：/session [show|ls|path|tag 名称|clear]",
         "Usage: /rewind [TURNS]": "用法：/rewind [轮数]",
-        "Usage: /tag NAME": "用法：/tag 名称",
         "Usage: /config [show|set KEY VALUE]": "用法：/config [show|set 键 值]",
         "Usage: /fast [show|on|off|toggle]": "用法：/fast [show|on|off|toggle]",
         "Usage: /effort [show|low|medium|high]": "用法：/effort [show|low|medium|high]",
@@ -294,6 +294,12 @@ def _translate_command_message(message: str, *, locale: str) -> str:
         # 删除与规则
         "Saved sessions:": "已保存会话：",
         "Use /resume <session_id> to restore a specific session.": "使用 /resume <会话ID> 恢复指定会话。",
+        # 登录
+        "Usage: /login API_KEY": "用法：/login API_KEY",
+        # Doctor
+        "- backend host: available": "- 后端宿主：可用",
+        "- network: enabled only for provider and explicit web/MCP calls": "- 网络：仅用于提供商和显式 web/MCP 调用",
+        "- storage: local files under ~/.illusion and project .illusion": "- 存储：本地文件位于 ~/.illusion 和项目 .illusion",
     }
     if message in exact:
         return exact[message]
@@ -309,10 +315,6 @@ def _translate_command_message(message: str, *, locale: str) -> str:
         # 语言
         (re.compile(r"^UI language: (.+)$"), r"界面语言：\1"),
         (re.compile(r"^UI language set to (.+)$"), r"界面语言已设置为 \1"),
-        # 主题
-        (re.compile(r"^Theme set to (.+)$"), r"主题已设置为 \1"),
-        (re.compile(r"^Unknown theme: (.+)\. Available: (.+)$"), r"未知主题：\1。可选：\2"),
-        (re.compile(r"^Theme: (.+) \(not found\)$"), r"主题：\1（未找到）"),
         # 输出风格
         (re.compile(r"^Output style: (.+)$"), r"输出风格：\1"),
         (re.compile(r"^Output style set to (.+)$"), r"输出风格已设置为 \1"),
@@ -339,9 +341,6 @@ def _translate_command_message(message: str, *, locale: str) -> str:
         (re.compile(r"^Created shareable transcript snapshot at (.+)$"), r"已创建可分享的转录快照：\1"),
         (re.compile(r"^Copied (\d+) characters to the clipboard\.$"), r"已复制 \1 个字符到剪贴板。"),
         (re.compile(r"^Clipboard unavailable\. Saved copied text to (.+)$"), r"剪贴板不可用，已保存到 \1"),
-        (re.compile(r"^Session directory: (.+)$"), r"会话目录：\1"),
-        (re.compile(r"^Tagged session as (.+):$"), r"已将会话标记为 \1："),
-        (re.compile(r"^Cleared session storage at (.+)$"), r"已清除会话存储：\1"),
         (re.compile(r"^Rewound (\d+) turn\(s\); removed (\d+) message\(s\)\.$"), r"已回退 \1 轮，移除 \2 条消息。"),
         # 任务
         (re.compile(r"^Started task (.+)$"), r"已启动任务 \1"),
@@ -405,26 +404,50 @@ def _translate_command_message(message: str, *, locale: str) -> str:
         (re.compile(r"^Entrypoint: (.+)$"), r"入口文件：\1"),
         (re.compile(r"^Compacted conversation from (\d+) messages to (\d+)\.$"), r"已压缩对话：\1 条 → \2 条。"),
         (re.compile(r"^Current branch: (.+)$"), r"当前分支：\1"),
-        (re.compile(r"^Keybindings file: (.+)$"), r"键位绑定文件：\1"),
         (re.compile(r"^Feedback log: (.+)$"), r"反馈日志：\1"),
         (re.compile(r"^Auth status:$"), r"认证状态："),
         (re.compile(r"^Bridge summary:$"), r"Bridge 摘要："),
         (re.compile(r"^Reloaded plugins:$"), r"已重新加载插件："),
         (re.compile(r"^Available skills:$"), r"可用技能："),
-        (re.compile(r"^Saved sessions:$"), r"已保存会话："),
         (re.compile(r"^Rules directory: (.+)$"), r"规则目录：\1"),
-        (re.compile(r"^Latest snapshot: (present|missing)$"), lambda m: f"最新快照：{'存在' if m.group(1) == 'present' else '缺失'}"),
-        (re.compile(r"^Transcript export: (present|missing)$"), lambda m: f"转录导出：{'存在' if m.group(1) == 'present' else '缺失'}"),
-        (re.compile(r"^Message count: (\d+)$"), r"消息数量：\1"),
         (re.compile(r"^Updated (.+)$"), r"已更新 \1"),
+        # - 前缀行（doctor, privacy-settings, bridge, login, stats, permissions 等）
+        (re.compile(r"^- backend host: available$"), r"- 后端宿主：可用"),
+        (re.compile(r"^- network: enabled only for provider and explicit web/MCP calls$"), r"- 网络：仅用于提供商和显式 web/MCP 调用"),
+        (re.compile(r"^- storage: local files under ~\/\.illusion and project \.illusion$"), r"- 存储：本地文件位于 ~/.illusion 和项目 .illusion"),
+        (re.compile(r"^Usage: \/login API_KEY$"), r"用法：/login API_KEY"),
+        (re.compile(r"^- messages: (\d+)$"), r"- 消息数：\1"),
+        (re.compile(r"^- estimated_tokens: (\d+)$"), r"- 预估 token：\1"),
+        (re.compile(r"^- tools: (\d+)$"), r"- 工具数：\1"),
+        (re.compile(r"^- memory_files: (\d+)$"), r"- 记忆文件：\1"),
+        (re.compile(r"^- background_tasks: (\d+)$"), r"- 后台任务：\1"),
+        (re.compile(r"^- output_style: (.+)$"), r"- 输出风格：\1"),
+        (re.compile(r"^- cwd: (.+)$"), r"- 工作目录：\1"),
+        (re.compile(r"^- sessions: (\d+)$"), r"- 会话数：\1"),
+        (re.compile(r"^- utilities: (.+)$"), r"- 工具集：\1"),
+        (re.compile(r"^- provider: (.+)$"), r"- 提供商：\1"),
+        (re.compile(r"^- auth_status: (.+)$"), r"- 认证状态：\1"),
+        (re.compile(r"^- base_url: (.+)$"), r"- 基础 URL：\1"),
+        (re.compile(r"^- model: (.+)$"), r"- 模型：\1"),
+        (re.compile(r"^- api_key: (.+)$"), r"- API Key：\1"),
+        (re.compile(r"^Allowed tools: (.+)$"), r"允许的工具：\1"),
+        (re.compile(r"^Denied tools: (.+)$"), r"拒绝的工具：\1"),
+        (re.compile(r"^- permission_mode: (.+)$"), r"- 权限模式：\1"),
+        (re.compile(r"^- theme: (.+)$"), r"- 主题：\1"),
+        (re.compile(r"^- ui_language: (.+)$"), r"- 界面语言：\1"),
+        (re.compile(r"^- memory_dir: (.+)$"), r"- 记忆目录：\1"),
+        (re.compile(r"^- plugin_count: (\d+)$"), r"- 插件数：\1"),
+        (re.compile(r"^- mcp_configured: (yes|no)$"), lambda m: f"- MCP 已配置：{'是' if m.group(1) == 'yes' else '否'}"),
+        (re.compile(r"^- user_config_dir: (.+)$"), r"- 用户配置目录：\1"),
+        (re.compile(r"^- project_config_dir: (.+)$"), r"- 项目配置目录：\1"),
+        (re.compile(r"^- session_dir: (.+)$"), r"- 会话目录：\1"),
+        (re.compile(r"^- feedback_log: (.+)$"), r"- 反馈日志：\1"),
+        (re.compile(r"^- api_base_url: (.+)$"), r"- API 基础 URL：\1"),
     ]
-    translated = message
-    for pattern, replacement in substitutions:
-        if callable(replacement):
-            translated = pattern.sub(replacement, translated)
-        else:
-            translated = pattern.sub(replacement, translated)
-    return translated
+    # 支持多行消息：按行分割，逐行翻译，重新拼接
+    lines = message.split("\n")
+    translated_lines = [_translate_single_line(line, exact, substitutions) for line in lines]
+    return "\n".join(translated_lines)
 
 
 @dataclass
@@ -915,48 +938,6 @@ def create_default_command_registry() -> CommandRegistry:
             return CommandResult(message=f"Copied {len(text)} characters to the clipboard.")
         return CommandResult(message=f"Clipboard unavailable. Saved copied text to {target}")
 
-    async def _session_handler(args: str, context: CommandContext) -> CommandResult:
-        session_dir = get_project_session_dir(context.cwd)
-        tokens = args.split()
-        if not tokens or tokens[0] == "show":
-            latest = session_dir / "latest.json"
-            transcript = session_dir / "transcript.md"
-            lines = [
-                f"Session directory: {session_dir}",
-                f"Latest snapshot: {'present' if latest.exists() else 'missing'}",
-                f"Transcript export: {'present' if transcript.exists() else 'missing'}",
-                f"Message count: {len(context.engine.messages)}",
-            ]
-            return CommandResult(message="\n".join(lines))
-        if tokens[0] == "ls":
-            files = sorted(path.name for path in session_dir.iterdir())
-            return CommandResult(message="\n".join(files) if files else "(empty)")
-        if tokens[0] == "path":
-            return CommandResult(message=str(session_dir))
-        if tokens[0] == "tag" and len(tokens) == 2:
-            safe_name = "".join(character for character in tokens[1] if character.isalnum() or character in {"-", "_"})
-            if not safe_name:
-                return CommandResult(message="Usage: /session tag NAME")
-            snapshot_path = save_session_snapshot(
-                cwd=context.cwd,
-                model=context.app_state.get().model if context.app_state is not None else load_settings().model,
-                system_prompt=build_runtime_system_prompt(load_settings(), cwd=context.cwd),
-                messages=context.engine.messages,
-                usage=context.engine.total_usage,
-            )
-            export_path = export_session_markdown(cwd=context.cwd, messages=context.engine.messages)
-            tagged_json = session_dir / f"{safe_name}.json"
-            tagged_md = session_dir / f"{safe_name}.md"
-            shutil.copy2(snapshot_path, tagged_json)
-            shutil.copy2(export_path, tagged_md)
-            return CommandResult(message=f"Tagged session as {safe_name}:\n- {tagged_json}\n- {tagged_md}")
-        if tokens[0] == "clear":
-            if session_dir.exists():
-                shutil.rmtree(session_dir)
-            session_dir.mkdir(parents=True, exist_ok=True)
-            return CommandResult(message=f"Cleared session storage at {session_dir}")
-        return CommandResult(message="Usage: /session [show|ls|path|tag NAME|clear]")
-
     async def _rewind_handler(args: str, context: CommandContext) -> CommandResult:
         turns = 1
         if args.strip():
@@ -973,12 +954,6 @@ def create_default_command_registry() -> CommandRegistry:
             replay_messages=list(updated),
             message=f"Rewound {turns} turn(s); removed {removed} message(s).",
         )
-
-    async def _tag_handler(args: str, context: CommandContext) -> CommandResult:
-        name = args.strip()
-        if not name:
-            return CommandResult(message="Usage: /tag NAME")
-        return await _session_handler(f"tag {name}", context)
 
     async def _files_handler(args: str, context: CommandContext) -> CommandResult:
         raw = args.strip()
@@ -1224,19 +1199,6 @@ def create_default_command_registry() -> CommandRegistry:
         with path.open("a", encoding="utf-8") as handle:
             handle.write(f"[{timestamp}] {args.strip()}\n")
         return CommandResult(message=f"Saved feedback to {path}")
-
-    async def _onboarding_handler(_: str, context: CommandContext) -> CommandResult:
-        del context
-        return CommandResult(
-            message=(
-                "IllusionCode quickstart:\n"
-                "1. Ask for a coding task in plain language.\n"
-                "2. Use /help to inspect commands.\n"
-                "3. Use /doctor to inspect runtime state.\n"
-                "4. Use /tasks for background work and /memory for project memory.\n"
-                "5. Use /login to store an API key if needed."
-            )
-        )
 
     async def _fast_handler(args: str, context: CommandContext) -> CommandResult:
         settings = load_settings()
@@ -1550,85 +1512,6 @@ def create_default_command_registry() -> CommandRegistry:
             return CommandResult(message=f"UI language set to {value}")
         return CommandResult(message="Usage: /language [show|list|set zh-CN|set en]")
 
-    async def _theme_handler(args: str, context: CommandContext) -> CommandResult:
-        from illusion.themes import list_themes, load_theme
-
-        settings = load_settings()
-        tokens = args.split(maxsplit=1)
-        current = (
-            context.app_state.get().theme
-            if context.app_state is not None and hasattr(context.app_state.get(), "theme")
-            else settings.theme
-        )
-
-        if not tokens or tokens[0] == "show":
-            try:
-                theme = load_theme(current)
-                lines = [
-                    f"Theme: {theme.name}",
-                    f"  Colors:  primary={theme.colors.primary}  secondary={theme.colors.secondary}"
-                    f"  accent={theme.colors.accent}  error={theme.colors.error}"
-                    f"  muted={theme.colors.muted}",
-                    f"           background={theme.colors.background}  foreground={theme.colors.foreground}",
-                    f"  Borders: style={theme.borders.style}",
-                    f"  Icons:   spinner={theme.icons.spinner}  tool={theme.icons.tool}"
-                    f"  error={theme.icons.error}  success={theme.icons.success}"
-                    f"  agent={theme.icons.agent}",
-                    f"  Layout:  compact={theme.layout.compact}"
-                    f"  show_tokens={theme.layout.show_tokens}"
-                    f"  show_time={theme.layout.show_time}",
-                ]
-                return CommandResult(message="\n".join(lines))
-            except KeyError:
-                return CommandResult(message=f"Theme: {current} (not found)")
-
-        if tokens[0] == "list":
-            available = list_themes()
-            lines = [f"{'*' if name == current else ' '} {name}" for name in available]
-            return CommandResult(message="\n".join(lines))
-
-        if tokens[0] == "set" and len(tokens) == 2:
-            name = tokens[1]
-            try:
-                load_theme(name)
-            except KeyError:
-                available = list_themes()
-                return CommandResult(
-                    message=f"Unknown theme: {name!r}. Available: {', '.join(available)}"
-                )
-            settings.theme = name
-            save_settings(settings)
-            if context.app_state is not None:
-                context.app_state.set(theme=name)
-            return CommandResult(message=f"Theme set to {name}")
-
-        if tokens[0] == "preview" and len(tokens) == 2:
-            name = tokens[1]
-            try:
-                theme = load_theme(name)
-            except KeyError:
-                available = list_themes()
-                return CommandResult(
-                    message=f"Unknown theme: {name!r}. Available: {', '.join(available)}"
-                )
-            lines = [
-                f"Preview: {theme.name}",
-                f"  primary    {theme.colors.primary}",
-                f"  secondary  {theme.colors.secondary}",
-                f"  accent     {theme.colors.accent}",
-                f"  error      {theme.colors.error}",
-                f"  muted      {theme.colors.muted}",
-                f"  background {theme.colors.background}",
-                f"  foreground {theme.colors.foreground}",
-                f"  borders    {theme.borders.style}",
-                f"  icons      spinner={theme.icons.spinner} tool={theme.icons.tool}"
-                f" success={theme.icons.success} error={theme.icons.error}"
-                f" agent={theme.icons.agent}",
-            ]
-            return CommandResult(message="\n".join(lines))
-
-        return CommandResult(message="Usage: /theme [list|show|set NAME|preview NAME]")
-
     async def _output_style_handler(args: str, context: CommandContext) -> CommandResult:
         settings = load_settings()
         tokens = args.split(maxsplit=1)
@@ -1654,18 +1537,6 @@ def create_default_command_registry() -> CommandRegistry:
                 context.app_state.set(output_style=tokens[1])
             return CommandResult(message=f"Output style set to {tokens[1]}")
         return CommandResult(message="Usage: /output-style [show|list|set NAME]")
-
-    async def _keybindings_handler(_: str, context: CommandContext) -> CommandResult:
-        from illusion.keybindings import get_keybindings_path, load_keybindings
-
-        bindings = (
-            context.app_state.get().keybindings
-            if context.app_state is not None and context.app_state.get().keybindings
-            else load_keybindings()
-        )
-        lines = [f"Keybindings file: {get_keybindings_path()}"]
-        lines.extend(f"{key} -> {command}" for key, command in sorted(bindings.items()))
-        return CommandResult(message="\n".join(lines))
 
     async def _doctor_handler(_: str, context: CommandContext) -> CommandResult:
         settings = load_settings()
@@ -1701,48 +1572,6 @@ def create_default_command_registry() -> CommandRegistry:
             "- storage: local files under ~/.illusion and project .illusion",
         ]
         return CommandResult(message="\n".join(lines))
-
-    async def _rate_limit_options_handler(_: str, context: CommandContext) -> CommandResult:
-        settings = load_settings()
-        provider = "moonshot-compatible" if (settings.base_url and "moonshot" in settings.base_url) else "anthropic-compatible"
-        lines = [
-            "Rate limit options:",
-            f"- provider: {provider}",
-            "- reduce /passes or switch /effort low for lighter requests",
-            "- enable /fast for shorter responses and less tool churn",
-            "- use /compact to shrink long transcripts before retrying",
-            "- prefer background /tasks for long-running local work",
-        ]
-        return CommandResult(message="\n".join(lines))
-
-    async def _release_notes_handler(_: str, context: CommandContext) -> CommandResult:
-        path = Path(context.cwd) / "RELEASE_NOTES.md"
-        if path.exists():
-            return CommandResult(message=path.read_text(encoding="utf-8"))
-        return CommandResult(
-            message=(
-                "# Release Notes\n\n"
-                "- React TUI is now the default `illusion` interface.\n"
-                "- Added richer session, files, bridge, agent, copy, rewind, effort, passes, and privacy commands.\n"
-                "- Expanded real-model validation across tools, MCP, tasks, plugins, notebook, LSP, cron, and worktree flows.\n"
-            )
-        )
-
-    async def _upgrade_handler(_: str, context: CommandContext) -> CommandResult:
-        del context
-        try:
-            version = importlib.metadata.version("illusion")
-        except importlib.metadata.PackageNotFoundError:
-            version = "0.1.0"
-        return CommandResult(
-            message=(
-                f"Current version: {version}\n"
-                "Upgrade instructions:\n"
-                "- uv sync --extra dev\n"
-                "- uv pip install -e .\n"
-                "- npm --prefix frontend/terminal install"
-            )
-        )
 
     async def _diff_handler(args: str, context: CommandContext) -> CommandResult:
         if args.strip() == "full":
@@ -1942,11 +1771,9 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("memory", "Inspect and manage project memory", _memory_handler))
     registry.register(SlashCommand("hooks", "Show configured hooks", _hooks_handler))
     registry.register(SlashCommand("resume", "Restore the latest saved session", _resume_handler))
-    registry.register(SlashCommand("session", "Inspect the current session storage", _session_handler))
     registry.register(SlashCommand("export", "Export the current transcript", _export_handler))
     registry.register(SlashCommand("share", "Create a shareable transcript snapshot", _share_handler))
     registry.register(SlashCommand("copy", "Copy the latest response or provided text", _copy_handler))
-    registry.register(SlashCommand("tag", "Create a named snapshot of the current session", _tag_handler))
     registry.register(SlashCommand("rewind", "Remove the latest conversation turn(s)", _rewind_handler))
     registry.register(SlashCommand("files", "List files in the current workspace", _files_handler))
     registry.register(SlashCommand("init", "Initialize project IllusionCode files", _init_handler))
@@ -1954,7 +1781,6 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("login", "Show auth status or store an API key", _login_handler))
     registry.register(SlashCommand("logout", "Clear the stored API key", _logout_handler))
     registry.register(SlashCommand("feedback", "Save CLI feedback to the local feedback log", _feedback_handler))
-    registry.register(SlashCommand("onboarding", "Show the quickstart guide", _onboarding_handler))
     registry.register(SlashCommand("skills", "List or show available skills", _skills_handler))
     registry.register(SlashCommand("config", "Show or update configuration", _config_handler))
     registry.register(SlashCommand("mcp", "Show MCP status", _mcp_handler))
@@ -1968,10 +1794,8 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("turns", "Show or update maximum agentic turn count", _turns_handler))
     registry.register(SlashCommand("continue", "Continue the previous tool loop if it was interrupted", _continue_handler))
     registry.register(SlashCommand("model", "Show or update the default model", _model_handler))
-    registry.register(SlashCommand("theme", "List, set, show or preview TUI themes", _theme_handler))
     registry.register(SlashCommand("language", "Show or update UI language", _language_handler))
     registry.register(SlashCommand("output-style", "Show or update output style", _output_style_handler))
-    registry.register(SlashCommand("keybindings", "Show resolved keybindings", _keybindings_handler))
     registry.register(SlashCommand("doctor", "Show environment diagnostics", _doctor_handler))
     registry.register(SlashCommand("diff", "Show git diff output", _diff_handler))
     registry.register(SlashCommand("branch", "Show git branch information", _branch_handler))
@@ -1979,9 +1803,6 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("issue", "Show or update project issue context", _issue_handler))
     registry.register(SlashCommand("pr_comments", "Show or update project PR comments context", _pr_comments_handler))
     registry.register(SlashCommand("privacy-settings", "Show local privacy and storage settings", _privacy_settings_handler))
-    registry.register(SlashCommand("rate-limit-options", "Show ways to reduce provider rate pressure", _rate_limit_options_handler))
-    registry.register(SlashCommand("release-notes", "Show recent IllusionCode release notes", _release_notes_handler))
-    registry.register(SlashCommand("upgrade", "Show upgrade instructions", _upgrade_handler))
     registry.register(SlashCommand("agents", "List or inspect agent and teammate tasks", _agents_handler))
     registry.register(SlashCommand("tasks", "Manage background tasks", _tasks_handler))
     registry.register(SlashCommand("delete", "Delete saved sessions", _delete_handler))

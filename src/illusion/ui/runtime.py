@@ -69,7 +69,6 @@ from illusion.prompts import build_runtime_system_prompt
 from illusion.state import AppState, AppStateStore
 from illusion.services.session_storage import save_session_snapshot
 from illusion.tools import ToolRegistry, create_default_tool_registry
-from illusion.keybindings import load_keybindings
 
 # 类型别名定义
 PermissionPrompt = Callable[[str, str], Awaitable[bool]]  # 权限确认回调
@@ -251,7 +250,6 @@ async def build_runtime(
             mcp_failed=sum(1 for status in mcp_manager.list_statuses() if status.state == "failed"),
             bridge_sessions=len(bridge_manager.list_sessions()),
             output_style=settings.output_style,
-            keybindings=load_keybindings(),
             phase="idle",
         )
     )
@@ -448,7 +446,6 @@ def sync_app_state(bundle: RuntimeBundle) -> None:
         mcp_failed=sum(1 for status in bundle.mcp_manager.list_statuses() if status.state == "failed"),
         bridge_sessions=len(get_bridge_manager().list_sessions()),
         output_style=settings.output_style,
-        keybindings=load_keybindings(),
         phase=bundle.app_state.get().phase,
     )
 
