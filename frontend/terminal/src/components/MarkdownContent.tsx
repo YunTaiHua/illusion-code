@@ -5,11 +5,10 @@ import type {Token, Tokens} from 'marked';
 import {MarkdownTable} from './MarkdownTable.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import {useTerminalSize} from '../hooks/useTerminalSize.js';
-import {stringWidth, padAligned} from '../utils/markdown.js';
+import {stringWidth, padAligned, wrapText} from '../utils/markdown.js';
 
 type ThemeConfig = ReturnType<typeof useTheme>['theme'];
 
-// Claude Code dark theme permission color (used for inline code)
 const INLINE_CODE_COLOR = '#b1b9f9';
 
 const NAMED_COLORS: Record<string, [number, number, number]> = {
@@ -30,9 +29,6 @@ function colorToAnsi(color: string): string {
 	return '39';
 }
 
-/**
- * Recursively render inline tokens (bold, italic, code spans, links, text).
- */
 function renderInline(
 	tokens: Token[] | undefined,
 	theme: ThemeConfig,
@@ -104,7 +100,6 @@ function renderInline(
 	return result;
 }
 
-/** Render a list item's content with inline token processing */
 function renderItemContent(item: Tokens.ListItem, theme: ThemeConfig, prefix: string): ReactNode {
 	if (!item.tokens || item.tokens.length === 0) {
 		return <Text>{item.text}</Text>;
@@ -159,62 +154,66 @@ function tokensToElements(
 				if (codeLines.length === 0) break;
 
 				const numWidth = String(codeLines.length).length;
-				const separator = '│ ';
 
-				// Max code content width (plain text only)
-				let maxCodeWidth = 0;
+				// Border width: based on content, capped at terminal width
+				let maxContentWidth = 0;
 				for (const line of codeLines) {
 					const w = stringWidth(line || ' ');
-					if (w > maxCodeWidth) maxCodeWidth = w;
+					if (w > maxContentWidth) maxContentWidth = w;
 				}
-				maxCodeWidth = Math.max(maxCodeWidth, 1);
+				if (ct.lang) {
+					const lw = stringWidth(`${ct.lang}: ${codeLines.length} lines`);
+					if (lw > maxContentWidth) maxContentWidth = lw;
+				}
+				maxContentWidth = Math.max(maxContentWidth, 1);
 
-				// 1(left pad) + numWidth + 2(separator) + maxCodeWidth + 1(right pad)
-				const borderWidth = Math.min(numWidth + maxCodeWidth + 4, terminalWidth - 1);
-				const codeWidth = borderWidth - numWidth - 3;
+				// │ numStr │ code │ = numWidth + codeWidth + 7
+				const borderWidth = Math.min(numWidth + maxContentWidth + 7, terminalWidth - 4);
+				const codeWidth = borderWidth - numWidth - 7;
 				const lineDash = '─'.repeat(Math.max(borderWidth - 2, 0));
 
-				// Code lines: pad plain text first, then wrap with ANSI colors
-				const contentLines: string[] = [];
-				for (let li = 0; li < codeLines.length; li++) {
-					const line = codeLines[li] || ' ';
-					const lineNum = numWidth > 1
-						? String(li + 1).padStart(numWidth, '0')
-						: String(li + 1);
-					const trimmed = line.trimStart();
+				const innerLines: string[] = [];
 
-					let color = theme.colors.subtle;
-					if (trimmed.startsWith('+') && !trimmed.startsWith('+++')) {
-						color = theme.colors.success;
-					} else if (trimmed.startsWith('-') && !trimmed.startsWith('---')) {
-						color = theme.colors.error;
-					} else if (trimmed.startsWith('@@')) {
-						color = theme.colors.info;
-					}
-
-					const padded = padAligned(line, stringWidth(line), codeWidth, 'left');
-					const colored = `\x1b[${colorToAnsi(color)}m${padded}\x1b[39m`;
-					contentLines.push(
-						`\x1b[2m ${lineNum}${separator}\x1b[22m${colored}`,
-					);
-				}
-
-				// Language label with its own rounded border, left-aligned
+				// Language label + line count inside the border
 				if (ct.lang) {
-					const lineCount = codeLines.length;
-					const labelDesc = `${ct.lang}: ${lineCount} lines`;
-					const innerW = stringWidth(labelDesc) + 2;
-					const labelDash = '─'.repeat(innerW);
-					elements.push(
-						<Box key={`t-${ki++}`} flexDirection="column">
-							<Text>╭{labelDash}╮</Text>
-							<Text>│ <Text bold color={theme.colors.illusion}>{ct.lang}</Text>: {lineCount} lines │</Text>
-							<Text>╰{labelDash}╯</Text>
-						</Box>,
-					);
+					const labelText = `${ct.lang}: ${codeLines.length} lines`;
+					const labelW = stringWidth(labelText);
+					const labelPad = ' '.repeat(Math.max(borderWidth - 3 - labelW, 0));
+					const gold = `\x1b[1m\x1b[${colorToAnsi(theme.colors.illusion)}m`;
+					const rst = '\x1b[39m\x1b[22m';
+					innerLines.push(`│ ${gold}${labelText}${rst}${labelPad}│`);
 				}
 
-				const allLines = [`╭${lineDash}╮`, ...contentLines, `╰${lineDash}╯`];
+				// Code lines: fully closed borders, wrap long lines only
+				if (codeWidth > 0) {
+					for (let li = 0; li < codeLines.length; li++) {
+						const line = codeLines[li] || ' ';
+						const lineNum = numWidth > 1
+							? String(li + 1).padStart(numWidth, '0')
+							: String(li + 1);
+						const trimmed = line.trimStart();
+
+						let color = theme.colors.subtle;
+						if (trimmed.startsWith('+') && !trimmed.startsWith('+++')) {
+							color = theme.colors.success;
+						} else if (trimmed.startsWith('-') && !trimmed.startsWith('---')) {
+							color = theme.colors.error;
+						} else if (trimmed.startsWith('@@')) {
+							color = theme.colors.info;
+						}
+
+						const wrapped = wrapText(line, codeWidth, {hard: true});
+						for (let wi = 0; wi < wrapped.length; wi++) {
+							const segment = wrapped[wi]!;
+							const numStr = wi === 0 ? lineNum : ' '.repeat(numWidth);
+							const padded = padAligned(segment, stringWidth(segment), codeWidth, 'left');
+							const colored = `\x1b[${colorToAnsi(color)}m${padded}\x1b[39m`;
+							innerLines.push(`│ ${numStr} │ ${colored} │`);
+						}
+					}
+				}
+
+				const allLines = [`╭${lineDash}╮`, ...innerLines, `╰${lineDash}╯`];
 				elements.push(
 					<Text key={`t-${ki++}`}>{allLines.join('\n')}</Text>,
 				);
@@ -226,21 +225,18 @@ function tokensToElements(
 				const content = renderInline(ht.tokens, theme, `h-${ki}`);
 
 				if (ht.depth === 1) {
-					// h1: bold + underline + highlight
 					elements.push(
 						<Text key={`t-${ki++}`} bold underline color={theme.colors.highlight}>
 							{content}
 						</Text>,
 					);
 				} else if (ht.depth === 2) {
-					// h2: bold + highlight
 					elements.push(
 						<Text key={`t-${ki++}`} bold color={theme.colors.highlight}>
 							{content}
 						</Text>,
 					);
 				} else {
-					// h3+: bold + subtle
 					elements.push(
 						<Text key={`t-${ki++}`} bold color={theme.colors.subtle}>
 							{content}
