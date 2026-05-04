@@ -32,6 +32,10 @@ export function ConversationView({
 	const {theme} = useTheme();
 	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
 	const grouped = useMemo(() => groupToolItems(filtered), [filtered]);
+	const displayItems = useMemo<GroupEntry[]>(() => {
+		if (!showWelcome) return grouped;
+		return [{type: 'welcome', role: 'welcome'}, ...grouped];
+	}, [grouped, showWelcome]);
 	const displayedBuffer = assistantBuffer; // Already processed in useBackendSession
 	const isSuppressedByStatic = useMemo(() => {
 		if (!displayedBuffer) return false;
@@ -45,11 +49,12 @@ export function ConversationView({
 
 	return (
 		<>
-			{showWelcome && grouped.length === 0 && !commandPickerOpen ? <WelcomeBanner language={language} /> : null}
-
-			<Static key={clearCount} items={grouped}>
+			<Static key={clearCount} items={displayItems}>
 				{(entry, index) => {
-					const prevRole = index > 0 ? grouped[index - 1]?.role : undefined;
+					const prevRole = index > 0 ? displayItems[index - 1]?.role : undefined;
+					if (entry.type === 'welcome') {
+						return <WelcomeBanner key="welcome" language={language} />;
+					}
 					if (entry.type === 'tool_group') {
 						return <ToolGroupRow key={`s-${index}`} toolItem={entry.toolItem} resultItem={entry.resultItem} theme={theme} prevRole={prevRole} />;
 					}
@@ -77,7 +82,8 @@ function isEmptyItem(item: TranscriptItem): boolean {
 
 type GroupEntry =
 	| {type: 'single'; item: TranscriptItem; role: string}
-	| {type: 'tool_group'; toolItem: TranscriptItem; resultItem: TranscriptItem | null; role: string};
+	| {type: 'tool_group'; toolItem: TranscriptItem; resultItem: TranscriptItem | null; role: string}
+	| {type: 'welcome'; role: string};
 
 function groupToolItems(items: TranscriptItem[]): GroupEntry[] {
 	const result: GroupEntry[] = [];
