@@ -50,6 +50,9 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 	const reasoningBufferRef = useRef('');
 	// Raw buffer for thinking tag processing and final message text
 	const rawBufferRef = useRef('');
+	// Flag to prevent double-committing assistant text when tool_started
+	// flushes it before assistant_complete arrives
+	const assistantFlushedForToolRef = useRef(false);
 
 	const flushAssistantDelta = (): void => {
 		const pending = pendingAssistantDeltaRef.current;
@@ -189,6 +192,7 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			return;
 		}
 		if (event.type === 'assistant_delta') {
+			assistantFlushedForToolRef.current = false;
 			if (event.reasoning) { reasoningBufferRef.current += event.reasoning; }
 			const delta = event.message ?? '';
 			if (!delta) {
@@ -214,13 +218,15 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 			}
 			flushAssistantDelta();
 
-			// Push the full message as a single assistant item for proper
-			// markdown rendering (tables, code blocks, etc.)
-			const text = event.message ?? rawBufferRef.current;
-			const reasoning = (event.reasoning ?? reasoningBufferRef.current) || undefined;
-			if (text.trim()) {
-				pushStatic({role: 'assistant', text, reasoning});
+			// Skip if tool_started already committed this text to static
+			if (!assistantFlushedForToolRef.current) {
+				const text = event.message ?? rawBufferRef.current;
+				const reasoning = (event.reasoning ?? reasoningBufferRef.current) || undefined;
+				if (text.trim()) {
+					pushStatic({role: 'assistant', text, reasoning});
+				}
 			}
+			assistantFlushedForToolRef.current = false;
 
 			clearAssistantDelta();
 			return;
@@ -234,6 +240,24 @@ export function useBackendSession(config: FrontendConfig, onExit: (code?: number
 		}
 		if ((event.type === 'tool_started' || event.type === 'tool_completed') && event.item) {
 			if (event.type === 'tool_started') {
+				// Commit any pending assistant text to static before the tool call appears
+				if (rawBufferRef.current.trim() || pendingAssistantDeltaRef.current) {
+					if (assistantFlushTimerRef.current) {
+						clearTimeout(assistantFlushTimerRef.current);
+						assistantFlushTimerRef.current = null;
+					}
+					flushAssistantDelta();
+					const text = rawBufferRef.current;
+					if (text.trim()) {
+						pushStatic({
+							role: 'assistant',
+							text,
+							reasoning: reasoningBufferRef.current || undefined,
+						});
+					}
+					clearAssistantDelta();
+					assistantFlushedForToolRef.current = true;
+				}
 				setBusy(true);
 			}
 			const enrichedItem: TranscriptItem = {
