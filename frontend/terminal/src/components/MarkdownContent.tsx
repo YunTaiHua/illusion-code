@@ -12,11 +12,22 @@ type ThemeConfig = ReturnType<typeof useTheme>['theme'];
 // Claude Code dark theme permission color (used for inline code)
 const INLINE_CODE_COLOR = '#b1b9f9';
 
-function hexToAnsiRgb(hex: string): string {
-	const r = parseInt(hex.slice(1, 3), 16);
-	const g = parseInt(hex.slice(3, 5), 16);
-	const b = parseInt(hex.slice(5, 7), 16);
-	return `${r};${g};${b}`;
+const NAMED_COLORS: Record<string, [number, number, number]> = {
+	black: [0, 0, 0], red: [205, 0, 0], green: [0, 205, 0], yellow: [205, 205, 0],
+	blue: [0, 0, 238], magenta: [205, 0, 205], cyan: [0, 205, 205], white: [229, 229, 229],
+	gray: [128, 128, 128], grey: [128, 128, 128],
+};
+
+function colorToAnsi(color: string): string {
+	if (color.startsWith('#')) {
+		const r = parseInt(color.slice(1, 3), 16);
+		const g = parseInt(color.slice(3, 5), 16);
+		const b = parseInt(color.slice(5, 7), 16);
+		return `38;2;${r};${g};${b}`;
+	}
+	const rgb = NAMED_COLORS[color.toLowerCase()];
+	if (rgb) return `38;2;${rgb[0]};${rgb[1]};${rgb[2]}`;
+	return '39';
 }
 
 /**
@@ -149,8 +160,8 @@ function tokensToElements(
 
 				const numWidth = String(codeLines.length).length;
 				const separator = '│ ';
-				const sepWidth = 2;
 
+				// Max code content width (plain text only)
 				let maxCodeWidth = 0;
 				for (const line of codeLines) {
 					const w = stringWidth(line || ' ');
@@ -158,23 +169,12 @@ function tokensToElements(
 				}
 				maxCodeWidth = Math.max(maxCodeWidth, 1);
 
-				const borderWidth = Math.min(
-					numWidth + sepWidth + maxCodeWidth + 3,
-					terminalWidth - 1,
-				);
+				// 1(left pad) + numWidth + 2(separator) + maxCodeWidth + 1(right pad)
+				const borderWidth = Math.min(numWidth + maxCodeWidth + 4, terminalWidth - 1);
+				const codeWidth = borderWidth - numWidth - 3;
+				const lineDash = '─'.repeat(Math.max(borderWidth - 2, 0));
 
-				// Top border with optional language label
-				let topLine: string;
-				if (ct.lang) {
-					const label = ` ${ct.lang} `;
-					const labelW = stringWidth(label);
-					const remain = borderWidth - 2 - labelW;
-					topLine = `╭─${label}${'─'.repeat(Math.max(remain, 0))}╮`;
-				} else {
-					topLine = `╭${'─'.repeat(Math.max(borderWidth - 2, 0))}╮`;
-				}
-
-				// Code lines with line numbers and diff coloring
+				// Code lines: pad plain text first, then wrap with ANSI colors
 				const contentLines: string[] = [];
 				for (let li = 0; li < codeLines.length; li++) {
 					const line = codeLines[li] || ' ';
@@ -192,16 +192,29 @@ function tokensToElements(
 						color = theme.colors.info;
 					}
 
-					const codePadded = padAligned(line, stringWidth(line), maxCodeWidth, 'left');
-					const colored = `\x1b[38;2;${hexToAnsiRgb(color)}m${codePadded}\x1b[39m`;
+					const padded = padAligned(line, stringWidth(line), codeWidth, 'left');
+					const colored = `\x1b[${colorToAnsi(color)}m${padded}\x1b[39m`;
 					contentLines.push(
 						`\x1b[2m ${lineNum}${separator}\x1b[22m${colored}`,
 					);
 				}
 
-				const bottomLine = `╰${'─'.repeat(Math.max(borderWidth - 2, 0))}╯`;
-				const allLines = [topLine, ...contentLines, bottomLine];
+				// Language label with its own rounded border, left-aligned
+				if (ct.lang) {
+					const lineCount = codeLines.length;
+					const labelDesc = `${ct.lang}: ${lineCount} lines`;
+					const innerW = stringWidth(labelDesc) + 2;
+					const labelDash = '─'.repeat(innerW);
+					elements.push(
+						<Box key={`t-${ki++}`} flexDirection="column">
+							<Text>╭{labelDash}╮</Text>
+							<Text>│ <Text bold color={theme.colors.illusion}>{ct.lang}</Text>: {lineCount} lines │</Text>
+							<Text>╰{labelDash}╯</Text>
+						</Box>,
+					);
+				}
 
+				const allLines = [`╭${lineDash}╮`, ...contentLines, `╰${lineDash}╯`];
 				elements.push(
 					<Text key={`t-${ki++}`}>{allLines.join('\n')}</Text>,
 				);
