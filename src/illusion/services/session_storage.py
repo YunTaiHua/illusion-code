@@ -181,6 +181,39 @@ def load_session_by_id(cwd: str | Path, session_id: str) -> dict[str, Any] | Non
     return None
 
 
+def delete_session_by_id(cwd: str | Path, session_id: str) -> bool:
+    """按 ID 删除特定会话。返回是否成功删除。"""
+    session_dir = get_project_session_dir(cwd)
+    path = session_dir / f"session-{session_id}.json"
+    if path.exists():
+        path.unlink()
+        # 如果删除的是 latest.json 对应的会话，也删除 latest.json
+        latest = session_dir / "latest.json"
+        if latest.exists():
+            try:
+                data = json.loads(latest.read_text(encoding="utf-8"))
+                if data.get("session_id") == session_id:
+                    latest.unlink()
+            except (json.JSONDecodeError, OSError):
+                pass
+        return True
+    return False
+
+
+def delete_all_sessions(cwd: str | Path) -> int:
+    """删除项目的所有会话快照。返回删除的文件数量。"""
+    session_dir = get_project_session_dir(cwd)
+    count = 0
+    for path in session_dir.glob("session-*.json"):
+        path.unlink()
+        count += 1
+    latest = session_dir / "latest.json"
+    if latest.exists():
+        latest.unlink()
+        count += 1
+    return count
+
+
 def export_session_markdown(
     *,
     cwd: str | Path,

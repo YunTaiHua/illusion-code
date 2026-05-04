@@ -497,6 +497,12 @@ class ReactBackendHost:
                 if i >= target_idx and msg.role == "user" and msg.text.strip()
             )
             return f"/rewind {turns}" if turns > 0 else None
+        if command == "delete":
+            if value == "__all__":
+                return "/delete all"
+            return f"/delete {value}"
+        if command == "rules":
+            return f"/rules {value}"
         return None
 
     def _status_snapshot(self) -> BackendEvent:
@@ -780,6 +786,62 @@ class ReactBackendHost:
                 BackendEvent(
                     type="select_request",
                     modal={"kind": "select", "title": "回退到" if zh else "Rewind to", "command": "rewind"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "delete":
+            from illusion.services.session_storage import list_session_snapshots
+            import time as _time
+
+            sessions = list_session_snapshots(self._bundle.cwd, limit=10)
+            if not sessions:
+                await self._emit(BackendEvent(type="error", message=("没有已保存的会话。" if zh else "No saved sessions found.")))
+                return
+            options = []
+            for s in sessions:
+                ts = _time.strftime("%m/%d %H:%M", _time.localtime(s["created_at"]))
+                summary = s.get("summary", "")[:50] or ("（无摘要）" if zh else "(no summary)")
+                options.append({
+                    "value": s["session_id"],
+                    "label": f"{ts}  {s['message_count']}msg  {summary}",
+                })
+            options.append({
+                "value": "__all__",
+                "label": ("清除所有会话" if zh else "Delete all sessions"),
+                "description": ("删除全部已保存的会话快照" if zh else "Remove all saved session snapshots"),
+            })
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "删除会话" if zh else "Delete Session", "command": "delete"},
+                    select_options=options,
+                )
+            )
+            return
+
+        if command == "rules":
+            from illusion.skills.loader import get_project_rules_dir
+
+            rules_dir = get_project_rules_dir(self._bundle.cwd)
+            rule_files = sorted(rules_dir.glob("*.md"))
+            if not rule_files:
+                await self._emit(BackendEvent(type="error", message=(f"没有找到规则文件：{rules_dir}" if zh else f"No rules found in {rules_dir}")))
+                return
+            options = []
+            for path in rule_files:
+                content = path.read_text(encoding="utf-8", errors="replace").strip()
+                first_line = content.split("\n", 1)[0][:60] if content else ("（空）" if zh else "(empty)")
+                options.append({
+                    "value": path.stem,
+                    "label": path.stem,
+                    "description": first_line,
+                })
+            await self._emit(
+                BackendEvent(
+                    type="select_request",
+                    modal={"kind": "select", "title": "查看规则" if zh else "View Rules", "command": "rules"},
                     select_options=options,
                 )
             )

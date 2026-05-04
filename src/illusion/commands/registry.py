@@ -28,7 +28,7 @@
     - /continue, /model, /theme, /language, /output-style
     - /keybindings, /doctor, /diff, /branch, /commit
     - /issue, /pr_comments, /privacy-settings, /rate-limit-options
-    - /release-notes, /upgrade, /agents, /tasks
+    - /release-notes, /upgrade, /agents, /tasks, /delete, /rules
 
 使用示例：
     >>> from illusion.commands import create_default_command_registry
@@ -175,6 +175,8 @@ _COMMAND_DESCRIPTIONS_ZH: dict[str, str] = {
     "upgrade": "显示升级说明",
     "agents": "列出或查看 agent 与 teammate 任务",
     "tasks": "管理后台任务",
+    "delete": "清理选定的会话",
+    "rules": "查看选定的规则",
 }
 
 
@@ -1672,6 +1674,90 @@ def create_default_command_registry() -> CommandRegistry:
             )
         )
 
+    async def _delete_handler(args: str, context: CommandContext) -> CommandResult:
+        from illusion.services.session_storage import (
+            delete_all_sessions,
+            delete_session_by_id,
+            list_session_snapshots,
+        )
+
+        tokens = args.strip().split()
+
+        # /delete — 列出会话供选择
+        if not tokens:
+            sessions = list_session_snapshots(context.cwd, limit=10)
+            if not sessions:
+                return CommandResult(message="No saved sessions found for this project.")
+            import time
+            lines = ["Saved sessions:"]
+            for s in sessions:
+                ts = time.strftime("%m/%d %H:%M", time.localtime(s["created_at"]))
+                summary = s["summary"][:50] or "(no summary)"
+                lines.append(f"  {s['session_id']}  {ts}  {s['message_count']}msg  {summary}")
+            lines.append("")
+            lines.append("Usage: /delete <session_id>  — delete a specific session")
+            lines.append("       /delete all           — delete all sessions")
+            return CommandResult(message="\n".join(lines))
+
+        # /delete all / /delete __all__ — 清除所有会话
+        if tokens[0] in ("all", "__all__"):
+            count = delete_all_sessions(context.cwd)
+            return CommandResult(message=f"Deleted {count} session file(s).")
+
+        # /delete <session_id> — 删除指定会话
+        sid = tokens[0]
+        if delete_session_by_id(context.cwd, sid):
+            return CommandResult(message=f"Deleted session: {sid}")
+        return CommandResult(message=f"Session not found: {sid}")
+
+    async def _rules_handler(args: str, context: CommandContext) -> CommandResult:
+        from illusion.skills.loader import get_project_rules_dir
+
+        rules_dir = get_project_rules_dir(context.cwd)
+        rule_files = sorted(rules_dir.glob("*.md"))
+
+        if not rule_files:
+            return CommandResult(message=f"No rules found in {rules_dir}")
+
+        tokens = args.strip().split()
+
+        # /rules — 列出所有规则
+        if not tokens:
+            lines = [f"Rules directory: {rules_dir}", ""]
+            for i, path in enumerate(rule_files, 1):
+                # 读取第一行作为预览
+                content = path.read_text(encoding="utf-8", errors="replace").strip()
+                first_line = content.split("\n", 1)[0][:60] if content else "(empty)"
+                lines.append(f"  {i}. {path.stem}  —  {first_line}")
+            lines.append("")
+            lines.append("Usage: /rules <name|number>  — view a specific rule")
+            return CommandResult(message="\n".join(lines))
+
+        # /rules <name|number> — 显示指定规则内容
+        target = tokens[0]
+        selected = None
+
+        # 按编号选择
+        try:
+            idx = int(target) - 1
+            if 0 <= idx < len(rule_files):
+                selected = rule_files[idx]
+        except ValueError:
+            pass
+
+        # 按名称选择
+        if selected is None:
+            for path in rule_files:
+                if path.stem.lower() == target.lower():
+                    selected = path
+                    break
+
+        if selected is None:
+            return CommandResult(message=f"Rule not found: {target}. Use /rules to list available rules.")
+
+        content = selected.read_text(encoding="utf-8", errors="replace").strip()
+        return CommandResult(message=f"# {selected.stem}\n\n{content}")
+
     registry.register(SlashCommand("help", "Show available commands", _help_handler))
     registry.register(SlashCommand("exit", "Exit IllusionCode", _exit_handler))
     registry.register(SlashCommand("clear", "Clear conversation history", _clear_handler))
@@ -1729,4 +1815,6 @@ def create_default_command_registry() -> CommandRegistry:
     registry.register(SlashCommand("upgrade", "Show upgrade instructions", _upgrade_handler))
     registry.register(SlashCommand("agents", "List or inspect agent and teammate tasks", _agents_handler))
     registry.register(SlashCommand("tasks", "Manage background tasks", _tasks_handler))
+    registry.register(SlashCommand("delete", "Delete saved sessions", _delete_handler))
+    registry.register(SlashCommand("rules", "View project rules", _rules_handler))
     return registry

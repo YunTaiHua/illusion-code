@@ -236,6 +236,18 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 			return true;
 		}
 
+		// /delete → show session picker for deletion
+		if (trimmed === '/delete') {
+			session.sendRequest({type: 'select_command', command: 'delete'});
+			return true;
+		}
+
+		// /rules → show rule picker
+		if (trimmed === '/rules') {
+			session.sendRequest({type: 'select_command', command: 'rules'});
+			return true;
+		}
+
 		// /new → clear conversation window and start fresh session
 		if (trimmed === '/new') {
 			session.clearStaticItems();
