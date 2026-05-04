@@ -270,15 +270,24 @@ function MessageRow({
 			return <ToolResultBlock item={item} theme={theme} />;
 		}
 
-		case 'system':
+		case 'system': {
+			const sysLines = item.text.split('\n');
+			const firstLine = sysLines[0];
+			const restLines = sysLines.slice(1);
 			return (
-				<Box marginTop={1}>
+				<Box marginTop={1} flexDirection="column">
 					<Text>
-						<Text color={theme.colors.warning}>{theme.icons.system}</Text>
-						<Text color={theme.colors.muted}>{' '}{item.text}</Text>
+						<Text color={theme.colors.warning} italic>{theme.icons.system}</Text>
+						<Text color={theme.colors.muted} italic>{' '}{firstLine}</Text>
 					</Text>
+					{restLines.map((line, idx) => (
+						<Box key={idx} marginLeft={2}>
+							<Text color={theme.colors.muted} italic>{line}</Text>
+						</Box>
+					))}
 				</Box>
 			);
+		}
 
 		case 'log':
 			return (

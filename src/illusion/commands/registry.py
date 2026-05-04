@@ -196,65 +196,234 @@ def _translate_command_message(message: str, *, locale: str) -> str:
     if not message or not _is_zh(locale):
         return message
 
-    exact = {
+    exact: dict[str, str] = {
+        # 通用
         "Available commands:": "可用命令：",
-        "Conversation cleared.": "对话已清空。",
-        "Started a new conversation session.": "已开启新对话。",
-        "No memory files.": "没有记忆文件。",
-        "No hooks configured.": "未配置 hooks。",
-        "No saved sessions found for this project.": "当前项目未找到已保存会话。",
-        "Nothing to copy.": "没有可复制的内容。",
         "(empty)": "（空）",
+        "(no output)": "（无输出）",
         "(no directories)": "（无目录）",
         "(no matching files)": "（无匹配文件）",
-        "No active or recorded agents.": "没有活跃或历史 agent。",
-        "Project already initialized for IllusionCode.": "项目已完成 IllusionCode 初始化。",
-        "No bridge sessions.": "没有 bridge 会话。",
+        "(no diff)": "（无差异）",
+        "(working tree clean)": "（工作区干净）",
+        # 会话
+        "Conversation cleared.": "对话已清空。",
+        "Started a new conversation session.": "已开启新对话。",
+        "No saved sessions found for this project.": "当前项目未找到已保存会话。",
+        "Nothing to copy.": "没有可复制的内容。",
+        # 记忆与 hooks
+        "No memory files.": "没有记忆文件。",
+        "No hooks configured.": "未配置 hooks。",
+        # 插件与技能
         "No plugins discovered.": "未发现插件。",
         "No skills available.": "没有可用技能。",
+        # Agent
+        "No active or recorded agents.": "没有活跃或历史 agent。",
+        # 项目初始化
+        "Project already initialized for IllusionCode.": "项目已完成 IllusionCode 初始化。",
+        # Bridge
+        "No bridge sessions.": "没有 bridge 会话。",
+        # 认证
         "Stored API key in ~/.illusion/settings.json": "API Key 已保存到 ~/.illusion/settings.json",
         "Cleared stored API key.": "已清除已保存 API Key。",
+        # 反馈
         "Usage: /feedback TEXT": "用法：/feedback 文本",
+        # 计划模式
         "Plan mode enabled.": "计划模式已开启。",
         "Plan mode disabled.": "计划模式已关闭。",
+        # 模型
         "Usage: /model [show|set MODEL]": "用法：/model [show|set MODEL]",
         "Model set to": "模型已切换为",
+        # 语言
         "Available UI languages: zh-CN, en": "可用界面语言：zh-CN, en",
         "Usage: /language [show|list|set zh-CN|set en]": "用法：/language [show|list|set zh-CN|set en]",
+        # 主题与输出风格
         "Usage: /theme [list|show|set NAME|preview NAME]": "用法：/theme [list|show|set NAME|preview NAME]",
         "Usage: /output-style [show|list|set NAME]": "用法：/output-style [show|list|set NAME]",
+        # 诊断与隐私
         "Doctor summary:": "诊断摘要：",
         "Privacy settings:": "隐私设置：",
         "Rate limit options:": "限流应对选项：",
+        # Git
         "Usage: /branch [show|list]": "用法：/branch [show|list]",
         "Nothing to commit.": "没有可提交的改动。",
+        # 后台任务
         "No background tasks.": "没有后台任务。",
+        "Progress must be an integer between 0 and 100.": "进度必须是 0 到 100 之间的整数。",
+        "Nothing to continue (no pending tool results).": "没有待继续的内容（无待处理工具结果）。",
+        "Continuing pending tool loop...": "正在继续待处理的工具循环…",
+        # MCP
+        "HTTP/WS MCP auth supports bearer or header modes.": "HTTP/WS MCP 认证支持 bearer 或 header 模式。",
+        "stdio MCP auth supports bearer or env modes.": "stdio MCP 认证支持 bearer 或 env 模式。",
+        "No MCP servers configured.": "未配置 MCP 服务器。",
+        # Issue 与 PR 评论
+        "Cleared issue context.": "已清除 issue 上下文。",
+        "No issue context to clear.": "没有可清除的 issue 上下文。",
+        "Cleared PR comments context.": "已清除 PR 评论上下文。",
+        "No PR comments context to clear.": "没有可清除的 PR 评论上下文。",
+        # 用法提示
+        "Usage: /summary [MAX_MESSAGES]": "用法：/summary [最大消息数]",
+        "Usage: /compact [PRESERVE_RECENT]": "用法：/compact [保留近期消息数]",
+        "Usage: /memory add TITLE :: CONTENT": "用法：/memory add 标题 :: 内容",
+        "Usage: /memory [list|show NAME|add TITLE :: CONTENT|remove NAME]": "用法：/memory [list|show 名称|add 标题 :: 内容|remove 名称]",
+        "Usage: /session tag NAME": "用法：/session tag 名称",
+        "Usage: /session [show|ls|path|tag NAME|clear]": "用法：/session [show|ls|path|tag 名称|clear]",
+        "Usage: /rewind [TURNS]": "用法：/rewind [轮数]",
+        "Usage: /tag NAME": "用法：/tag 名称",
+        "Usage: /config [show|set KEY VALUE]": "用法：/config [show|set 键 值]",
+        "Usage: /fast [show|on|off|toggle]": "用法：/fast [show|on|off|toggle]",
+        "Usage: /effort [show|low|medium|high]": "用法：/effort [show|low|medium|high]",
+        "Usage: /passes [show|COUNT]": "用法：/passes [数量]",
+        "Usage: /turns [show|COUNT]": "用法：/turns [数量]",
+        "Usage: /continue [COUNT]": "用法：/continue [数量]",
+        "Usage: /plan [on|off]": "用法：/plan [on|off]",
+        "Usage: /permissions [show|set MODE]": "用法：/permissions [show|set 模式]",
+        "Usage: /issue set TITLE :: BODY": "用法：/issue set 标题 :: 正文",
+        "Usage: /issue [show|set TITLE :: BODY|clear]": "用法：/issue [show|set 标题 :: 正文|clear]",
+        "Usage: /pr_comments add FILE[:LINE] :: COMMENT": "用法：/pr_comments add 文件[:行号] :: 评论",
+        "Usage: /pr_comments [show|add FILE[:LINE] :: COMMENT|clear]": "用法：/pr_comments [show|add 文件[:行号] :: 评论|clear]",
+        "Usage: /plugin [list|enable NAME|disable NAME|install PATH|uninstall NAME]":
+            "用法：/plugin [list|enable 名称|disable 名称|install 路径|uninstall 名称]",
+        "Usage: /bridge [show|encode API_BASE_URL TOKEN|decode SECRET|sdk API_BASE_URL SESSION_ID|spawn CMD|list|output SESSION_ID|stop SESSION_ID]":
+            "用法：/bridge [show|encode API_BASE_URL TOKEN|decode SECRET|sdk API_BASE_URL SESSION_ID|spawn CMD|list|output SESSION_ID|stop SESSION_ID]",
+        "Usage: /tasks update ID [description TEXT|progress NUMBER|note TEXT]":
+            "用法：/tasks update ID [description 文本|progress 数字|note 文本]",
+        "Usage: /tasks [list|run CMD|stop ID|show ID|update ID description TEXT|update ID progress NUMBER|update ID note TEXT|output ID]":
+            "用法：/tasks [list|run CMD|stop ID|show ID|update ID description 文本|update ID progress 数字|update ID note 文本|output ID]",
+        # 快速模式
+        "No conversation content to summarize.": "没有可总结的对话内容。",
+        # 删除与规则
+        "Saved sessions:": "已保存会话：",
+        "Use /resume <session_id> to restore a specific session.": "使用 /resume <会话ID> 恢复指定会话。",
     }
     if message in exact:
         return exact[message]
 
     substitutions: list[tuple[re.Pattern[str], str]] = [
+        # 版本
         (re.compile(r"^IllusionCode (.+)$"), r"IllusionCode 版本 \1"),
+        # 模型
         (re.compile(r"^Model: (.+)$"), r"模型：\1"),
+        (re.compile(r"^Model set to (.+)\. Restart session to use it\.$"), r"模型已设置为 \1。重启会话后生效。"),
+        (re.compile(r"^Model set to (.+)\.$"), r"模型已设置为 \1。"),
+        (re.compile(r"^Unknown model: (.+)$"), r"未知模型：\1"),
+        # 语言
         (re.compile(r"^UI language: (.+)$"), r"界面语言：\1"),
+        (re.compile(r"^UI language set to (.+)$"), r"界面语言已设置为 \1"),
+        # 主题
         (re.compile(r"^Theme set to (.+)$"), r"主题已设置为 \1"),
+        (re.compile(r"^Unknown theme: (.+)\. Available: (.+)$"), r"未知主题：\1。可选：\2"),
+        (re.compile(r"^Theme: (.+) \(not found\)$"), r"主题：\1（未找到）"),
+        # 输出风格
         (re.compile(r"^Output style: (.+)$"), r"输出风格：\1"),
         (re.compile(r"^Output style set to (.+)$"), r"输出风格已设置为 \1"),
+        (re.compile(r"^Unknown output style: (.+)$"), r"未知输出风格：\1"),
+        # 快速模式
         (re.compile(r"^Fast mode: (on|off)$"), r"快速模式：\1"),
+        (re.compile(r"^Fast mode (enabled|disabled)\.$"), lambda m: f"快速模式{'已开启' if m.group(1) == 'enabled' else '已关闭'}。"),
+        # 推理强度
         (re.compile(r"^Reasoning effort: (.+)$"), r"推理强度：\1"),
         (re.compile(r"^Reasoning effort set to (.+)\.$"), r"推理强度已设置为 \1。"),
+        # 推理轮数
         (re.compile(r"^Passes: (.+)$"), r"推理轮数：\1"),
         (re.compile(r"^Pass count set to (.+)\.$"), r"推理轮数已设置为 \1。"),
+        # 最大轮数
         (re.compile(r"^Max turns set to (.+)\.$"), r"最大轮数已设置为 \1。"),
-        (re.compile(r"^Model set to (.+)\. Restart session to use it\.$"), r"模型已设置为 \1。重启会话后生效。"),
+        # 权限
         (re.compile(r"^Permission mode set to (.+)$"), r"权限模式已设置为 \1"),
+        (re.compile(r"^Mode: (.+)$"), r"模式：\1"),
+        # 会话
+        (re.compile(r"^Session not found: (.+)$"), r"未找到会话：\1"),
+        (re.compile(r"^Restored (\d+) messages from session (.+)$"), r"已从会话 \2 恢复 \1 条消息"),
+        (re.compile(r"^Restored (\d+) messages from the latest session\.$"), r"已从最近会话恢复 \1 条消息。"),
+        (re.compile(r"^Exported transcript to (.+)$"), r"已导出转录到 \1"),
+        (re.compile(r"^Created shareable transcript snapshot at (.+)$"), r"已创建可分享的转录快照：\1"),
+        (re.compile(r"^Copied (\d+) characters to the clipboard\.$"), r"已复制 \1 个字符到剪贴板。"),
+        (re.compile(r"^Clipboard unavailable\. Saved copied text to (.+)$"), r"剪贴板不可用，已保存到 \1"),
+        (re.compile(r"^Session directory: (.+)$"), r"会话目录：\1"),
+        (re.compile(r"^Tagged session as (.+):$"), r"已将会话标记为 \1："),
+        (re.compile(r"^Cleared session storage at (.+)$"), r"已清除会话存储：\1"),
+        (re.compile(r"^Rewound (\d+) turn\(s\); removed (\d+) message\(s\)\.$"), r"已回退 \1 轮，移除 \2 条消息。"),
+        # 任务
         (re.compile(r"^Started task (.+)$"), r"已启动任务 \1"),
         (re.compile(r"^Stopped task (.+)$"), r"已停止任务 \1"),
         (re.compile(r"^No task found with ID: (.+)$"), r"未找到任务 ID：\1"),
+        (re.compile(r"^Updated task (.+) description$"), r"已更新任务 \1 的描述"),
+        (re.compile(r"^Updated task (.+) progress to (\d+)%$"), r"已更新任务 \1 的进度为 \2%"),
+        (re.compile(r"^Updated task (.+) note$"), r"已更新任务 \1 的备注"),
+        (re.compile(r"^Deleted (\d+) session file\(s\)\.$"), r"已删除 \1 个会话文件。"),
+        (re.compile(r"^Deleted session: (.+)$"), r"已删除会话：\1"),
+        # Agent
+        (re.compile(r"^No agent found with ID: (.+)$"), r"未找到 agent ID：\1"),
+        # Bridge
+        (re.compile(r"^Spawned bridge session (.+) pid=(\d+)$"), r"已创建 bridge 会话 \1 进程 \2"),
+        (re.compile(r"^Stopped bridge session (.+)$"), r"已停止 bridge 会话 \1"),
+        # 插件
+        (re.compile(r"^Enabled plugin '(.+)'\. Restart session to reload\.$"), r"已启用插件「\1」，重启会话后生效。"),
+        (re.compile(r"^Disabled plugin '(.+)'\. Restart session to reload\.$"), r"已禁用插件「\1」，重启会话后生效。"),
+        (re.compile(r"^Installed plugin to (.+)$"), r"已安装插件到 \1"),
+        (re.compile(r"^Uninstalled plugin '(.+)'$"), r"已卸载插件「\1」"),
+        (re.compile(r"^Plugin '(.+)' not found$"), r"未找到插件「\1」"),
+        # 配置
+        (re.compile(r"^Unknown config key: (.+)$"), r"未知配置项：\1"),
+        (re.compile(r"^Updated (.+)$"), r"已更新 \1"),
+        # 记忆
+        (re.compile(r"^Memory entry not found: (.+)$"), r"未找到记忆条目：\1"),
+        (re.compile(r"^Added memory entry (.+)$"), r"已添加记忆条目 \1"),
+        (re.compile(r"^Removed memory entry (.+)$"), r"已移除记忆条目 \1"),
+        # MCP
+        (re.compile(r"^Unknown MCP server: (.+)$"), r"未知 MCP 服务器：\1"),
+        (re.compile(r"^Server (.+) does not support auth updates$"), r"服务器 \1 不支持认证更新"),
+        (re.compile(r"^Saved MCP auth for (.+)\. Restart session to reconnect\.$"), r"已保存 \1 的 MCP 认证，重启会话后重新连接。"),
+        # Issue 与 PR 评论
+        (re.compile(r"^No issue context\. File path: (.+)$"), r"无 issue 上下文。文件路径：\1"),
+        (re.compile(r"^Saved issue context to (.+)$"), r"已保存 issue 上下文到 \1"),
+        (re.compile(r"^No PR comments context\. File path: (.+)$"), r"无 PR 评论上下文。文件路径：\1"),
+        (re.compile(r"^Added PR comment to (.+)$"), r"已添加 PR 评论到 \1"),
+        # 反馈
+        (re.compile(r"^Saved feedback to (.+)$"), r"已保存反馈到 \1"),
+        # 初始化
+        (re.compile(r"^Initialized project files:$"), r"已初始化项目文件："),
+        # 技能
+        (re.compile(r"^Skill not found: (.+)$"), r"未找到技能：\1"),
+        # 规则
+        (re.compile(r"^No rules found in (.+)$"), r"在 \1 中未找到规则"),
+        (re.compile(r"^Rule not found: (.+)\. Use /rules to list available rules\.$"), r"未找到规则：\1。使用 /rules 查看可用规则。"),
+        # 状态行（多行消息的逐行翻译）
+        (re.compile(r"^Session stats:$"), r"会话统计："),
+        (re.compile(r"^Messages: (\d+)$"), r"消息数：\1"),
+        (re.compile(r"^Usage: input=(\d+) output=(\d+)$"), r"用量：输入=\1 输出=\2"),
+        (re.compile(r"^Effort: (.+)$"), r"推理强度：\1"),
+        (re.compile(r"^Actual usage: input=(\d+) output=(\d+)$"), r"实际用量：输入=\1 输出=\2"),
+        (re.compile(r"^Estimated conversation tokens: (\d+)$"), r"预估对话 token：\1"),
+        (re.compile(r"^Input tokens: (\d+)$"), r"输入 token：\1"),
+        (re.compile(r"^Output tokens: (\d+)$"), r"输出 token：\1"),
+        (re.compile(r"^Total tokens: (\d+)$"), r"总计 token：\1"),
+        (re.compile(r"^Estimated cost: (.+)$"), r"预估费用：\1"),
+        (re.compile(r"^Max turns \(engine\): (.+)$"), r"最大轮数（引擎）：\1"),
+        (re.compile(r"^Max turns \(config\): (.+)$"), r"最大轮数（配置）：\1"),
+        (re.compile(r"^Memory directory: (.+)$"), r"记忆目录：\1"),
+        (re.compile(r"^Entrypoint: (.+)$"), r"入口文件：\1"),
+        (re.compile(r"^Compacted conversation from (\d+) messages to (\d+)\.$"), r"已压缩对话：\1 条 → \2 条。"),
+        (re.compile(r"^Current branch: (.+)$"), r"当前分支：\1"),
+        (re.compile(r"^Keybindings file: (.+)$"), r"键位绑定文件：\1"),
+        (re.compile(r"^Feedback log: (.+)$"), r"反馈日志：\1"),
+        (re.compile(r"^Auth status:$"), r"认证状态："),
+        (re.compile(r"^Bridge summary:$"), r"Bridge 摘要："),
+        (re.compile(r"^Reloaded plugins:$"), r"已重新加载插件："),
+        (re.compile(r"^Available skills:$"), r"可用技能："),
+        (re.compile(r"^Saved sessions:$"), r"已保存会话："),
+        (re.compile(r"^Rules directory: (.+)$"), r"规则目录：\1"),
+        (re.compile(r"^Latest snapshot: (present|missing)$"), lambda m: f"最新快照：{'存在' if m.group(1) == 'present' else '缺失'}"),
+        (re.compile(r"^Transcript export: (present|missing)$"), lambda m: f"转录导出：{'存在' if m.group(1) == 'present' else '缺失'}"),
+        (re.compile(r"^Message count: (\d+)$"), r"消息数量：\1"),
+        (re.compile(r"^Updated (.+)$"), r"已更新 \1"),
     ]
     translated = message
     for pattern, replacement in substitutions:
-        translated = pattern.sub(replacement, translated)
+        if callable(replacement):
+            translated = pattern.sub(replacement, translated)
+        else:
+            translated = pattern.sub(replacement, translated)
     return translated
 
 
