@@ -6,6 +6,8 @@
 
 *Claude Code 的 Python 移植版本 | OpenHarness（0.1.0）的改编版本*
 
+中文 | [English](README_en.md)
+
 </div>
 
 ---
