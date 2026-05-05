@@ -100,8 +100,9 @@ def mcp_list() -> None:
     from illusion.plugins import load_plugins  # 加载插件
 
     settings = load_settings()  # 加载应用设置
-    plugins = load_plugins(settings, str(Path.cwd()))  # 加载插件
-    configs = load_mcp_server_configs(settings, plugins)  # 加载 MCP 服务器配置
+    cwd = str(Path.cwd())
+    plugins = load_plugins(settings, cwd)  # 加载插件
+    configs = load_mcp_server_configs(settings, plugins, cwd)  # 加载 MCP 服务器配置
     if not configs:  # 如果没有配置
         print("No MCP servers configured.")
         return

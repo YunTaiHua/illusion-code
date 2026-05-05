@@ -14,6 +14,7 @@ MCP 模块
     - McpResourceInfo: MCP 资源信息
     - McpConnectionStatus: MCP 连接状态
     - load_mcp_server_configs: 加载 MCP 服务器配置
+    - load_project_mcp_configs: 加载项目级 MCP 配置
 
 使用示例：
     >>> from illusion.mcp import McpClientManager, load_mcp_server_configs
@@ -48,6 +49,7 @@ __all__ = [
     "McpToolInfo",
     "McpWebSocketServerConfig",
     "load_mcp_server_configs",
+    "load_project_mcp_configs",
 ]
 
 
@@ -62,6 +64,11 @@ def __getattr__(name: str):
         from illusion.mcp.config import load_mcp_server_configs
 
         return load_mcp_server_configs
+    # 延迟导入 load_project_mcp_configs
+    if name == "load_project_mcp_configs":
+        from illusion.mcp.config import load_project_mcp_configs
+
+        return load_project_mcp_configs
     # 延迟导入类型定义
     if name in {
         "McpConnectionStatus",

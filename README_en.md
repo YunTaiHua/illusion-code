@@ -22,7 +22,7 @@ IllusionCode is an open-source AI-powered command-line programming assistant, mi
 - 🖥️ **Zero Terminal Flicker** - Stable rendering based on Ink Static component, suppressing resize event interference
 - 🌍 **Full Chinese Support** - Command system, UI selectors, error messages fully localized for better Chinese user experience
 - 📝 **Markdown Terminal Rendering** - Supports tables, bold, italic, inline code, links and other rich text styles
-- 📂 **Project-Level Config Friendly** - Auto-generate skills and rules directories, project-level skills override global ones
+- 📂 **Project-Level Config Friendly** - Auto-generate skills 、 rules 、 mcp 、 plunges directories, project-level skills override global ones
 - 🤖 **Multi AI Provider Support** - Anthropic Claude, OpenAI, GitHub Copilot, Alibaba Cloud DashScope, etc.
 - 🛠️ **Rich Toolset** - 38+ built-in tools + MCP dynamic tool extension
 - ⌨️ **51 Slash Commands** - Covering session management, configuration, project operations, task scheduling, etc.
@@ -250,8 +250,8 @@ Built-in 7 specialized Agents:
 | `credentials.json` | `~/.illusion/credentials.json` | Global | Secure credential storage (API keys, etc.) |
 | `CLAUDE.md` | Project root | Project-level | Project instructions and context |
 | `MEMORY.md` | Project root | Project-level | Memory entry file |
-| `.mcp.json` | Project root | Project-level | MCP server configuration |
-| `.claude/rules/*.md` | Project root | Project-level | Project rule files |
+| `.illusion/mcp/*.json` | Project root | Project-level | MCP server configuration |
+| `.illusion/rules/*.md` | Project root | Project-level | Project rule files |
 
 ### Configuration Priority
 
@@ -769,24 +769,65 @@ This is a Python Web project using the FastAPI framework.
 - Run pytest before committing
 ```
 
-#### .claude/rules/ - Rule Files
+#### .illusion/rules/ - Rule Files
 
-Create `.md` files in the `.claude/rules/` directory, each file is an independent rule:
+Create `.md` files in the `.illusion/rules/` directory, each file is an independent rule:
 
 ```
 Project Root/
-├── .claude/
+├── .illusion/
 │   └── rules/
 │       ├── python-style.md
 │       ├── git-workflow.md
 │       └── testing.md
 ```
 
-#### .mcp.json - MCP Server Configuration
+#### MCP Server Configuration
 
-Create a `.mcp.json` file in the project root to configure project-specific MCP servers:
+MCP servers support three configuration methods, with priority from high to low: **Plugin > Project-level > Global settings**
+
+##### 1. Global Configuration (settings.json)
+
+Configure in the `mcp_servers` field of `~/.illusion/settings.json`, applies to all projects:
 
 ```json
+{
+  "mcp_servers": {
+    "solidworks": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["E:\\claudecode\\SolidWorks-MCP\\server.py"]
+    }
+  }
+}
+```
+
+You can also manage via command line:
+```bash
+illusion mcp list                # List MCP servers
+illusion mcp add <name> <config> # Add server
+illusion mcp remove <name>       # Remove server
+```
+
+##### 2. Project-level Configuration (.illusion/mcp/)
+
+Create `.json` files in the `.illusion/mcp/` directory under the project root, only applies to the current project (directory auto-generated):
+
+**Method 1: Single Server Configuration (filename as server name)**
+
+```json
+// .illusion/mcp/solidworks.json
+{
+  "type": "stdio",
+  "command": "python",
+  "args": ["E:\\claudecode\\SolidWorks-MCP\\server.py"]
+}
+```
+
+**Method 2: Multiple Server Configuration (using mcpServers key)**
+
+```json
+// .illusion/mcp/servers.json
 {
   "mcpServers": {
     "filesystem": {
@@ -821,7 +862,20 @@ Create a `.mcp.json` file in the project root to configure project-specific MCP 
 }
 ```
 
-**MCP Server Configuration Types**:
+##### 3. Plugin Configuration
+
+Place `.mcp.json` or `mcp.json` files in the plugin directory, loaded automatically with the plugin:
+
+```
+~/.illusion/plugins/my-plugin/
+├── plugin.json      # Plugin manifest
+├── .mcp.json        # MCP config (or mcp.json)
+└── ...
+```
+
+MCP servers from plugins are registered with the format `plugin_name:server_name` to avoid conflicts with other configurations.
+
+##### MCP Server Configuration Types
 
 | Type | Fields | Description |
 |------|--------|-------------|
@@ -999,118 +1053,6 @@ Defined through `plugin.json` manifest:
 - Commands
 - Hooks
 - MCP Servers
-
----
-
-## 📋 Development History
-
-This project has undergone multiple major iterations since its launch in April 2026. Here are the main updates organized by feature area:
-
-### 🪟 Deep Windows Optimization
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-06 | `09754fb` | Added Windows platform support and permission prompt functionality |
-| 2026-04-07 | `10e11bd` | Added shared Shell tool module and output standardization |
-| 2026-04-07 | `2e12574` | Bash tool output processing delegated to shared CommandExecutor |
-| 2026-04-07 | `df37144` | PowerShell tool output processing delegated to shared CommandExecutor |
-| 2026-04-11 | `71ca09d` | Optimized Windows platform command execution and streamlined saved settings |
-| 2026-04-11 | `4ca0d66` | Optimized worktree tool error handling |
-
-**Highlights**: Windows users don't need to manually configure Git path, system auto-detects; PowerShell and Bash tools have unified output processing, consistent cross-platform experience.
-
-### 🖥️ Terminal Rendering Stability
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-14 | `3391d4d` | Rewrote ConversationView using Ink Static component to eliminate terminal flicker |
-| 2026-04-14 | `c14e43f` | Fixed Static component issues, added clearCount state reset |
-| 2026-04-14 | `b9a5878` | Completed staticItems data flow from hook to view component |
-| 2026-04-28 | `23646f5` | Optimized streaming output flicker, think tag processing moved to hook layer |
-| 2026-05-04 | `b5307a1` | Suppressed terminal resize events to eliminate ink component flicker |
-| 2026-05-04 | `d7d0ccd` | Integrated WelcomeBanner into Static list for unified management |
-| 2026-05-04 | `665b746` | Lowered assistant streaming output refresh threshold for smoother rendering |
-| 2026-05-04 | `4a14bf5` | Fixed assistant text duplicate submission when tool_started triggers before assistant_complete |
-
-**Highlights**: Uses Ink `<Static>` component architecture, static rendering for completed messages, dynamic rendering for streaming messages, completely solving terminal flicker issues.
-
-### 🌍 Chinese Localization
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-25 | `44b8da9` | Added command text Chinese localization support |
-| 2026-04-25 | `19bed22` | Added UI selector text Chinese localization |
-| 2026-05-04 | `6707ef3` | Optimized system message rendering and expanded command message Chinese translation |
-| 2026-05-04 | `5cf34b1` | Simplified code structure, removed redundant modules and optimized core components |
-
-**Highlights**: All 51 slash commands support Chinese responses, UI selectors (permission confirmation, language switching, model selection, etc.) fully localized, multi-line messages translated line by line.
-
-### 📝 Markdown Terminal Rendering
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-26 | `20014f0` | Added Markdown rendering support to terminal interface |
-| 2026-04-26 | `b58454d` | Optimized Markdown table border character display |
-| 2026-04-28 | `b4f2d9c` | Enhanced Markdown inline style rendering, supporting bold, italic, inline code and links |
-| 2026-04-29 | `aed4c33` | Table cells support inline style rendering |
-| 2026-04-30 | `3aadb78` | Fixed redundant leading space when inline code is at paragraph beginning |
-| 2026-04-30 | `ecce5f4` | Fixed table cell inline code leading space causing alignment offset |
-
-**Highlights**: Full Markdown format rendering in terminal, including table alignment, bold/italic text, inline code highlighting, hyperlinks, significantly improving AI response readability.
-
-### 📂 Project-Level Configuration
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-05-03 | `30eb894` | Supported project-level rules and skills loading, project-level skills override global |
-
-**Highlights**: Auto-detect `.claude/rules/` and `.claude/skills/` directories under project root, project-level configuration takes precedence over global configuration, facilitating team collaboration and project customization.
-
-### ⌨️ Command System Evolution
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-25 | `b345838` | Supported /new command to reset session ID |
-| 2026-04-25 | `533d11d` | Enhanced /resume functionality with transcript replay support |
-| 2026-04-30 | `b85cae4` | Improved model switching and fallback commands, added frontend quick entry |
-| 2026-05-04 | `7810ec0` | Added /delete and /rules commands for session management and rule viewing |
-| 2026-05-04 | `5cf34b1` | Deleted 8 redundant commands (/session, /tag, /onboarding, /theme, /keybindings, /rate-limit-options, /release-notes, /upgrade), streamlined command system |
-
-**Highlights**: Command system streamlined from 57 to 51 commands, removed redundant commands, added practical commands, all commands support interactive selector (arrow keys + enter).
-
-### 🔐 Permission System Enhancement
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-08 | `91b1b58` | Implemented Always Allow backend logic |
-| 2026-04-08 | `4ed6659` | Added Always Allow option and optimized permission prompt logic |
-| 2026-04-09 | `87cb083` | Cleaned up code and added permission storage functionality |
-
-**Highlights**: Added Always Allow option, users can one-click approve specific tools without confirmation each time, improving automated workflow efficiency.
-
-### 🎨 UI/UX Optimization
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-08 | `a0f189f` | Optimized conversation view styles and spacing |
-| 2026-04-08 | `4a3bf4f` | Supported read_file/write_file/edit_file tools and optimized styles |
-| 2026-04-09 | `27b67c6` | Breaking refactor of frontend style system |
-| 2026-04-14 | `e93ef9c` | Added thinking/reasoning tag cleanup and ctrl+t toggle functionality |
-| 2026-05-04 | `3a83bb6` | Optimized tool call pairing logic and filtered tool preview lines from assistant text |
-
-**Highlights**: Unified visual style, tool call result diff preview, thinking process collapsible display (ctrl+t), correct pairing of concurrent tool calls.
-
-### 🔧 Backend Architecture
-
-| Date | Commit | Description |
-|------|--------|-------------|
-| 2026-04-07 | `cc5109b` | Added SessionPhase and ToolChain events to query loop |
-| 2026-04-07 | `68be176` | Added phase-driven session state tracking and chain event emission |
-| 2026-04-11 | `90f9980` | File edit and write tools return unified diff format preview |
-
-**Highlights**: Session state machine driven, complete tool chain event emission, supporting frontend precise display of tool execution progress.
-
----
 
 ## 🧪 Development & Testing
 

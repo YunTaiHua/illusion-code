@@ -24,7 +24,6 @@ const ZH: Dict = {
 	statusToolPrefix: '执行工具',
 	spinnerVerbs: '思考中,处理中,分析中,推理中,生成中,推演中,构建中,优化中,计算中,综合中',
 	spinnerToolAction: '正在执行',
-	toggleThinking: '切换思考过程',
 };
 
 const EN: Dict = {
@@ -49,7 +48,6 @@ const EN: Dict = {
 	statusToolPrefix: 'Running tool',
 	spinnerVerbs: 'Thinking,Processing,Analyzing,Reasoning,Generating,Deliberating,Crafting,Refining,Computing,Synthesizing',
 	spinnerToolAction: 'Running',
-	toggleThinking: 'toggle thinking',
 };
 
 const ALL: Record<UiLanguage, Dict> = {

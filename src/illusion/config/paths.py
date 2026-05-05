@@ -206,13 +206,27 @@ def get_project_issue_file(cwd: str | Path) -> Path:
 
 def get_project_pr_comments_file(cwd: str | Path) -> Path:
     """返回项目级 PR 评论上下文文件
-    
+
     用于存储 Pull Request 的评论上下文信息。
-    
+
     Args:
         cwd: 当前工作目录
-    
+
     Returns:
         Path: PR 评论文件路径
     """
     return get_project_config_dir(cwd) / "pr_comments.md"
+
+
+def get_project_mcp_dir(cwd: str | Path) -> Path:
+    """返回项目级 MCP 配置目录（.illusion/mcp/）
+
+    Args:
+        cwd: 当前工作目录
+
+    Returns:
+        Path: 项目 MCP 配置目录路径
+    """
+    path = get_project_config_dir(cwd) / "mcp"
+    path.mkdir(parents=True, exist_ok=True)
+    return path

@@ -263,8 +263,6 @@ class McpClientManager:
             await session.initialize()
             # 获取服务器提供的工具列表
             tool_result = await session.list_tools()
-            # 获取服务器提供的资源列表
-            resource_result = await session.list_resources()
             # 转换工具信息为内部数据模型
             tools = [
                 McpToolInfo(
@@ -275,16 +273,22 @@ class McpClientManager:
                 )
                 for tool in tool_result.tools
             ]
-            # 转换资源信息为内部数据模型
-            resources = [
-                McpResourceInfo(
-                    server_name=name,
-                    name=resource.name or str(resource.uri),
-                    uri=str(resource.uri),
-                    description=resource.description or "",
-                )
-                for resource in resource_result.resources
-            ]
+            # 获取服务器提供的资源列表（可选能力，服务器可能不支持）
+            resources: list[McpResourceInfo] = []
+            try:
+                resource_result = await session.list_resources()
+                resources = [
+                    McpResourceInfo(
+                        server_name=name,
+                        name=resource.name or str(resource.uri),
+                        uri=str(resource.uri),
+                        description=resource.description or "",
+                    )
+                    for resource in resource_result.resources
+                ]
+            except Exception:
+                # 服务器不支持 resources 能力，忽略错误
+                pass
             # 保存会话和栈
             self._sessions[name] = session
             self._stacks[name] = stack

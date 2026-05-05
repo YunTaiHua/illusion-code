@@ -22,7 +22,7 @@ IllusionCode 是一个开源的 AI 驱动命令行编程助手，由 OpenHarness
 - 🖥️ **终端渲染零闪烁** - 基于 Ink Static 组件的稳定渲染，抑制 resize 事件干扰
 - 🌍 **完整中文支持** - 命令系统、UI 选择器、错误提示全面中文化，国人体验更佳
 - 📝 **Markdown 终端渲染** - 支持表格、加粗、斜体、行内代码、链接等富文本样式
-- 📂 **项目级配置友好** - 自动生成 skills 和 rules 目录，项目同名 skill 优先覆盖全局
+- 📂 **项目级配置友好** - 自动生成 skills 、 rules 、 mcp 、 plunges 目录，项目同名 skill 优先覆盖全局
 - 🤖 **多 AI 提供商支持** - Anthropic Claude、OpenAI、GitHub Copilot、阿里云 DashScope 等
 - 🛠️ **丰富的工具集** - 38+ 内置工具 + MCP 动态工具扩展
 - ⌨️ **51 个斜杠命令** - 覆盖会话管理、配置、项目操作、任务调度等
@@ -250,8 +250,8 @@ illusion-code/
 | `credentials.json` | `~/.illusion/credentials.json` | 全局 | 安全凭据存储（API密钥等） |
 | `CLAUDE.md` | 项目根目录 | 项目级 | 项目指令和上下文 |
 | `MEMORY.md` | 项目根目录 | 项目级 | 记忆入口文件 |
-| `.mcp.json` | 项目根目录 | 项目级 | MCP 服务器配置 |
-| `.claude/rules/*.md` | 项目根目录 | 项目级 | 项目规则文件 |
+| `.illusion/mcp/*.json` | 项目根目录 | 项目级 | MCP 服务器配置 |
+| `.illusion/rules/*.md` | 项目根目录 | 项目级 | 项目规则文件 |
 
 ### 配置优先级
 
@@ -769,24 +769,65 @@ NVIDIA NIM 提供多种开源模型的 API 服务：
 - 提交前运行 pytest
 ```
 
-#### .claude/rules/ - 规则文件
+#### .illusion/rules/ - 规则文件（目录自动生成）
 
-在 `.claude/rules/` 目录下创建 `.md` 文件，每个文件是一条独立规则：
+在 `.illusion/rules/` 目录下创建 `.md` 文件，每个文件是一条独立规则：
 
 ```
 项目根目录/
-├── .claude/
+├── .illusion/
 │   └── rules/
 │       ├── python-style.md
 │       ├── git-workflow.md
 │       └── testing.md
 ```
 
-#### .mcp.json - MCP 服务器配置
+#### MCP 服务器配置
 
-在项目根目录创建 `.mcp.json` 文件，配置项目专属的 MCP 服务器：
+MCP 服务器支持三种配置方式，优先级从高到低：**插件 > 项目级 > 全局设置**
+
+##### 1. 全局配置（settings.json）
+
+在 `~/.illusion/settings.json` 的 `mcp_servers` 字段中配置，对所有项目生效：
 
 ```json
+{
+  "mcp_servers": {
+    "solidworks": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["E:\\claudecode\\SolidWorks-MCP\\server.py"]
+    }
+  }
+}
+```
+
+也可以通过命令行管理：
+```bash
+illusion mcp list                # 列出 MCP 服务器
+illusion mcp add <name> <config> # 添加服务器
+illusion mcp remove <name>       # 移除服务器
+```
+
+##### 2. 项目级配置（.illusion/mcp/）
+
+在项目根目录的 `.illusion/mcp/` 目录下创建 `.json` 文件，仅对当前项目生效（目录自动生成）：
+
+**方式一：单服务器配置（文件名作为服务器名）**
+
+```json
+// .illusion/mcp/solidworks.json
+{
+  "type": "stdio",
+  "command": "python",
+  "args": ["E:\\claudecode\\SolidWorks-MCP\\server.py"]
+}
+```
+
+**方式二：多服务器配置（使用 mcpServers 键）**
+
+```json
+// .illusion/mcp/servers.json
 {
   "mcpServers": {
     "filesystem": {
@@ -821,7 +862,20 @@ NVIDIA NIM 提供多种开源模型的 API 服务：
 }
 ```
 
-**MCP 服务器配置类型**：
+##### 3. 插件配置
+
+在插件目录中放置 `.mcp.json` 或 `mcp.json` 文件，随插件自动加载：
+
+```
+~/.illusion/plugins/my-plugin/
+├── plugin.json      # 插件清单
+├── .mcp.json        # MCP 配置（或 mcp.json）
+└── ...
+```
+
+插件中的 MCP 服务器会以 `插件名:服务器名` 的格式注册，避免与其他配置冲突。
+
+##### MCP 服务器配置类型
 
 | 类型 | 字段 | 说明 |
 |------|------|------|

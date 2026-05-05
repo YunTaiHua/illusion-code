@@ -108,8 +108,7 @@ function McpIndicator({count}: {count: number}): React.JSX.Element {
 	const {theme} = useTheme();
 	return (
 		<Box>
-			<Text color={theme.colors.permission}>{theme.icons.dot}</Text>
-			<Text dimColor> {count} MCP</Text>
+			<Text color={theme.colors.permission}> ● {count} MCP</Text>
 		</Box>
 	);
 }
@@ -154,9 +153,6 @@ export function StatusBar({
 						<Text dimColor>{mode}</Text>
 					</>
 				) : null}
-				<Box marginLeft={1}>
-					<Text dimColor>{showThinking ? 'Thinking' : 'Reasoning'}</Text>
-				</Box>
 				{taskCount > 0 ? (
 					<>
 						<Text dimColor>{SEP}</Text>
@@ -164,10 +160,7 @@ export function StatusBar({
 					</>
 				) : null}
 				{mcpCount > 0 ? (
-					<>
-						<Text dimColor>{SEP}</Text>
-						<McpIndicator count={mcpCount} />
-					</>
+					<McpIndicator count={mcpCount} />
 				) : null}
 				<Box flexGrow={1} />
 				{isAutoMode ? <AutoModeIndicator /> : null}

@@ -224,7 +224,7 @@ async def build_runtime(
             base_url=settings.base_url,
         )
     # 创建 MCP 客户端管理器
-    mcp_manager = McpClientManager(load_mcp_server_configs(settings, plugins))
+    mcp_manager = McpClientManager(load_mcp_server_configs(settings, plugins, cwd))
     await mcp_manager.connect_all()
     # 创建工具注册器
     tool_registry = create_default_tool_registry(mcp_manager)

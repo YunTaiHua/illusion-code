@@ -543,8 +543,6 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exitProgram')}
 						<Text> {theme.icons.middleDot} </Text>
 						<Text color={theme.colors.muted}>ctrl+x</Text> {t(language, 'stopCurrentTask')}
-					<Text> {theme.icons.middleDot} </Text>
-					<Text color={theme.colors.muted}>ctrl+t</Text> {t(language, 'toggleThinking')}
 					</Text>
 				</Box>
 			) : session.ready && session.busy && !session.modal && !selectModal ? (
@@ -553,8 +551,6 @@ function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 						<Text color={theme.colors.muted}>ctrl+c</Text> {t(language, 'exitProgram')}
 						<Text> {theme.icons.middleDot} </Text>
 						<Text color={theme.colors.muted}>ctrl+x</Text> {t(language, 'stopCurrentTask')}
-				<Text> {theme.icons.middleDot} </Text>
-				<Text color={theme.colors.muted}>ctrl+t</Text> {t(language, 'toggleThinking')}
 					</Text>
 				</Box>
 			) : null}
