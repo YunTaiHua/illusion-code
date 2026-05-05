@@ -28,6 +28,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import sys
 from dataclasses import dataclass
 from uuid import uuid4
@@ -58,6 +59,20 @@ log = logging.getLogger(__name__)
 
 # 协议前缀 - 用于标识 JSON-lines 协议
 _PROTOCOL_PREFIX = "OHJSON:"
+
+
+def _strip_tool_previews(text: str, tool_uses: list | None) -> str:
+    """从助手文本中移除工具预览行。
+
+    使用实际工具名称精确匹配，不依赖前导空格数量。
+    """
+    if not tool_uses:
+        return text
+    names = [re.escape(tu.name) for tu in tool_uses]
+    pattern = re.compile(rf'^\s*(?:{"|".join(names)})\s*\(', re.IGNORECASE)
+    lines = text.split('\n')
+    filtered = [l for l in lines if not pattern.match(l)]
+    return '\n'.join(filtered) if filtered else text
 
 
 @dataclass(frozen=True)
@@ -320,12 +335,13 @@ class ReactBackendHost:
             # 助手回合完成
             if isinstance(event, AssistantTurnComplete):
                 reasoning = getattr(event.message, "_reasoning", None)
+                cleaned = _strip_tool_previews(event.message.text.strip(), event.message.tool_uses)
                 await self._emit(
                     BackendEvent(
                         type="assistant_complete",
-                        message=event.message.text.strip(),
+                        message=cleaned,
                         reasoning=reasoning if reasoning else None,
-                        item=TranscriptItem(role="assistant", text=event.message.text.strip()),
+                        item=TranscriptItem(role="assistant", text=cleaned),
                     )
                 )
                 await self._emit(BackendEvent.tasks_snapshot(get_task_manager().list_tasks()))
