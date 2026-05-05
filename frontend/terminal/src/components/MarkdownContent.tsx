@@ -253,7 +253,7 @@ function tokensToElements(
 					const content = renderItemContent(item, theme, `l-${ki}-${li}`);
 					elements.push(
 						<Text key={`t-${ki++}`}>
-							<Text color={theme.colors.muted}>{`  ${theme.icons.arrow} `}</Text>
+							<Text color={theme.colors.muted}>{`${theme.icons.arrow} `}</Text>
 							{content}
 						</Text>,
 					);
