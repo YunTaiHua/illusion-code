@@ -336,6 +336,29 @@ function tokensToElements(
 	return elements;
 }
 
+export function renderInlineMarkdown(text: string, theme: ThemeConfig, keyPrefix: string): ReactNode[] {
+	if (!text || !text.trim()) return [<Text key={`${keyPrefix}-empty`}>{text}</Text>];
+	try {
+		const tokens = lexer(text);
+		for (const token of tokens) {
+			if (token.type === 'paragraph') {
+				const pt = token as Tokens.Paragraph;
+				const rendered = renderInline(pt.tokens, theme, keyPrefix);
+				if (rendered.length > 0) return rendered;
+			} else if (token.type === 'text') {
+				const tt = token as Tokens.Text;
+				if (tt.tokens && tt.tokens.length > 0) {
+					const rendered = renderInline(tt.tokens, theme, keyPrefix);
+					if (rendered.length > 0) return rendered;
+				}
+			}
+		}
+	} catch {
+		// fall through to raw text
+	}
+	return [<Text key={`${keyPrefix}-raw`}>{text}</Text>];
+}
+
 export function MarkdownContent({text}: {text: string}): React.JSX.Element {
 	const {theme} = useTheme();
 	const {columns: terminalWidth} = useTerminalSize();

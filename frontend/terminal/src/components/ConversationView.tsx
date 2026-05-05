@@ -5,7 +5,7 @@ import type {UiLanguage} from '../i18n.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 import {renderAssistantText} from '../utils/thinking.js';
-import {MarkdownContent} from './MarkdownContent.js';
+import {MarkdownContent, renderInlineMarkdown} from './MarkdownContent.js';
 import {WelcomeBanner} from './WelcomeBanner.js';
 
 const MAX_RESULT_LINES = 8;
@@ -322,7 +322,7 @@ function renderAssistantBlock(text: string, theme: ReturnType<typeof useTheme>['
 				{headingMatch ? (
 					<Text bold color={theme.colors.highlight}>{' '}{headingMatch[1]}</Text>
 				) : (
-					<Text>{' '}{firstLine}</Text>
+					<Text>{' '}{renderInlineMarkdown(firstLine, theme, 'fl')}</Text>
 				)}
 			</Text>
 			{restText ? (
