@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Box, Text} from 'ink';
 
+import type {ThemeConfig} from '../theme/ThemeContext.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TodoItemSnapshot} from '../types.js';
 
@@ -11,7 +12,7 @@ const HIDE_DELAY_MS = 5000;
 const RECENT_COMPLETED_TTL_MS = 30_000;
 
 export function TodoPanel({items}: {items: TodoItemSnapshot[]}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const [hidden, setHidden] = useState(false);
 	const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
 	const completionTimeRef = useRef<Record<string, number>>({});
@@ -86,7 +87,7 @@ export function TodoPanel({items}: {items: TodoItemSnapshot[]}): React.JSX.Eleme
 	);
 }
 
-function TodoRow({item, theme, now, completionTimes}: {item: TodoItemSnapshot; theme: ReturnType<typeof useTheme>['theme']; now: number; completionTimes: Record<string, number>}): React.JSX.Element {
+function TodoRow({item, theme, now, completionTimes}: {item: TodoItemSnapshot; theme: ThemeConfig; now: number; completionTimes: Record<string, number>}): React.JSX.Element {
 	let icon: string;
 	let color: string;
 

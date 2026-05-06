@@ -3,11 +3,10 @@ import React, {type ReactNode, useMemo} from 'react';
 import {Box, Text} from 'ink';
 import type {Token, Tokens} from 'marked';
 import {MarkdownTable} from './MarkdownTable.js';
+import type {ThemeConfig} from '../theme/ThemeContext.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import {useTerminalSize} from '../hooks/useTerminalSize.js';
 import {stringWidth, padAligned, wrapText} from '../utils/markdown.js';
-
-type ThemeConfig = ReturnType<typeof useTheme>['theme'];
 
 const INLINE_CODE_COLOR = '#b1b9f9';
 
@@ -360,7 +359,7 @@ export function renderInlineMarkdown(text: string, theme: ThemeConfig, keyPrefix
 }
 
 export function MarkdownContent({text}: {text: string}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const {columns: terminalWidth} = useTerminalSize();
 	const elements = useMemo(() => {
 		if (!text.trim()) return [];

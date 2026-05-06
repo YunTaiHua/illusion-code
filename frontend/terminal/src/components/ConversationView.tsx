@@ -2,6 +2,7 @@ import React, {useMemo} from 'react';
 import {Box, Static, Text} from 'ink';
 
 import type {UiLanguage} from '../i18n.js';
+import type {ThemeConfig} from '../theme/ThemeContext.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 import {renderAssistantText} from '../utils/thinking.js';
@@ -29,7 +30,7 @@ export function ConversationView({
 	language: UiLanguage;
 	commandPickerOpen?: boolean;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const filtered = useMemo(() => staticItems.filter((item) => !isEmptyItem(item)), [staticItems]);
 	const grouped = useMemo(() => groupToolItems(filtered), [filtered]);
 	const displayItems = useMemo<GroupEntry[]>(() => {
@@ -125,7 +126,7 @@ function ToolGroupRow({
 }: {
 	toolItem: TranscriptItem;
 	resultItem: TranscriptItem | null;
-	theme: ReturnType<typeof useTheme>['theme'];
+	theme: ThemeConfig;
 	prevRole?: string;
 }): React.JSX.Element {
 	const toolName = toolItem.tool_name ?? 'tool';
@@ -155,7 +156,7 @@ function ToolResultBlock({
 	theme,
 }: {
 	item: TranscriptItem;
-	theme: ReturnType<typeof useTheme>['theme'];
+	theme: ThemeConfig;
 }): React.JSX.Element {
 	const lines = item.text.split('\n').filter((l) => l.trim() !== '');
 	const truncated = lines.length > MAX_RESULT_LINES;
@@ -219,7 +220,7 @@ function MessageRow({
 	showThinking = true,
 }: {
 	item: TranscriptItem;
-	theme: ReturnType<typeof useTheme>['theme'];
+	theme: ThemeConfig;
 	language: UiLanguage;
 	prevRole?: string;
 	showThinking?: boolean;
@@ -305,7 +306,7 @@ function MessageRow({
 	}
 }
 
-function renderAssistantBlock(text: string, theme: ReturnType<typeof useTheme>['theme']): React.JSX.Element | null {
+function renderAssistantBlock(text: string, theme: ThemeConfig): React.JSX.Element | null {
 	if (!text) return null;
 
 	const firstNewline = text.indexOf('\n');
@@ -337,7 +338,7 @@ function renderAssistantBlock(text: string, theme: ReturnType<typeof useTheme>['
 function renderStreamingTail(
 	text: string,
 	grouped: GroupEntry[],
-	theme: ReturnType<typeof useTheme>['theme'],
+	theme: ThemeConfig,
 ): React.JSX.Element {
 	// Filter empty lines to prevent showing golden ● with no text
 	const allLines = text.split('\n');

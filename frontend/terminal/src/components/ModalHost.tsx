@@ -32,7 +32,7 @@ function QuestionModal({
 	onSubmit: (value: string) => void;
 	language: UiLanguage;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const [extraLines, setExtraLines] = useState<string[]>([]);
 	const [optionIndex, setOptionIndex] = useState(0);
 	const [isCustomInput, setIsCustomInput] = useState(false);
@@ -221,7 +221,7 @@ function PermissionModal({
 }: {
 	modal: Record<string, unknown>;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const toolName = String(modal.tool_name ?? 'tool');
 	const reason = modal.reason ? String(modal.reason) : null;
 
@@ -264,7 +264,7 @@ function McpAuthModal({
 	onSubmit: (value: string) => void;
 	language: UiLanguage;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const prompt = String(modal.prompt ?? 'Provide auth details');
 
 	return (

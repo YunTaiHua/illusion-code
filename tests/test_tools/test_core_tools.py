@@ -151,10 +151,10 @@ async def test_skill_todo_and_config_tools(tmp_path: Path, monkeypatch):
     assert todo_result.is_error is False
 
     config_result = await ConfigTool().execute(
-        ConfigToolInput(action="set", key="theme", value="solarized"),
+        ConfigToolInput(action="set", key="ui_language", value="en"),
         ToolExecutionContext(cwd=tmp_path),
     )
-    assert config_result.output == "Updated theme"
+    assert config_result.output == "Updated ui_language"
 
 
 @pytest.mark.asyncio

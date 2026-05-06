@@ -19,7 +19,7 @@ export function SelectModal({
 	options: SelectOption[];
 	selectedIndex: number;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	return (
 		<Box flexDirection="column" marginTop={1}>

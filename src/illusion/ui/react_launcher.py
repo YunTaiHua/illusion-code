@@ -35,19 +35,6 @@ import sys
 from pathlib import Path
 
 
-def _resolve_theme() -> str:
-    """从设置中读取主题名称，默认为 'default'。
-
-    Returns:
-        str: 主题名称
-    """
-    try:
-        from illusion.config.settings import load_settings
-        return load_settings().theme or "default"
-    except Exception:
-        return "default"
-
-
 def _resolve_npm() -> str:
     """解析 npm 可执行文件路径（在 Windows 上为 npm.cmd）。
 
@@ -188,7 +175,6 @@ async def launch_react_tui(
                 api_format=api_format,
             ),
             "initial_prompt": prompt,
-            "theme": _resolve_theme(),
         }
     )
     # 启动前端进程

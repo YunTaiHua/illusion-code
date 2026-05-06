@@ -7,7 +7,7 @@ import {useTheme} from '../theme/ThemeContext.js';
 import type {TodoItemSnapshot} from '../types.js';
 
 export function Spinner({label, todoItems, language, toolName}: {label?: string; todoItems?: TodoItemSnapshot[]; language?: UiLanguage; toolName?: string}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const frames = theme.icons.spinner;
 	const [frame, setFrame] = useState(0);
 	const [verbIndex, setVerbIndex] = useState(0);

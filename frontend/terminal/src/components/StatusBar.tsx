@@ -18,7 +18,7 @@ function PlanModeIndicator({
 	mode: string;
 	activeToolName?: string;
 }): React.JSX.Element | null {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const [flash, setFlash] = useState(false);
 	const [prevMode, setPrevMode] = useState(mode);
 
@@ -64,7 +64,7 @@ function PlanModeIndicator({
 }
 
 function AutoModeIndicator(): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	return (
 		<Box marginLeft={1}>
 			<Text backgroundColor={theme.colors.success} color={theme.colors.background} bold>
@@ -95,7 +95,7 @@ function TokenDisplay({
 }
 
 function TaskIndicator({count}: {count: number}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	return (
 		<Box>
 			<Text color={theme.colors.info}>{theme.icons.inProgress}</Text>
@@ -105,7 +105,7 @@ function TaskIndicator({count}: {count: number}): React.JSX.Element {
 }
 
 function McpIndicator({count}: {count: number}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	return (
 		<Box>
 			<Text color={theme.colors.permission}> ● {count} MCP</Text>
@@ -124,7 +124,7 @@ export function StatusBar({
 	activeToolName?: string;
 	showThinking?: boolean;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const model = String(status.model ?? 'unknown');
 	const mode = String(status.permission_mode ?? 'default');
 	const taskCount = tasks.length;

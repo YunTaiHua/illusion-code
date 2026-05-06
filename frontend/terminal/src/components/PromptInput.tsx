@@ -29,7 +29,7 @@ export function PromptInput({
 	language: UiLanguage;
 	todoItems?: TodoItemSnapshot[];
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	return (
 		<Box flexDirection="column" marginTop={1}>

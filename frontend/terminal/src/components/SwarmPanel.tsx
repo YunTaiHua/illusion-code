@@ -1,8 +1,8 @@
 import React, {useState} from 'react';
 import {Box, Text, useInput} from 'ink';
 
+import type {ThemeConfig} from '../theme/ThemeContext.js';
 import {useTheme} from '../theme/ThemeContext.js';
-
 export type SwarmTeammate = {
 	name: string;
 	status: 'running' | 'idle' | 'done' | 'error';
@@ -16,7 +16,7 @@ export type SwarmNotification = {
 	timestamp: number;
 };
 
-function statusIcon(status: SwarmTeammate['status'], theme: ReturnType<typeof useTheme>['theme']): string {
+function statusIcon(status: SwarmTeammate['status'], theme: ThemeConfig): string {
 	switch (status) {
 		case 'running':
 			return theme.icons.inProgress;
@@ -60,7 +60,7 @@ export function SwarmPanel({
 	notifications: SwarmNotification[];
 	collapsed?: boolean;
 }): React.JSX.Element | null {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const [collapsed, setCollapsed] = useState(initialCollapsed);
 
 	useInput((chunk, key) => {

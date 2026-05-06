@@ -14,7 +14,7 @@ const LOGO = [
 ];
 
 export function WelcomeBanner({language}: {language?: string}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	return (
 		<Box flexDirection="column" marginBottom={1}>
@@ -29,7 +29,7 @@ export function WelcomeBanner({language}: {language?: string}): React.JSX.Elemen
 			<Box marginTop={1} flexDirection="column">
 				<Text dimColor>{`  ${theme.icons.pointer} `}<Text color={theme.colors.suggestion}>/help</Text>{' view all commands'}</Text>
 				<Text dimColor>{`  ${theme.icons.pointer} `}<Text color={theme.colors.suggestion}>/model</Text>{' switch model'}</Text>
-				<Text dimColor>{`  ${theme.icons.pointer} `}<Text color={theme.colors.suggestion}>/theme</Text>{' switch theme'}</Text>
+				<Text dimColor>{`  ${theme.icons.pointer} `}<Text color={theme.colors.suggestion}>/resume</Text>{' resume session'}</Text>
 				<Text dimColor>{`  ${theme.icons.pointer} `}<Text color={theme.colors.suggestion}>/language</Text>{' switch language'}</Text>
 			</Box>
 		</Box>

@@ -2,6 +2,7 @@ import React from 'react';
 import {Box, Text} from 'ink';
 
 import type {UiLanguage} from '../i18n.js';
+import type {ThemeConfig} from '../theme/ThemeContext.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 
@@ -9,7 +10,7 @@ const MAX_OUTPUT_LINES = 8;
 const MAX_SUMMARY_LENGTH = 120;
 
 export function ToolCallDisplay({item, language}: {item: TranscriptItem; language: UiLanguage}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	if (item.role === 'tool') {
 		return <ToolUseMessage item={item} theme={theme} />;
@@ -27,7 +28,7 @@ function ToolUseMessage({
 	theme,
 }: {
 	item: TranscriptItem;
-	theme: ReturnType<typeof useTheme>['theme'];
+	theme: ThemeConfig;
 }): React.JSX.Element {
 	const toolName = item.tool_name ?? 'tool';
 	const summary = summarizeInput(toolName, item.tool_input, item.text);
@@ -52,7 +53,7 @@ function ToolResultMessage({
 	theme,
 }: {
 	item: TranscriptItem;
-	theme: ReturnType<typeof useTheme>['theme'];
+	theme: ThemeConfig;
 }): React.JSX.Element {
 	const lines = item.text.split('\n');
 	const truncated = lines.length > MAX_OUTPUT_LINES;

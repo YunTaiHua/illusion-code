@@ -703,12 +703,6 @@ def main(
         help="API format: 'anthropic' (default), 'openai' (DashScope, GitHub Models, etc.), or 'copilot' (GitHub Copilot)",
         rich_help_panel="System & Context",
     ),
-    theme: str | None = typer.Option(
-        None,
-        "--theme",
-        help="TUI theme: default, dark, minimal, cyberpunk, solarized, or custom name",
-        rich_help_panel="System & Context",
-    ),
     # --- Advanced ---
     debug: bool = typer.Option(
         False,
@@ -766,7 +760,6 @@ def main(
         api_key: API 密钥
         bare: 最小模式
         api_format: API 格式
-        theme: TUI 主题
         debug: 启用调试日志
         mcp_config: 从 JSON 文件或字符串加载 MCP 服务器
         cwd: 会话工作目录
@@ -779,14 +772,6 @@ def main(
 
     if dangerously_skip_permissions:  # 如果跳过权限检查
         permission_mode = "full_auto"  # 设置为完全自动模式
-
-    # 应用 --theme 覆盖到设置
-    if theme:
-        from illusion.config.settings import load_settings, save_settings  # 导入设置模块
-
-        settings = load_settings()  # 加载设置
-        settings.theme = theme  # 设置主题
-        save_settings(settings)  # 保存设置
 
     from illusion.ui.app import run_print_mode, run_repl  # 导入 UI 模块
 

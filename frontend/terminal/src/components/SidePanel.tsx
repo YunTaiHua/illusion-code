@@ -1,6 +1,7 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 
+import type {ThemeConfig} from '../theme/ThemeContext.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {BridgeSessionSnapshot, McpServerSnapshot, TaskSnapshot} from '../types.js';
 
@@ -19,7 +20,7 @@ export function SidePanel({
 	mcpServers: McpServerSnapshot[];
 	bridgeSessions: BridgeSessionSnapshot[];
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	return (
 		<Box flexDirection="column" width="32%">
@@ -32,7 +33,7 @@ export function SidePanel({
 	);
 }
 
-function StatusPanel({status, theme}: {status: Record<string, unknown>; theme: ReturnType<typeof useTheme>['theme']}): React.JSX.Element {
+function StatusPanel({status, theme}: {status: Record<string, unknown>; theme: ThemeConfig}): React.JSX.Element {
 	return (
 		<>
 			<Box marginBottom={1}>
@@ -53,7 +54,7 @@ function StatusPanel({status, theme}: {status: Record<string, unknown>; theme: R
 	);
 }
 
-function TaskPanel({tasks, theme}: {tasks: TaskSnapshot[]; theme: ReturnType<typeof useTheme>['theme']}): React.JSX.Element {
+function TaskPanel({tasks, theme}: {tasks: TaskSnapshot[]; theme: ThemeConfig}): React.JSX.Element {
 	const visible = tasks.slice(0, 6);
 	return (
 		<>
@@ -82,7 +83,7 @@ function TaskPanel({tasks, theme}: {tasks: TaskSnapshot[]; theme: ReturnType<typ
 	);
 }
 
-function McpPanel({servers, theme}: {servers: McpServerSnapshot[]; theme: ReturnType<typeof useTheme>['theme']}): React.JSX.Element {
+function McpPanel({servers, theme}: {servers: McpServerSnapshot[]; theme: ThemeConfig}): React.JSX.Element {
 	return (
 		<>
 			<Box marginBottom={1}>
@@ -112,7 +113,7 @@ function McpPanel({servers, theme}: {servers: McpServerSnapshot[]; theme: Return
 	);
 }
 
-function BridgePanel({sessions, theme}: {sessions: BridgeSessionSnapshot[]; theme: ReturnType<typeof useTheme>['theme']}): React.JSX.Element {
+function BridgePanel({sessions, theme}: {sessions: BridgeSessionSnapshot[]; theme: ThemeConfig}): React.JSX.Element {
 	return (
 		<>
 			<Box marginBottom={1}>
@@ -144,7 +145,7 @@ function CommandPanel({
 }: {
 	commands: string[];
 	hints: string[];
-	theme: ReturnType<typeof useTheme>['theme'];
+	theme: ThemeConfig;
 }): React.JSX.Element {
 	return (
 		<>

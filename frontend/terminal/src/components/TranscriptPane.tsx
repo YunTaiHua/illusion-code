@@ -1,6 +1,7 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 
+import type {ThemeConfig} from '../theme/ThemeContext.js';
 import {useTheme} from '../theme/ThemeContext.js';
 import type {TranscriptItem} from '../types.js';
 
@@ -13,7 +14,7 @@ export function TranscriptPane({
 	items: TranscriptItem[];
 	assistantBuffer: string;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 	const visible = items.slice(-MAX_VISIBLE_ITEMS);
 
 	return (
@@ -41,7 +42,7 @@ export function TranscriptPane({
 	);
 }
 
-function labelFor(role: TranscriptItem['role'], theme: ReturnType<typeof useTheme>['theme']): string {
+function labelFor(role: TranscriptItem['role'], theme: ThemeConfig): string {
 	switch (role) {
 		case 'user':
 			return theme.icons.user;
@@ -60,7 +61,7 @@ function labelFor(role: TranscriptItem['role'], theme: ReturnType<typeof useThem
 	}
 }
 
-function roleColor(role: TranscriptItem['role'], theme: ReturnType<typeof useTheme>['theme']): string {
+function roleColor(role: TranscriptItem['role'], theme: ThemeConfig): string {
 	switch (role) {
 		case 'assistant':
 			return theme.colors.success;

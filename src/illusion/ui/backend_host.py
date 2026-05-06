@@ -6,7 +6,7 @@ React 终端后端主机模块
 
 主要功能：
     - 基于 stdin/stdout 的 JSON-lines 协议通信
-    - 命令处理（/provider, /resume, /permissions, /theme 等）
+    - 命令处理（/provider, /resume, /permissions 等）
     - 权限确认和工作流管理
     - 会话状态快照
     - 任务管理快照

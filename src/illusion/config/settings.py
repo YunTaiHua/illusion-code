@@ -555,7 +555,6 @@ class Settings(BaseModel):
         sandbox: 沙箱设置
         enabled_plugins: 启用的插件字典
         mcp_servers: MCP 服务器配置字典
-        theme: UI 主题
         ui_language: UI 语言
         output_style: 输出样式
         fast_mode: 是否启用快速模式
@@ -585,7 +584,6 @@ class Settings(BaseModel):
     mcp_servers: dict[str, McpServerConfig] = Field(default_factory=dict)  # MCP 服务器配置
 
     # UI 配置
-    theme: str = "default"  # UI 主题
     ui_language: str = "zh-CN"  # UI 语言
     output_style: str = "default"  # 输出样式
     fast_mode: bool = False  # 快速模式

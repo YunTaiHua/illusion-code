@@ -1,40 +1,19 @@
-import React, {createContext, useContext, useState} from 'react';
+import React, {createContext, useContext} from 'react';
 
-import {type ThemeConfig, BUILTIN_THEMES, defaultTheme, getTheme} from './builtinThemes.js';
+import {type ThemeConfig, defaultTheme} from './builtinThemes.js';
 
 export type {ThemeConfig};
 
-type ThemeContextValue = {
-	theme: ThemeConfig;
-	setThemeName: (name: string) => void;
-};
+const ThemeContext = createContext<ThemeConfig>(defaultTheme);
 
-const ThemeContext = createContext<ThemeContextValue>({
-	theme: defaultTheme,
-	setThemeName: () => undefined,
-});
-
-export function ThemeProvider({
-	children,
-	initialTheme = 'default',
-}: {
-	children: React.ReactNode;
-	initialTheme?: string;
-}): React.JSX.Element {
-	const [theme, setTheme] = useState<ThemeConfig>(() => getTheme(initialTheme));
-
-	const setThemeName = (name: string): void => {
-		const resolved = BUILTIN_THEMES[name] ?? defaultTheme;
-		setTheme(resolved);
-	};
-
+export function ThemeProvider({children}: {children: React.ReactNode}): React.JSX.Element {
 	return (
-		<ThemeContext.Provider value={{theme, setThemeName}}>
+		<ThemeContext.Provider value={defaultTheme}>
 			{children}
 		</ThemeContext.Provider>
 	);
 }
 
-export function useTheme(): ThemeContextValue {
+export function useTheme(): ThemeConfig {
 	return useContext(ThemeContext);
 }

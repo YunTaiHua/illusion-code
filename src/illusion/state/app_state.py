@@ -13,7 +13,7 @@
 
 使用示例：
     >>> from illusion.state import AppState
-    >>> state = AppState(model="claude-3-5-sonnet-20241022", permission_mode="default", theme="default")
+    >>> state = AppState(model="claude-3-5-sonnet-20241022", permission_mode="default")
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ class AppState:
     Attributes:
         model: 当前使用的模型名称
         permission_mode: 权限模式 (default/plan/bypassPermissions 等)
-        theme: 当前主题名称
         ui_language: UI语言 (默认 zh-CN)
         cwd: 当前工作目录
         provider: API提供者名称
@@ -46,7 +45,6 @@ class AppState:
 
     model: str  # 模型名称
     permission_mode: str  # 权限模式
-    theme: str  # 主题名称
     ui_language: str = "zh-CN"  # UI语言
     cwd: str = "."  # 当前工作目录
     provider: str = "unknown"  # API提供者

@@ -48,9 +48,8 @@ const PERMISSION_PROMPT_OPTIONS: SelectOption[] = [
 ];
 
 export function App({config}: {config: FrontendConfig}): React.JSX.Element {
-	const initialTheme = String((config as Record<string, unknown>).theme ?? 'default');
 	return (
-		<ThemeProvider initialTheme={initialTheme}>
+		<ThemeProvider>
 			<AppInner config={config} />
 		</ThemeProvider>
 	);
@@ -58,7 +57,7 @@ export function App({config}: {config: FrontendConfig}): React.JSX.Element {
 
 function AppInner({config}: {config: FrontendConfig}): React.JSX.Element {
 	const {exit} = useApp();
-	const {theme, setThemeName} = useTheme();
+	const theme = useTheme();
 	const [input, setInput] = useState('');
 	const [modalInput, setModalInput] = useState('');
 	const [scriptIndex, setScriptIndex] = useState(0);

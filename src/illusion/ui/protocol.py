@@ -322,7 +322,6 @@ def _state_payload(state: AppState) -> dict[str, Any]:
         "auth_status": state.auth_status,
         "base_url": state.base_url,
         "permission_mode": _format_permission_mode(state.permission_mode),
-        "theme": state.theme,
         "ui_language": state.ui_language,
         "fast_mode": state.fast_mode,
         "effort": state.effort,

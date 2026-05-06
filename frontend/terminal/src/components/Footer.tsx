@@ -4,7 +4,7 @@ import {Box, Text} from 'ink';
 import {useTheme} from '../theme/ThemeContext.js';
 
 export function Footer({status, taskCount}: {status: Record<string, unknown>; taskCount: number}): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	return (
 		<Box marginTop={1} borderStyle="single" borderColor={theme.colors.muted} paddingX={1}>

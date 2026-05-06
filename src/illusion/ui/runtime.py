@@ -237,7 +237,6 @@ async def build_runtime(
         AppState(
             model=settings.model,
             permission_mode=settings.permission.mode.value,
-            theme=settings.theme,
             ui_language=settings.ui_language,
             cwd=cwd,
             provider=provider.name,
@@ -433,7 +432,6 @@ def sync_app_state(bundle: RuntimeBundle) -> None:
     bundle.app_state.set(
         model=settings.model,
         permission_mode=settings.permission.mode.value,
-        theme=settings.theme,
         ui_language=settings.ui_language,
         cwd=bundle.cwd,
         provider=provider.name,

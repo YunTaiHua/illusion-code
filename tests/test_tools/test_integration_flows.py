@@ -108,13 +108,13 @@ async def test_skill_and_config_flow_across_registry(tmp_path: Path, monkeypatch
     skill = registry.get("skill")
 
     set_result = await config.execute(
-        config.input_model(action="set", key="theme", value="night-owl"),
+        config.input_model(action="set", key="ui_language", value="en"),
         context,
     )
-    assert set_result.output == "Updated theme"
+    assert set_result.output == "Updated ui_language"
 
     show_result = await config.execute(config.input_model(action="show"), context)
-    assert "night-owl" in show_result.output
+    assert "en" in show_result.output
 
     skill_result = await skill.execute(skill.input_model(name="Pytest"), context)
     assert "fixtures" in skill_result.output

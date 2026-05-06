@@ -17,7 +17,7 @@ export function Composer({
 	onSubmit: (value: string) => void;
 	historyIndex: number;
 }): React.JSX.Element {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	return (
 		<Box flexDirection="column" marginTop={1}>

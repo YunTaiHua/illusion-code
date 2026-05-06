@@ -13,7 +13,7 @@ export function CommandPicker({
 	selectedIndex: number;
 	totalCommands?: number;
 }): React.JSX.Element | null {
-	const {theme} = useTheme();
+	const theme = useTheme();
 
 	if (hints.length === 0) {
 		return null;
